@@ -1,0 +1,71 @@
+{
+  "stac_version": "1.0.0",
+  "type": "Feature",
+  "id": "SOI_52F_1",
+  "collection": "survey-of-india-50k",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          77,
+          34.75
+        ],
+        [
+          77.25,
+          34.75
+        ],
+        [
+          77.25,
+          35
+        ],
+        [
+          77,
+          35
+        ],
+        [
+          77,
+          34.75
+        ]
+      ]
+    ]
+  },
+  "bbox": [
+    77.0,
+    34.75,
+    77.25,
+    35.0
+  ],
+  "properties": {
+    "datetime": "2024-01-01T00:00:00Z"
+  },
+  "assets": {
+    "georef_tif": {
+      "href": "/home/himalaya/Desktop/divakar/test/Batch_TopoSheet_Harvest_50/2024/01/SOI_52F_1/SOI_52F_1_georef_tif.tif",
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "file:size": 4528998
+    },
+    "SOI_52F_10_georef_tif": {
+      "href": "/home/himalaya/Desktop/divakar/test/Batch_TopoSheet_Harvest_50/2024/01/SOI_52F_10/SOI_52F_10_georef_tif.tif",
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "file:size": 5682544
+    },
+    "SOI_52F_11_georef_tif": {
+      "href": "/home/himalaya/Desktop/divakar/test/Batch_TopoSheet_Harvest_50/2024/01/SOI_52F_11/SOI_52F_11_georef_tif.tif",
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "file:size": 5236978
+    }
+  },
+  "links": [
+    {
+      "rel": "root",
+      "href": "../../../catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "../collection.json",
+      "type": "application/json"
+    }
+  ]
+}

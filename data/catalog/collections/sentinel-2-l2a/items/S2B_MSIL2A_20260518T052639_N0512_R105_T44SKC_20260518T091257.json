@@ -1,0 +1,96 @@
+{
+  "stac_version": "1.0.0",
+  "type": "Feature",
+  "id": "S2B_MSIL2A_20260518T052639_N0512_R105_T44SKC_20260518T091257",
+  "collection": "sentinel-2-l2a",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          77.7404037170045,
+          34.298265661226324
+        ],
+        [
+          77.77771680386515,
+          33.30954556355818
+        ],
+        [
+          78.95615279555024,
+          33.33454033965586
+        ],
+        [
+          78.93245526519478,
+          34.32420585237197
+        ],
+        [
+          77.7404037170045,
+          34.298265661226324
+        ]
+      ]
+    ]
+  },
+  "bbox": [
+    77.7404037170045,
+    33.30954556355818,
+    78.95615279555024,
+    34.32420585237197
+  ],
+  "properties": {
+    "datetime": "2026-05-18T05:26:39.024000Z"
+  },
+  "assets": {
+    "blue": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/sentinel-2-l2a/S2B_MSIL2A_20260518T052639_N0512_R105_T44SKC_20260518T091257/S2B_MSIL2A_20260518T052639_N0512_R105_T44SKC_20260518T091257_blue.jp2",
+      "type": "image/jpeg",
+      "file:size": 134963151
+    },
+    "green": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/sentinel-2-l2a/S2B_MSIL2A_20260518T052639_N0512_R105_T44SKC_20260518T091257/S2B_MSIL2A_20260518T052639_N0512_R105_T44SKC_20260518T091257_green.jp2",
+      "type": "image/jpeg",
+      "file:size": 135385212
+    },
+    "red": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/sentinel-2-l2a/S2B_MSIL2A_20260518T052639_N0512_R105_T44SKC_20260518T091257/S2B_MSIL2A_20260518T052639_N0512_R105_T44SKC_20260518T091257_red.jp2",
+      "type": "image/jpeg",
+      "file:size": 135555060
+    },
+    "nir": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/sentinel-2-l2a/S2B_MSIL2A_20260518T052639_N0512_R105_T44SKC_20260518T091257/S2B_MSIL2A_20260518T052639_N0512_R105_T44SKC_20260518T091257_nir.jp2",
+      "type": "image/jpeg",
+      "file:size": 135005707
+    },
+    "TCI_10m": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/sentinel-2-l2a/S2B_MSIL2A_20260518T052639_N0512_R105_T44SKC_20260518T091257/S2B_MSIL2A_20260518T052639_N0512_R105_T44SKC_20260518T091257_TCI_10m.jp2",
+      "type": "image/jpeg",
+      "file:size": 135078641
+    },
+    "visual": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/sentinel-2-l2a/S2B_MSIL2A_20260518T052639_N0512_R105_T44SKC_20260518T091257/S2B_MSIL2A_20260518T052639_N0512_R105_T44SKC_20260518T091257_visual.jp2",
+      "type": "image/jpeg",
+      "file:size": 135078641
+    },
+    "TCI_20m": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/sentinel-2-l2a/S2B_MSIL2A_20260518T052639_N0512_R105_T44SKC_20260518T091257/S2B_MSIL2A_20260518T052639_N0512_R105_T44SKC_20260518T091257_TCI_20m.jp2",
+      "type": "image/jpeg",
+      "file:size": 33817526
+    },
+    "TCI_60m": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/sentinel-2-l2a/S2B_MSIL2A_20260518T052639_N0512_R105_T44SKC_20260518T091257/S2B_MSIL2A_20260518T052639_N0512_R105_T44SKC_20260518T091257_TCI_60m.jp2",
+      "type": "image/jpeg",
+      "file:size": 3773164
+    }
+  },
+  "links": [
+    {
+      "rel": "root",
+      "href": "../../../catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "../collection.json",
+      "type": "application/json"
+    }
+  ]
+}

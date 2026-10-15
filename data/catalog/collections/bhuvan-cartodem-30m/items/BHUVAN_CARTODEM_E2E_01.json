@@ -1,0 +1,38 @@
+{
+  "stac_version": "1.0.0",
+  "type": "Feature",
+  "id": "BHUVAN_CARTODEM_E2E_01",
+  "collection": "bhuvan-cartodem-30m",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": []
+  },
+  "bbox": [
+    77.0,
+    34.0,
+    78.0,
+    35.0
+  ],
+  "properties": {
+    "datetime": "2024-01-01T00:00:00Z"
+  },
+  "assets": {
+    "cartodem": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/E2E_Bhuvan_Harvest/2024/01/BHUVAN_CARTODEM_E2E_01/BHUVAN_CARTODEM_E2E_01_cartodem.tif",
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "file:size": 24
+    }
+  },
+  "links": [
+    {
+      "rel": "root",
+      "href": "../../../catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "../collection.json",
+      "type": "application/json"
+    }
+  ]
+}

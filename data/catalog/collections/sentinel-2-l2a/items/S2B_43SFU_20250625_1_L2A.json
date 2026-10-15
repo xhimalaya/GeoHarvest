@@ -1,0 +1,81 @@
+{
+  "stac_version": "1.0.0",
+  "type": "Feature",
+  "id": "S2B_43SFU_20250625_1_L2A",
+  "collection": "sentinel-2-l2a",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          77.29605021836471,
+          34.89744951729281
+        ],
+        [
+          76.09802303788808,
+          35.161691206344955
+        ],
+        [
+          76.08601709511936,
+          34.24812007424131
+        ],
+        [
+          77.27781802250206,
+          34.23176656016562
+        ],
+        [
+          77.29605021836471,
+          34.89744951729281
+        ]
+      ]
+    ]
+  },
+  "bbox": [
+    76.086017,
+    34.231767,
+    77.29605,
+    35.161691
+  ],
+  "properties": {
+    "datetime": "2025-06-25T05:49:24.302000Z"
+  },
+  "assets": {
+    "blue": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/sentinel-2-l2a/S2B_43SFU_20250625_1_L2A/S2B_43SFU_20250625_1_L2A_blue.tif",
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "file:size": 181741637
+    },
+    "green": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/sentinel-2-l2a/S2B_43SFU_20250625_1_L2A/S2B_43SFU_20250625_1_L2A_green.tif",
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "file:size": 181202749
+    },
+    "nir": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/sentinel-2-l2a/S2B_43SFU_20250625_1_L2A/S2B_43SFU_20250625_1_L2A_nir.tif",
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "file:size": 179623984
+    },
+    "red": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/sentinel-2-l2a/S2B_43SFU_20250625_1_L2A/S2B_43SFU_20250625_1_L2A_red.tif",
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "file:size": 181407246
+    },
+    "visual": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/sentinel-2-l2a/S2B_43SFU_20250625_1_L2A/S2B_43SFU_20250625_1_L2A_visual.tif",
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "file:size": 233607675
+    }
+  },
+  "links": [
+    {
+      "rel": "root",
+      "href": "../../../catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "../collection.json",
+      "type": "application/json"
+    }
+  ]
+}

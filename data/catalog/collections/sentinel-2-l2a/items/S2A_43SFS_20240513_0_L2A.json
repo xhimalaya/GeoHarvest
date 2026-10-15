@@ -1,0 +1,86 @@
+{
+  "stac_version": "1.0.0",
+  "type": "Feature",
+  "id": "S2A_43SFS_20240513_0_L2A",
+  "collection": "sentinel-2-l2a",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          76.65739409498167,
+          33.42849053243409
+        ],
+        [
+          76.62966862361608,
+          33.31667179989018
+        ],
+        [
+          76.59844734752106,
+          33.209175969713534
+        ],
+        [
+          76.49118706584319,
+          32.80107667095895
+        ],
+        [
+          76.43042449888279,
+          32.58079310988711
+        ],
+        [
+          76.40790479149561,
+          32.50345674162422
+        ],
+        [
+          76.38744051072139,
+          32.44149494045766
+        ],
+        [
+          77.23136547331065,
+          32.429368363841725
+        ],
+        [
+          77.25635743875688,
+          33.419037889924304
+        ],
+        [
+          76.65739409498167,
+          33.42849053243409
+        ]
+      ]
+    ]
+  },
+  "bbox": [
+    76.38744051072139,
+    32.429368363841725,
+    77.25635743875688,
+    33.42849053243409
+  ],
+  "properties": {
+    "datetime": "2024-05-13T05:39:56.740000Z"
+  },
+  "assets": {
+    "red": {
+      "href": "/home/himalaya/Desktop/divakar/test/AWS_Sentinel2_Ladakh/2024/05/S2A_43SFS_20240513_0_L2A/S2A_43SFS_20240513_0_L2A_red.tif",
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "file:size": 142122557
+    },
+    "thumbnail": {
+      "href": "/home/himalaya/Desktop/divakar/test/AWS_Sentinel2_Ladakh/2024/05/S2A_43SFS_20240513_0_L2A/S2A_43SFS_20240513_0_L2A_thumbnail.jpg",
+      "type": "image/jpeg",
+      "file:size": 72056
+    }
+  },
+  "links": [
+    {
+      "rel": "root",
+      "href": "../../../catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "../collection.json",
+      "type": "application/json"
+    }
+  ]
+}

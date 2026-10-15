@@ -1,0 +1,28 @@
+{
+  "stac_version": "1.0.0",
+  "id": "geoharvest-local-catalog",
+  "title": "GeoHarvest Local STAC Catalog",
+  "description": "Locally harvested satellite and earth observation data",
+  "links": [
+    {
+      "rel": "self",
+      "href": "./catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./collections/sentinel-2-l2a/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./collections/bhuvan-cartodem-30m/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./collections/survey-of-india-50k/collection.json",
+      "type": "application/json"
+    }
+  ]
+}

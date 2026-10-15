@@ -1,0 +1,77 @@
+{
+  "stac_version": "1.0.0",
+  "type": "Feature",
+  "id": "S2B_44SKD_20250625_1_L2A",
+  "collection": "sentinel-2-l2a",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          77.72947093232597,
+          34.579303295103514
+        ],
+        [
+          77.7896973456468,
+          34.77920598862441
+        ],
+        [
+          77.72089971312221,
+          34.79671918287863
+        ],
+        [
+          77.72947093232597,
+          34.579303295103514
+        ]
+      ]
+    ]
+  },
+  "bbox": [
+    77.7209,
+    34.579303,
+    77.789697,
+    34.796719
+  ],
+  "properties": {
+    "datetime": "2025-06-25T05:49:18.003000Z"
+  },
+  "assets": {
+    "blue": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/sentinel-2-l2a/S2B_44SKD_20250625_1_L2A/S2B_44SKD_20250625_1_L2A_blue.tif",
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "file:size": 1921866
+    },
+    "green": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/sentinel-2-l2a/S2B_44SKD_20250625_1_L2A/S2B_44SKD_20250625_1_L2A_green.tif",
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "file:size": 1903679
+    },
+    "nir": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/sentinel-2-l2a/S2B_44SKD_20250625_1_L2A/S2B_44SKD_20250625_1_L2A_nir.tif",
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "file:size": 1876894
+    },
+    "red": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/sentinel-2-l2a/S2B_44SKD_20250625_1_L2A/S2B_44SKD_20250625_1_L2A_red.tif",
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "file:size": 1887972
+    },
+    "visual": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/sentinel-2-l2a/S2B_44SKD_20250625_1_L2A/S2B_44SKD_20250625_1_L2A_visual.tif",
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "file:size": 1264254
+    }
+  },
+  "links": [
+    {
+      "rel": "root",
+      "href": "../../../catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "../collection.json",
+      "type": "application/json"
+    }
+  ]
+}

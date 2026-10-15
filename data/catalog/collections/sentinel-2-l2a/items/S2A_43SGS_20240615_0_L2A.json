@@ -1,0 +1,65 @@
+{
+  "stac_version": "1.0.0",
+  "type": "Feature",
+  "id": "S2A_43SGS_20240615_0_L2A",
+  "collection": "sentinel-2-l2a",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          77.15061771627865,
+          33.42091701625366
+        ],
+        [
+          77.13273881513068,
+          32.68271831391053
+        ],
+        [
+          77.14183209330166,
+          32.70723148564529
+        ],
+        [
+          77.1664976075607,
+          32.799712695610516
+        ],
+        [
+          77.35573602371856,
+          33.417189571835685
+        ],
+        [
+          77.15061771627865,
+          33.42091701625366
+        ]
+      ]
+    ]
+  },
+  "bbox": [
+    77.13273881513068,
+    32.68271831391053,
+    77.35573602371856,
+    33.42091701625366
+  ],
+  "properties": {
+    "datetime": "2024-06-15T05:49:48.756000Z"
+  },
+  "assets": {
+    "thumbnail": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/E2E_Acceptance_Test_Job/2024/06/S2A_43SGS_20240615_0_L2A/S2A_43SGS_20240615_0_L2A_thumbnail.jpg",
+      "type": "image/jpeg",
+      "file:size": 17851
+    }
+  },
+  "links": [
+    {
+      "rel": "root",
+      "href": "../../../catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "../collection.json",
+      "type": "application/json"
+    }
+  ]
+}

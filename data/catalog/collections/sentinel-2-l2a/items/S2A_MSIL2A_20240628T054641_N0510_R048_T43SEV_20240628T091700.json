@@ -1,0 +1,96 @@
+{
+  "stac_version": "1.0.0",
+  "type": "Feature",
+  "id": "S2A_MSIL2A_20240628T054641_N0510_R048_T43SEV_20240628T091700",
+  "collection": "sentinel-2-l2a",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          75.71262150852495,
+          36.14126774345911
+        ],
+        [
+          74.99977768505018,
+          36.144898413548596
+        ],
+        [
+          74.99978041129975,
+          35.15489003273751
+        ],
+        [
+          75.3984183483951,
+          35.15290768894442
+        ],
+        [
+          75.71262150852495,
+          36.14126774345911
+        ]
+      ]
+    ]
+  },
+  "bbox": [
+    74.99977768505018,
+    35.15290768894442,
+    75.71262150852496,
+    36.144898413548596
+  ],
+  "properties": {
+    "datetime": "2024-06-28T05:46:41.024000Z"
+  },
+  "assets": {
+    "blue": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/Ladakh_Cryo_S2/2024/06/S2A_MSIL2A_20240628T054641_N0510_R048_T43SEV_20240628T091700/S2A_MSIL2A_20240628T054641_N0510_R048_T43SEV_20240628T091700_blue.jp2",
+      "type": "image/jpeg",
+      "file:size": 69215168
+    },
+    "green": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/Ladakh_Cryo_S2/2024/06/S2A_MSIL2A_20240628T054641_N0510_R048_T43SEV_20240628T091700/S2A_MSIL2A_20240628T054641_N0510_R048_T43SEV_20240628T091700_green.jp2",
+      "type": "image/jpeg",
+      "file:size": 68964682
+    },
+    "red": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/Ladakh_Cryo_S2/2024/06/S2A_MSIL2A_20240628T054641_N0510_R048_T43SEV_20240628T091700/S2A_MSIL2A_20240628T054641_N0510_R048_T43SEV_20240628T091700_red.jp2",
+      "type": "image/jpeg",
+      "file:size": 68674367
+    },
+    "nir": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/Ladakh_Cryo_S2/2024/06/S2A_MSIL2A_20240628T054641_N0510_R048_T43SEV_20240628T091700/S2A_MSIL2A_20240628T054641_N0510_R048_T43SEV_20240628T091700_nir.jp2",
+      "type": "image/jpeg",
+      "file:size": 67782708
+    },
+    "TCI_10m": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/Ladakh_Cryo_S2/2024/06/S2A_MSIL2A_20240628T054641_N0510_R048_T43SEV_20240628T091700/S2A_MSIL2A_20240628T054641_N0510_R048_T43SEV_20240628T091700_TCI_10m.jp2",
+      "type": "image/jpeg",
+      "file:size": 76630396
+    },
+    "visual": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/Ladakh_Cryo_S2/2024/06/S2A_MSIL2A_20240628T054641_N0510_R048_T43SEV_20240628T091700/S2A_MSIL2A_20240628T054641_N0510_R048_T43SEV_20240628T091700_visual.jp2",
+      "type": "image/jpeg",
+      "file:size": 76630396
+    },
+    "TCI_20m": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/Ladakh_Cryo_S2/2024/06/S2A_MSIL2A_20240628T054641_N0510_R048_T43SEV_20240628T091700/S2A_MSIL2A_20240628T054641_N0510_R048_T43SEV_20240628T091700_TCI_20m.jp2",
+      "type": "image/jpeg",
+      "file:size": 20556783
+    },
+    "TCI_60m": {
+      "href": "/home/himalaya/Projects/GeoHarvest/data/downloads/Ladakh_Cryo_S2/2024/06/S2A_MSIL2A_20240628T054641_N0510_R048_T43SEV_20240628T091700/S2A_MSIL2A_20240628T054641_N0510_R048_T43SEV_20240628T091700_TCI_60m.jp2",
+      "type": "image/jpeg",
+      "file:size": 2535904
+    }
+  },
+  "links": [
+    {
+      "rel": "root",
+      "href": "../../../catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "../collection.json",
+      "type": "application/json"
+    }
+  ]
+}
