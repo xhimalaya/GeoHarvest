@@ -55,6 +55,10 @@ RUN mkdir -p data/downloads data/processed data/credentials
 # Copy compiled frontend from frontend-builder stage
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
+# Create non-root user (UID 1000) and grant ownership of /app
+RUN useradd -m -u 1000 -s /bin/bash geouser && \
+    chown -R geouser:geouser /app
+
 # Expose default application port
 EXPOSE 9009
 

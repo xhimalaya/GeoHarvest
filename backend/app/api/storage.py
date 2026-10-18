@@ -46,6 +46,9 @@ def get_allowed_roots() -> Dict[str, Path]:
         "aois": settings.aois_dir.resolve(),
         "data": settings.data_dir.resolve(),
     }
+    host_home = Path("/host_home")
+    if host_home.exists():
+        roots["host_home"] = host_home.resolve()
     return roots
 
 
@@ -418,14 +421,18 @@ async def browse_directories(
     parent_path = str(target_path.parent) if target_path.parent != target_path else None
 
     # Shortcuts
-    home_dir = Path.home()
+    host_home = Path("/host_home")
+    home_dir = host_home.resolve() if host_home.exists() else Path.home()
     default_dl = settings.downloads_dir.resolve()
     default_dl.mkdir(parents=True, exist_ok=True)
 
     shortcuts: List[DirectoryShortcut] = [
         DirectoryShortcut(name="GeoHarvest Default", path=str(default_dl), icon="download"),
-        DirectoryShortcut(name="Home", path=str(home_dir), icon="home"),
     ]
+    if host_home.exists():
+        shortcuts.append(DirectoryShortcut(name="Host Home", path=str(host_home), icon="home"))
+    else:
+        shortcuts.append(DirectoryShortcut(name="Home", path=str(home_dir), icon="home"))
 
     downloads_folder = home_dir / "Downloads"
     if downloads_folder.exists() and downloads_folder.is_dir():

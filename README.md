@@ -73,6 +73,13 @@ GeoHarvest is a modern desktop geospatial harvesting platform designed for earth
 
 You can launch the entire GeoHarvest platform (frontend, backend, SQLite database, and GDAL environment) using Docker Compose:
 
+> **File Saving on Local Computer:**  
+> All downloaded datasets and processed rasters are saved **directly to your local computer**, not inside the container:
+> - By default, files are written directly into `./data/downloads/` and `./data/processed/` on your host machine.
+> - The container runs under your local user (`UID:GID`), ensuring all files have standard read/write permissions on your desktop.
+> - The in-app Directory Picker allows selecting any folder in your local user home (`~/Downloads`, `~/Desktop`, etc.).
+> - You can also set `LOCAL_DOWNLOADS_DIR` in `.env` to point to any host folder or external storage drive.
+
 ```bash
 # 1. (Optional) Configure credentials in .env
 cp .env.example .env

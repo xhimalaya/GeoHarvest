@@ -5,6 +5,8 @@ services:
       dockerfile: Dockerfile
     container_name: geoharvest
     restart: unless-stopped
+    # Run as host user so all downloaded and processed files belong to your local user
+    user: "${UID:-1000}:${GID:-1000}"
     ports:
       - "9009:9009"
     environment:
@@ -14,13 +16,17 @@ services:
       - path: .env
         required: false
     volumes:
-      # Persistent satellite downloads (S2, Bhuvan, etc.)
-      - ./data/downloads:/app/data/downloads
-      # Persistent raster processing outputs
-      - ./data/processed:/app/data/processed
-      # User service credentials (EE keys, tokens)
+      # SATELLITE DOWNLOADS: saved directly into your local computer
+      # (Defaults to ./data/downloads; can be overridden via LOCAL_DOWNLOADS_DIR in .env)
+      - ${LOCAL_DOWNLOADS_DIR:-./data/downloads}:/app/data/downloads
+      # PROCESSED RASTER OUTPUTS: saved directly into your local computer
+      # (Defaults to ./data/processed; can be overridden via LOCAL_PROCESSED_DIR in .env)
+      - ${LOCAL_PROCESSED_DIR:-./data/processed}:/app/data/processed
+      # CREDENTIALS: saved on your local computer
       - ./data/credentials:/app/data/credentials
-      # User AOIs
+      # AOI GEOJSON FILES: saved on your local computer
       - ./data/aois:/app/data/aois
-      # Persistent SQLite job & metadata database
+      # SQLITE DATABASE & JOB HISTORY: saved on your local computer
       - ./data/geoharvest.db:/app/data/geoharvest.db
+      # HOST HOME MOUNT: allows the in-app Directory Picker to browse and save to your local computer's ~/Downloads, Desktop, etc.
+      - ${HOME:-/home/himalaya}:/host_home:rw
