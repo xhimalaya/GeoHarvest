@@ -1,0 +1,57 @@
+# Version control & git
+.git/
+.gitignore
+
+# Python virtual environments & caches
+venv/
+.venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node & Frontend dependencies/builds
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+.vite/
+
+# Large Datasets & Local Downloads
+data/downloads/*
+!data/downloads/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/test_hierarchy_dl/
+Archive.zip
+
+# Local SQLite databases & lock files
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+data/geoharvest.db*
+
+# Sensitive credentials & environment files
+.env
+.env.*
+!.env.example
+data/credentials/*
+!data/credentials/.gitkeep
+
+# Logs
+*.log
+geoharvest.log
+
+# IDE / OS metadata
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

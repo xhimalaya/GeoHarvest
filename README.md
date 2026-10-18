@@ -69,20 +69,58 @@ GeoHarvest is a modern desktop geospatial harvesting platform designed for earth
 
 ## Quickstart
 
-### Prerequisites
-- Python 3.12+ (managed with `uv`)
+### Running with Docker (Recommended)
+
+You can launch the entire GeoHarvest platform (frontend, backend, SQLite database, and GDAL environment) using Docker Compose:
+
+```bash
+# 1. (Optional) Configure credentials in .env
+cp .env.example .env
+
+# 2. Build and start the container
+docker compose up --build -d
+
+# 3. View live logs
+docker compose logs -f
+```
+
+The application will be live at **`http://localhost:9009`**.
+
+To stop the container:
+```bash
+docker compose down
+```
+
+#### Standalone Docker Run
+```bash
+# Build the image
+docker build -t geoharvest .
+
+# Run with host volume mounts
+docker run -d \
+  --name geoharvest \
+  -p 9009:9009 \
+  -v "$(pwd)/data:/app/data" \
+  --env-file .env \
+  geoharvest
+```
+
+### Local Development Setup
+
+#### Prerequisites
+- Python 3.11+ / 3.12+ (managed with `uv`)
 - Node.js 18+ (for frontend development)
 
-### Launching the Application
+#### Launching the Application Locally
 ```bash
-# Run the single desktop launcher
+# Run the desktop launcher
 ./geoharvest.py
 # or
 python3 geoharvest.py
 ```
 This automatically starts the FastAPI core engine on `http://127.0.0.1:9009` and opens your browser.
 
-### Running Automated Tests
+#### Running Automated Tests
 ```bash
 uv run pytest tests/ -v
 ```

@@ -1,0 +1,26 @@
+services:
+  geoharvest:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: geoharvest
+    restart: unless-stopped
+    ports:
+      - "9009:9009"
+    environment:
+      - GEOHARVEST_HOST=0.0.0.0
+      - GEOHARVEST_PORT=9009
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      # Persistent satellite downloads (S2, Bhuvan, etc.)
+      - ./data/downloads:/app/data/downloads
+      # Persistent raster processing outputs
+      - ./data/processed:/app/data/processed
+      # User service credentials (EE keys, tokens)
+      - ./data/credentials:/app/data/credentials
+      # User AOIs
+      - ./data/aois:/app/data/aois
+      # Persistent SQLite job & metadata database
+      - ./data/geoharvest.db:/app/data/geoharvest.db
