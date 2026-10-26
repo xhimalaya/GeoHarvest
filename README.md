@@ -71,7 +71,7 @@ GeoHarvest is a modern desktop geospatial harvesting platform designed for earth
 
 ### Running with Docker (Recommended)
 
-You can launch the entire GeoHarvest platform (frontend, backend, SQLite database, and GDAL environment) using Docker Compose:
+You can launch the entire GeoHarvest platform (frontend, backend, PostgreSQL database, and GDAL environment) using Docker Compose:
 
 > **File Saving on Local Computer:**  
 > All downloaded datasets and processed rasters are saved **directly to your local computer**, not inside the container:

@@ -3,14 +3,16 @@ from backend.app.dependencies.database import engine, SessionLocal
 from backend.app.models.models import Job, JobStatus
 
 
-def test_sqlite_wal_mode():
+def test_database_connection():
     with engine.connect() as conn:
-        result = conn.execute(text("PRAGMA journal_mode;")).scalar()
-        # Should be wal mode
-        assert str(result).lower() == "wal"
-
-        fk = conn.execute(text("PRAGMA foreign_keys;")).scalar()
-        assert fk == 1
+        if engine.dialect.name == "sqlite":
+            result = conn.execute(text("PRAGMA journal_mode;")).scalar()
+            assert str(result).lower() == "wal"
+            fk = conn.execute(text("PRAGMA foreign_keys;")).scalar()
+            assert fk == 1
+        elif engine.dialect.name == "postgresql":
+            result = conn.execute(text("SELECT 1;")).scalar()
+            assert result == 1
 
 
 def test_create_and_query_job(db_session):

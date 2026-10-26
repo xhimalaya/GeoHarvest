@@ -4,6 +4,7 @@ from sqlalchemy import (
     Column,
     String,
     Integer,
+    BigInteger,
     Float,
     Boolean,
     DateTime,
@@ -96,7 +97,7 @@ class Asset(Base):
     local_path = Column(Text, nullable=True)  # Local filesystem path once downloaded or processed
     asset_type = Column(String, default="remote")  # "remote", "local_raw", "local_processed", "derived"
     parent_asset_id = Column(String, ForeignKey("assets.id", ondelete="SET NULL"), nullable=True)
-    size = Column(Integer, nullable=True)  # in bytes
+    size = Column(BigInteger, nullable=True)  # in bytes
     checksum = Column(String, nullable=True)
     mime_type = Column(String, nullable=True)
     band = Column(String, nullable=True)
@@ -144,8 +145,8 @@ class Download(Base):
     job_id = Column(String, ForeignKey("jobs.id"), nullable=False)
     asset_id = Column(String, ForeignKey("assets.id"), nullable=True)
     destination = Column(Text, nullable=False)
-    total_bytes = Column(Integer, default=0)
-    downloaded_bytes = Column(Integer, default=0)
+    total_bytes = Column(BigInteger, default=0)
+    downloaded_bytes = Column(BigInteger, default=0)
     status = Column(Enum(DownloadStatus), default=DownloadStatus.PENDING, nullable=False)
     attempt_count = Column(Integer, default=0)
     max_attempts = Column(Integer, default=5)

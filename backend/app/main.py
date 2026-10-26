@@ -35,8 +35,8 @@ logger = logging.getLogger("geoharvest")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 1. Initialize SQLite schema with WAL mode
-    logger.info("Initializing GeoHarvest database with WAL mode...")
+    # 1. Initialize database schema
+    logger.info("Initializing GeoHarvest database schema...")
     init_db()
 
     # 2. Check and recover previous interrupted jobs

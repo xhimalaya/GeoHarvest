@@ -7,6 +7,9 @@ from fastapi.testclient import TestClient
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
+# Default test database to SQLite if no DATABASE_URL environment variable is provided
+os.environ.setdefault("DATABASE_URL", f"sqlite:///{ROOT_DIR / 'data' / 'test_geoharvest.db'}")
+
 from backend.app.dependencies.database import Base, engine, SessionLocal, init_db
 from backend.app.main import app
 

@@ -50,8 +50,9 @@ def main():
     url = f"http://{args.host}:{args.port}"
     print("=" * 60)
     print(f"       GeoHarvest v{settings.app_version} - Desktop Platform")
-    print("=" * 60)
-    print(f"[1/4] Initializing SQLite database (WAL mode) at: {settings.db_path}")
+    import re
+    safe_db_url = re.sub(r"://([^:]+):([^@]+)@", r"://\1:****@", settings.get_database_url)
+    print(f"[1/4] Initializing database at: {safe_db_url}")
     init_db()
 
     print("[2/4] Checking and recovering previous jobs...")

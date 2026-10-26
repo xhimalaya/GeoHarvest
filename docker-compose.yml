@@ -1,4 +1,23 @@
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: geoharvest-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-geouser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-geopass}
+      POSTGRES_DB: ${POSTGRES_DB:-geoharvest}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-geouser} -d ${POSTGRES_DB:-geoharvest}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
   geoharvest:
     build:
       context: .
@@ -12,9 +31,13 @@ services:
     environment:
       - GEOHARVEST_HOST=0.0.0.0
       - GEOHARVEST_PORT=9009
+      - GEOHARVEST_DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-geouser}:${POSTGRES_PASSWORD:-geopass}@db:5432/${POSTGRES_DB:-geoharvest}
     env_file:
       - path: .env
         required: false
+    depends_on:
+      db:
+        condition: service_healthy
     volumes:
       # SATELLITE DOWNLOADS: saved directly into your local computer
       # (Defaults to ./data/downloads; can be overridden via LOCAL_DOWNLOADS_DIR in .env)
@@ -26,7 +49,8 @@ services:
       - ./data/credentials:/app/data/credentials
       # AOI GEOJSON FILES: saved on your local computer
       - ./data/aois:/app/data/aois
-      # SQLITE DATABASE & JOB HISTORY: saved on your local computer
-      - ./data/geoharvest.db:/app/data/geoharvest.db
       # HOST HOME MOUNT: allows the in-app Directory Picker to browse and save to your local computer's ~/Downloads, Desktop, etc.
-      - ${HOME:-/home/himalaya}:/host_home:rw
+      - ${HOME:-/home/awadh}:/host_home:rw
+
+volumes:
+  postgres_data:

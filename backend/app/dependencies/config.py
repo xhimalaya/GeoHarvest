@@ -1,5 +1,6 @@
 from typing import Optional
 from pathlib import Path
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,6 +17,30 @@ class Settings(BaseSettings):
     catalog_dir: Path = data_dir / "catalog"
     aois_dir: Path = data_dir / "aois"
     db_path: Path = data_dir / "geoharvest.db"
+
+    # Database configuration
+    database_url: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("DATABASE_URL", "GEOHARVEST_DATABASE_URL")
+    )
+    postgres_user: str = "geouser"
+    postgres_password: str = "geopass"
+    postgres_host: str = "localhost"
+    postgres_port: int = 5432
+    postgres_db: str = "geoharvest"
+
+    @property
+    def get_database_url(self) -> str:
+        """Returns the active database URL, normalizing PostgreSQL drivers if needed."""
+        url = self.database_url
+        if not url:
+            return f"postgresql+psycopg2://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql+psycopg2://", 1)
+        elif url.startswith("postgresql://") and not url.startswith("postgresql+"):
+            url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
+        return url
     
     # Worker and engine limits
     max_download_workers: int = 6
