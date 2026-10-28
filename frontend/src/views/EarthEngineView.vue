@@ -1,116 +1,213 @@
 <template>
-  <div class="h-full w-full flex flex-col bg-slate-950 text-slate-100 overflow-hidden select-none">
-    <!-- Top Action & Status Bar -->
-    <header class="h-12 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 shrink-0 z-20">
+  <div class="h-full w-full flex flex-col bg-slate-950 text-slate-100 overflow-hidden select-none font-sans">
+    <!-- TOP TOOLBAR: Studio Header, Execution Mode, AOI, GEE Auth, Layout & Actions -->
+    <header class="h-12 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-3 shrink-0 z-20">
+      <!-- Left: Logo & Execution Mode Switcher -->
       <div class="flex items-center space-x-3">
-        <span class="text-xl">🌍</span>
-        <div>
-          <div class="flex items-center space-x-2">
-            <h1 class="text-xs font-bold uppercase tracking-wider text-slate-100">
-              Google Earth Engine
-            </h1>
-            <span class="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800/80 px-1.5 py-0.2 rounded font-mono font-semibold">
-              v1.7
-            </span>
+        <div class="flex items-center space-x-2">
+          <span class="text-xl">🪐</span>
+          <div>
+            <div class="flex items-center space-x-1.5">
+              <h1 class="text-xs font-bold uppercase tracking-wider text-slate-100">
+                Earth Engine Studio
+              </h1>
+              <span class="text-[9px] bg-emerald-950 text-emerald-400 border border-emerald-800/80 px-1 py-0.2 rounded font-mono font-semibold">
+                Jupyter Notebook
+              </span>
+            </div>
           </div>
-          <p class="text-[10px] text-slate-400">
-            Cloud-scale planetary analysis, live tile streaming & GeoTIFF harvesting
-          </p>
+        </div>
+
+        <div class="h-5 w-px bg-slate-800 mx-1"></div>
+
+        <!-- DUAL EXECUTION MODE SWITCHER -->
+        <div class="flex items-center bg-slate-950 border border-slate-750 p-0.5 rounded-lg text-xs">
+          <button
+            @click="setExecutionMode('gee')"
+            :class="[
+              'px-2.5 py-1 rounded-md font-semibold flex items-center space-x-1.5 transition-all cursor-pointer',
+              executionMode === 'gee'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+            ]"
+            title="Execute notebook cells on Google Earth Engine cloud infrastructure"
+          >
+            <span>⚡</span>
+            <span>GEE Cloud</span>
+          </button>
+          <button
+            @click="setExecutionMode('local')"
+            :class="[
+              'px-2.5 py-1 rounded-md font-semibold flex items-center space-x-1.5 transition-all cursor-pointer',
+              executionMode === 'local'
+                ? 'bg-sky-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+            ]"
+            title="Execute notebook cells locally on downloaded rasters (Rasterio, NumPy, GeoPandas)"
+          >
+            <span>💻</span>
+            <span>Local File Process</span>
+          </button>
         </div>
       </div>
 
-      <!-- Right: Status Badge & Authenticate Action Button -->
-      <div class="flex items-center space-x-2.5">
-        <!-- Live Connection Status Badge -->
-        <div
-          :class="[
-            'px-2.5 py-1 rounded-lg text-xs font-mono font-medium flex items-center space-x-1.5 border shadow-sm transition-all',
-            eeStatus.initialized
-              ? 'bg-emerald-950/80 border-emerald-700/80 text-emerald-300'
-              : eeStatus.is_authenticated
-                ? 'bg-amber-950/80 border-amber-700/80 text-amber-300'
-                : 'bg-rose-950/80 border-rose-800/80 text-rose-300'
-          ]"
-        >
-          <span
-            :class="[
-              'w-2 h-2 rounded-full',
-              eeStatus.initialized ? 'bg-emerald-400 animate-pulse' : eeStatus.is_authenticated ? 'bg-amber-400' : 'bg-rose-400'
-            ]"
-          ></span>
-          <span>
-            {{
-              eeStatus.initialized
-                ? `Connected (${eeStatus.project_id || 'Active'})`
-                : eeStatus.is_authenticated
-                  ? 'Project ID Required'
-                  : 'Not Authenticated'
-            }}
-          </span>
-        </div>
-
-        <!-- GEE Authenticate Trigger Button -->
+      <!-- Center: Loaded GeoJSON AOI Indicator & Action -->
+      <div class="flex items-center space-x-2">
         <button
-          @click="openAuthModal"
-          class="px-3 py-1.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-md shadow-amber-950/60 flex items-center space-x-1.5 transition-all cursor-pointer"
+          @click="showAoiModal = true"
+          :class="[
+            'px-2.5 py-1 rounded-lg text-xs font-medium border flex items-center space-x-1.5 transition-all cursor-pointer',
+            hasAoi
+              ? 'bg-sky-950/80 border-sky-600/80 text-sky-200 hover:bg-sky-900/60'
+              : 'bg-slate-950/80 border-slate-750 text-slate-400 hover:text-slate-200 hover:border-slate-600'
+          ]"
+          title="Manage or load study area GeoJSON"
         >
-          <span>⚡</span>
-          <span>GEE Authenticate</span>
+          <span :class="['w-2 h-2 rounded-full', hasAoi ? 'bg-sky-400 animate-pulse' : 'bg-slate-500']"></span>
+          <span class="max-w-[180px] truncate font-mono">
+            {{ activeAoiName ? activeAoiName : 'Load GeoJSON AOI' }}
+          </span>
+          <span v-if="activeAoiArea" class="text-[10px] text-sky-400 font-mono">
+            ({{ activeAoiArea.toFixed(1) }} km²)
+          </span>
+          <span class="text-[10px] text-slate-400">▼</span>
         </button>
 
         <button
-          @click="fetchStatus"
-          class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition-colors cursor-pointer"
-          title="Refresh connection status"
+          v-if="hasAoi"
+          @click="clearActiveAoi"
+          class="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-slate-800 transition-colors cursor-pointer"
+          title="Clear loaded AOI"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          ✕
+        </button>
+      </div>
+
+      <!-- Right: View Modes, GEE Auth & Run Actions -->
+      <div class="flex items-center space-x-2">
+        <!-- Layout View Selector -->
+        <div class="flex items-center bg-slate-950 border border-slate-800 p-0.5 rounded-lg text-[11px]">
+          <button
+            @click="layoutMode = 'split'"
+            :class="[
+              'px-2 py-0.5 rounded font-medium transition-colors cursor-pointer flex items-center space-x-1',
+              layoutMode === 'split' ? 'bg-slate-800 text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+            ]"
+            title="Side-by-side split view (Notebook on left, Map & Data on right)"
+          >
+            <span>◫</span>
+            <span>Split</span>
+          </button>
+          <button
+            @click="layoutMode = 'notebook'"
+            :class="[
+              'px-2 py-0.5 rounded font-medium transition-colors cursor-pointer flex items-center space-x-1',
+              layoutMode === 'notebook' ? 'bg-slate-800 text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+            ]"
+            title="Notebook full-width view"
+          >
+            <span>📓</span>
+            <span>Notebook</span>
+          </button>
+          <button
+            @click="layoutMode = 'map'"
+            :class="[
+              'px-2 py-0.5 rounded font-medium transition-colors cursor-pointer flex items-center space-x-1',
+              layoutMode === 'map' ? 'bg-slate-800 text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+            ]"
+            title="Map & Data inspector view"
+          >
+            <span>🗺️</span>
+            <span>Map & Data</span>
+          </button>
+        </div>
+
+        <div class="h-4 w-px bg-slate-800"></div>
+
+        <!-- GEE Auth Badge -->
+        <button
+          @click="openAuthModal"
+          :class="[
+            'px-2 py-1 rounded-lg text-[11px] font-mono flex items-center space-x-1.5 border transition-all cursor-pointer',
+            eeStatus.initialized
+              ? 'bg-emerald-950/60 border-emerald-800/80 text-emerald-300 hover:border-emerald-600'
+              : 'bg-amber-950/60 border-amber-800/80 text-amber-300 hover:border-amber-600'
+          ]"
+          title="Click to configure Earth Engine authentication"
+        >
+          <span :class="['w-1.5 h-1.5 rounded-full', eeStatus.initialized ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse']"></span>
+          <span class="truncate max-w-[130px]">
+            {{ eeStatus.initialized ? (eeStatus.project_id || 'Connected') : 'Auth GEE' }}
+          </span>
+        </button>
+
+        <!-- RUN ALL CELLS BUTTON -->
+        <button
+          @click="runAllCells"
+          :disabled="isKernelBusy"
+          :class="[
+            'px-3 py-1 text-xs font-bold rounded-lg shadow-md flex items-center space-x-1.5 transition-all cursor-pointer disabled:opacity-50',
+            executionMode === 'gee'
+              ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950'
+              : 'bg-sky-600 hover:bg-sky-500 text-white shadow-sky-950'
+          ]"
+          title="Run all notebook cells from top to bottom"
+        >
+          <svg v-if="isKernelBusy" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
           </svg>
+          <span v-else>▶▶</span>
+          <span>{{ isKernelBusy ? 'Executing...' : 'Run All' }}</span>
         </button>
       </div>
     </header>
 
-    <!-- Main Content Area -->
+    <!-- MAIN STUDIO BODY -->
     <div class="flex-1 flex overflow-hidden relative">
-      <!-- LEFT SIDEBAR: Catalog & Query Parameters (380px) -->
-      <aside class="w-[380px] bg-slate-900/95 border-r border-slate-800 flex flex-col h-full shrink-0 z-10 shadow-2xl">
-        <!-- Sidebar Navigation Mode Tabs -->
+      <!-- ================= LEFT SIDEBAR: Catalog, Themes, Snippets & Files ================= -->
+      <aside class="w-80 bg-slate-900 border-r border-slate-800 flex flex-col h-full shrink-0 z-10 shadow-xl">
+        <!-- Sidebar Navigation Tabs -->
         <div class="p-2 border-b border-slate-800 bg-slate-950/80 flex items-center justify-between text-xs">
           <div class="flex items-center space-x-1">
             <button
-              @click="sidebarView = 'catalog'"
+              @click="sidebarTab = 'catalog'"
               :class="[
                 'px-2.5 py-1 rounded font-semibold transition-colors cursor-pointer',
-                sidebarView === 'catalog' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                sidebarTab === 'catalog' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-slate-200'
               ]"
             >
-              Datasets
+              Satellites & Themes
             </button>
             <button
-              @click="sidebarView = 'controls'"
-              :disabled="!selectedDataset"
+              @click="sidebarTab = 'snippets'"
               :class="[
-                'px-2.5 py-1 rounded font-semibold transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed',
-                sidebarView === 'controls' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                'px-2.5 py-1 rounded font-semibold transition-colors cursor-pointer',
+                sidebarTab === 'snippets' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-slate-200'
               ]"
             >
-              Query & Vis
+              Snippets
+            </button>
+            <button
+              @click="sidebarTab = 'files'; loadLocalFiles()"
+              :class="[
+                'px-2.5 py-1 rounded font-semibold transition-colors cursor-pointer',
+                sidebarTab === 'files' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'
+              ]"
+            >
+              Local Files
             </button>
           </div>
-
-          <span v-if="selectedDataset" class="text-[10px] font-mono text-emerald-400 truncate max-w-[150px]">
-            {{ selectedDataset.id.split('/').pop() }}
-          </span>
         </div>
 
-        <!-- 1. DATASET CATALOG BROWSER -->
-        <div v-if="sidebarView === 'catalog'" class="flex-1 flex flex-col overflow-hidden p-3 space-y-3">
+        <!-- 1. SATELLITES & THEMES CATALOG -->
+        <div v-if="sidebarTab === 'catalog'" class="flex-1 flex flex-col overflow-hidden p-2.5 space-y-2">
           <!-- Category Filter Pills -->
           <div class="flex items-center space-x-1 overflow-x-auto pb-1 scrollbar-none text-[11px]">
             <button
               v-for="cat in categories"
               :key="cat.id"
-              @click="activeCategory = cat.id; loadDatasets()"
+              @click="activeCategory = cat.id; loadCatalogDatasets()"
               :class="[
                 'px-2 py-0.5 rounded-full whitespace-nowrap font-medium transition-colors cursor-pointer',
                 activeCategory === cat.id
@@ -125,32 +222,24 @@
           <!-- Search Input -->
           <div class="relative">
             <input
-              v-model="searchQuery"
-              @input="loadDatasets"
+              v-model="catalogSearchQuery"
+              @input="loadCatalogDatasets"
               type="text"
-              placeholder="Search datasets, sensors, DEM..."
-              class="w-full bg-slate-950 border border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-emerald-500 font-mono"
+              placeholder="Search satellites, DEM, land cover..."
+              class="w-full bg-slate-950 border border-slate-750 rounded-lg pl-7 pr-3 py-1 text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-emerald-500 font-mono"
             />
-            <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+            <span class="text-slate-500 absolute left-2 top-1.5 text-xs">🔍</span>
           </div>
 
-          <!-- Dataset Cards List -->
+          <!-- Catalog List -->
           <div class="flex-1 overflow-y-auto space-y-2 pr-0.5 scrollbar-thin scrollbar-thumb-slate-700">
             <div
-              v-for="ds in datasets"
+              v-for="ds in catalogDatasets"
               :key="ds.id"
-              @click="selectDataset(ds)"
-              :class="[
-                'p-2.5 rounded-xl border transition-all cursor-pointer text-xs space-y-1.5',
-                selectedDataset?.id === ds.id
-                  ? 'bg-emerald-950/40 border-emerald-500 ring-1 ring-emerald-500/50 shadow-lg'
-                  : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 hover:bg-slate-950'
-              ]"
+              class="p-2.5 rounded-xl border bg-slate-950/60 border-slate-800 hover:border-slate-700 hover:bg-slate-950 transition-all text-xs space-y-1.5"
             >
               <div class="flex items-center justify-between">
-                <span class="text-[9px] font-mono uppercase font-bold px-1.5 py-0.2 rounded bg-slate-900 border border-slate-700 text-slate-300">
+                <span class="text-[9px] font-mono uppercase font-bold px-1.5 py-0.2 rounded bg-slate-900 border border-slate-750 text-slate-300">
                   {{ ds.category }}
                 </span>
                 <span class="text-[10px] font-mono text-emerald-400 font-bold">
@@ -166,382 +255,821 @@
                 {{ ds.description }}
               </p>
 
-              <div class="flex items-center justify-between text-[9px] font-mono text-slate-500 pt-1 border-t border-slate-800/80">
-                <span>{{ ds.provider }}</span>
-                <span>{{ ds.temporal_range }}</span>
+              <div class="flex items-center justify-between pt-1 border-t border-slate-800/80">
+                <span class="text-[9px] font-mono text-slate-500 truncate max-w-[140px]">
+                  {{ ds.provider }}
+                </span>
+                <div class="flex items-center space-x-1.5">
+                  <button
+                    @click="insertDatasetCodeAsCell(ds.id)"
+                    class="px-2 py-0.5 bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/40 hover:border-emerald-500 text-emerald-300 hover:text-white rounded text-[10px] font-bold transition-all cursor-pointer flex items-center space-x-1"
+                    title="Insert dataset starter code as a new notebook cell"
+                  >
+                    <span>+</span>
+                    <span>Insert Cell</span>
+                  </button>
+                </div>
               </div>
             </div>
+          </div>
+        </div>
 
-            <!-- Custom Asset ID Box -->
-            <div class="p-2.5 bg-slate-950/40 border border-dashed border-slate-700 rounded-xl space-y-2 text-xs">
-              <div class="flex items-center space-x-1 text-slate-300 font-semibold text-[11px]">
-                <span>🔍</span>
-                <span>Custom Asset / Collection ID</span>
-              </div>
-              <div class="flex items-center space-x-1.5">
-                <input
-                  v-model="customAssetId"
-                  type="text"
-                  placeholder="e.g. users/username/asset_id"
-                  class="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-[11px] font-mono text-slate-200 outline-none"
-                />
+        <!-- 2. THEMATIC SNIPPETS -->
+        <div v-else-if="sidebarTab === 'snippets'" class="flex-1 flex flex-col overflow-hidden p-2.5 space-y-2">
+          <div class="text-[11px] text-slate-400">
+            Click any curated algorithm snippet to insert it as a new cell in your Jupyter notebook:
+          </div>
+          <div class="flex-1 overflow-y-auto space-y-2 pr-0.5 scrollbar-thin scrollbar-thumb-slate-700">
+            <div
+              v-for="snip in curatedSnippets"
+              :key="snip.id"
+              class="p-2.5 rounded-xl border bg-slate-950/60 border-slate-800 hover:border-slate-700 hover:bg-slate-950 transition-all text-xs space-y-1.5"
+            >
+              <div class="flex items-center justify-between">
+                <span :class="[
+                  'text-[9px] font-mono uppercase font-bold px-1.5 py-0.2 rounded border',
+                  snip.mode === 'gee' ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-sky-950 text-sky-400 border-sky-800'
+                ]">
+                  {{ snip.mode === 'gee' ? 'GEE Cloud' : 'Local File' }}
+                </span>
                 <button
-                  @click="loadCustomAsset"
-                  class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold rounded cursor-pointer"
+                  @click="insertSnippetCodeAsCell(snip)"
+                  class="px-2 py-0.5 bg-slate-800 hover:bg-emerald-600 text-slate-200 hover:text-white rounded text-[10px] font-bold transition-all cursor-pointer"
                 >
-                  Load
+                  + Add Cell
+                </button>
+              </div>
+
+              <h4 class="font-bold text-slate-200 text-[11px]">
+                {{ snip.title }}
+              </h4>
+              <p class="text-[10px] text-slate-400 leading-relaxed">
+                {{ snip.description }}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. AVAILABLE LOCAL FILES -->
+        <div v-else class="flex-1 flex flex-col overflow-hidden p-2.5 space-y-2">
+          <div class="flex items-center justify-between text-[11px]">
+            <span class="text-slate-400">Downloaded Rasters & AOIs:</span>
+            <button @click="loadLocalFiles" class="text-sky-400 hover:underline cursor-pointer text-[10px]">
+              Refresh
+            </button>
+          </div>
+
+          <div class="flex-1 overflow-y-auto space-y-1.5 pr-0.5 scrollbar-thin scrollbar-thumb-slate-700">
+            <div v-if="localFilesList.length === 0" class="p-3 text-center text-slate-500 text-xs">
+              No downloaded rasters found in ./data/downloads or ./data/processed.
+            </div>
+            <div
+              v-for="f in localFilesList"
+              :key="f.absolute_path"
+              class="p-2 rounded-lg bg-slate-950/80 border border-slate-800 text-xs space-y-1"
+            >
+              <div class="flex items-center justify-between">
+                <span class="font-mono text-[11px] text-slate-200 truncate max-w-[170px]" :title="f.name">
+                  {{ f.name }}
+                </span>
+                <span class="text-[9px] font-mono text-slate-500">
+                  {{ formatBytes(f.size_bytes) }}
+                </span>
+              </div>
+              <div class="flex items-center justify-between pt-1 text-[10px]">
+                <span class="text-slate-500 font-mono">{{ f.root }}</span>
+                <button
+                  @click="insertFilePathIntoActiveCell(f.absolute_path)"
+                  class="text-sky-400 hover:text-sky-300 font-semibold cursor-pointer"
+                >
+                  + Insert Path
                 </button>
               </div>
             </div>
           </div>
         </div>
-
-        <!-- 2. DATASET QUERY & VISUALIZATION CONTROLS -->
-        <div v-else class="flex-1 overflow-y-auto p-3 space-y-3.5 text-xs">
-          <!-- Active Dataset Header -->
-          <div class="bg-emerald-950/40 border border-emerald-800/80 rounded-xl p-2.5 space-y-1">
-            <div class="flex items-center justify-between">
-              <span class="text-[10px] font-mono text-emerald-400 uppercase font-bold">Active Dataset</span>
-              <button @click="sidebarView = 'catalog'" class="text-[10px] text-slate-400 hover:text-slate-200 underline cursor-pointer">
-                Change
-              </button>
-            </div>
-            <h3 class="font-bold text-slate-100 text-xs truncate">{{ selectedDataset?.name }}</h3>
-            <div class="text-[10px] font-mono text-slate-400 truncate">{{ selectedDataset?.id }}</div>
-          </div>
-
-          <!-- Date Range Picker -->
-          <div class="space-y-1.5 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">
-            <label class="block font-bold text-slate-300 uppercase tracking-wider text-[10px]">
-              Date Filtering Range
-            </label>
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <span class="text-[9px] text-slate-400 block mb-0.5">Start Date</span>
-                <input
-                  v-model="queryDateStart"
-                  type="date"
-                  class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-[11px] text-slate-200 outline-none font-mono"
-                />
-              </div>
-              <div>
-                <span class="text-[9px] text-slate-400 block mb-0.5">End Date</span>
-                <input
-                  v-model="queryDateEnd"
-                  type="date"
-                  class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-[11px] text-slate-200 outline-none font-mono"
-                />
-              </div>
-            </div>
-          </div>
-
-          <!-- Cloud Cover Filter Slider -->
-          <div
-            v-if="selectedDataset?.cloud_filter_field"
-            class="space-y-1.5 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800"
-          >
-            <div class="flex items-center justify-between">
-              <label class="font-bold text-slate-300 uppercase tracking-wider text-[10px]">Max Cloud Cover</label>
-              <span class="font-mono text-emerald-400 font-bold text-xs">{{ queryCloudCover }}%</span>
-            </div>
-            <input
-              v-model.number="queryCloudCover"
-              type="range"
-              min="0"
-              max="100"
-              step="5"
-              class="w-full accent-emerald-500 cursor-pointer h-1.5 bg-slate-800 rounded"
-            />
-          </div>
-
-          <!-- Visualization / Spectral Index Mode -->
-          <div class="space-y-1.5 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">
-            <label class="block font-bold text-slate-300 uppercase tracking-wider text-[10px]">
-              Visualization Preset / Spectral Index
-            </label>
-            <select
-              v-model="queryVisMode"
-              class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-100 outline-none font-medium cursor-pointer"
-            >
-              <option
-                v-for="mode in selectedDataset?.supported_vis_modes || ['true_color']"
-                :key="mode"
-                :value="mode"
-              >
-                {{ formatVisModeLabel(mode) }}
-              </option>
-            </select>
-          </div>
-
-          <!-- Reducer / Composite -->
-          <div
-            v-if="selectedDataset?.type === 'image_collection'"
-            class="space-y-1.5 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800"
-          >
-            <label class="block font-bold text-slate-300 uppercase tracking-wider text-[10px]">
-              Temporal Composite Reducer
-            </label>
-            <div class="grid grid-cols-3 gap-1">
-              <button
-                v-for="red in ['median', 'mosaic', 'mean']"
-                :key="red"
-                @click="queryReducer = red"
-                :class="[
-                  'py-1 rounded text-[11px] font-semibold uppercase transition-colors cursor-pointer text-center',
-                  queryReducer === red ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-slate-200'
-                ]"
-              >
-                {{ red }}
-              </button>
-            </div>
-          </div>
-
-          <!-- Action Buttons: Preview on Map & Harvest GeoTIFF -->
-          <div class="space-y-2 pt-1">
-            <button
-              @click="visualizeOnMap"
-              :disabled="isVisualizing || !eeStatus.initialized"
-              class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-950 flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
-            >
-              <svg v-if="isVisualizing" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-              </svg>
-              <span v-else>👁️</span>
-              <span>{{ isVisualizing ? 'Generating GEE Tile Layer...' : 'Preview Live on Map' }}</span>
-            </button>
-
-            <button
-              @click="isHarvestDrawerOpen = true"
-              :disabled="!eeStatus.initialized"
-              class="w-full py-2 bg-slate-800 hover:bg-slate-750 disabled:opacity-50 text-slate-100 font-semibold text-xs rounded-xl flex items-center justify-center space-x-1.5 transition-colors cursor-pointer border border-slate-700"
-            >
-              <span>📥</span>
-              <span>Export Clipped GeoTIFF</span>
-            </button>
-          </div>
-
-          <!-- Error Alert -->
-          <div
-            v-if="visualizeError"
-            class="p-2.5 bg-rose-950/80 border border-rose-800 rounded-xl text-rose-300 text-[11px] space-y-1"
-          >
-            <div class="font-bold flex items-center space-x-1">
-              <span>⚠</span>
-              <span>GEE Visualization Error</span>
-            </div>
-            <p class="leading-relaxed">{{ visualizeError }}</p>
-          </div>
-        </div>
       </aside>
 
-      <!-- CENTER: OpenLayers Interactive Map -->
-      <main class="flex-1 relative h-full w-full bg-slate-950 overflow-hidden">
-        <!-- Map Canvas -->
-        <div ref="mapContainer" class="w-full h-full cursor-crosshair"></div>
-
-        <!-- Floating Map Top-Left Toolbar: Basemap & AOI Tools -->
-        <div class="absolute top-3.5 left-3.5 z-10 flex items-center space-x-1.5 bg-slate-900/95 backdrop-blur border border-slate-700/80 rounded-xl p-1.5 shadow-2xl">
-          <!-- Basemap Style Selector -->
-          <select
-            v-model="activeBasemap"
-            @change="switchBasemap"
-            class="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1 outline-none font-semibold cursor-pointer"
-          >
-            <option value="dark">🌑 Dark Canvas</option>
-            <option value="satellite">🛰️ Satellite (Esri)</option>
-            <option value="osm">🗺️ OpenStreetMap</option>
-            <option value="topo">🏔️ OpenTopo</option>
-          </select>
-
-          <div class="h-4 w-px bg-slate-750"></div>
-
-          <!-- Draw Polygon AOI -->
-          <button
-            @click="startDraw('Polygon')"
-            :class="[
-              'px-2.5 py-1 text-xs font-semibold rounded-lg flex items-center space-x-1 transition-colors cursor-pointer',
-              activeDrawType === 'Polygon' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:bg-slate-800'
-            ]"
-            title="Draw Polygon Study Area"
-          >
-            <span>Polygon</span>
-          </button>
-
-          <!-- Draw Box AOI -->
-          <button
-            @click="startDraw('Box')"
-            :class="[
-              'px-2.5 py-1 text-xs font-semibold rounded-lg flex items-center space-x-1 transition-colors cursor-pointer',
-              activeDrawType === 'Box' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:bg-slate-800'
-            ]"
-            title="Draw Bounding Box Study Area"
-          >
-            <span>Box</span>
-          </button>
-
-          <button
-            v-if="hasAoi"
-            @click="clearAoi"
-            class="px-2 py-1 text-xs text-rose-400 hover:bg-rose-950/50 rounded-lg cursor-pointer"
-            title="Clear Study Area"
-          >
-            Clear
-          </button>
-        </div>
-
-        <!-- Active GEE Layer HUD / Opacity Controller (Top-Right) -->
-        <div
-          v-if="activeGeeLayerInfo"
-          class="absolute top-3.5 right-3.5 z-10 bg-slate-900/95 backdrop-blur border border-emerald-500/80 rounded-xl p-3 shadow-2xl w-72 space-y-2 text-xs"
+      <!-- ================= MAIN WORKSPACE: NOTEBOOK & INSPECTOR ================= -->
+      <main class="flex-1 flex overflow-hidden bg-slate-950">
+        <!-- LEFT/CENTER: JUPYTER NOTEBOOK DOCUMENT -->
+        <section
+          v-show="layoutMode !== 'map'"
+          :class="[
+            'flex flex-col h-full bg-slate-950 border-r border-slate-800 transition-all duration-150',
+            layoutMode === 'split' ? 'w-7/12' : 'w-full'
+          ]"
         >
-          <div class="flex items-center justify-between pb-1.5 border-b border-slate-800">
+          <!-- NOTEBOOK COMMAND BAR / KERNEL TOOLBAR -->
+          <div class="h-9 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-3 shrink-0 text-xs">
+            <!-- Left: Add Cell & Execution Shortcuts -->
             <div class="flex items-center space-x-1.5">
-              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span class="font-bold text-emerald-300 text-[11px] truncate max-w-[170px]">
-                {{ activeGeeLayerInfo.dataset_id }}
+              <button
+                @click="addCell('code')"
+                class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded font-medium flex items-center space-x-1 cursor-pointer transition-colors"
+                title="Insert a new Python code cell below the current cell"
+              >
+                <span class="text-emerald-400 font-bold">+</span>
+                <span>Code</span>
+              </button>
+              <button
+                @click="addCell('markdown')"
+                class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded font-medium flex items-center space-x-1 cursor-pointer transition-colors"
+                title="Insert a new Markdown documentation cell"
+              >
+                <span class="text-sky-400 font-bold">+</span>
+                <span>Markdown</span>
+              </button>
+
+              <div class="h-4 w-px bg-slate-800 mx-1"></div>
+
+              <button
+                @click="runActiveCell"
+                :disabled="isKernelBusy"
+                class="px-2.5 py-1 bg-emerald-700/80 hover:bg-emerald-600 text-white rounded font-medium flex items-center space-x-1 cursor-pointer transition-colors disabled:opacity-50"
+                title="Run selected cell (Shift + Enter)"
+              >
+                <span>▶</span>
+                <span>Run</span>
+              </button>
+
+              <button
+                @click="restartKernel"
+                class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-300 rounded font-medium flex items-center space-x-1 cursor-pointer transition-colors"
+                title="Restart kernel and reset execution state"
+              >
+                <span>🔄</span>
+                <span>Restart</span>
+              </button>
+
+              <button
+                @click="clearAllOutputs"
+                class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 rounded font-medium cursor-pointer transition-colors"
+                title="Clear all cell outputs"
+              >
+                <span>🧹 Clear</span>
+              </button>
+            </div>
+
+            <!-- Right: Kernel Status Badge & Export/Import -->
+            <div class="flex items-center space-x-2.5 text-[11px] font-mono">
+              <!-- Kernel Indicator -->
+              <div class="flex items-center space-x-1.5 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                <span
+                  :class="[
+                    'w-2 h-2 rounded-full',
+                    isKernelBusy ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'
+                  ]"
+                ></span>
+                <span class="text-slate-300 font-medium">
+                  {{ executionMode === 'gee' ? 'Python 3 (GEE)' : 'Python 3 (Local)' }}
+                </span>
+                <span class="text-slate-500">|</span>
+                <span :class="isKernelBusy ? 'text-amber-400' : 'text-slate-400'">
+                  {{ isKernelBusy ? 'busy' : 'idle' }}
+                </span>
+              </div>
+
+              <!-- Export .ipynb -->
+              <button
+                @click="exportNotebook"
+                class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded flex items-center space-x-1 cursor-pointer"
+                title="Download this notebook as a standard .ipynb file"
+              >
+                <span>📥</span>
+                <span>.ipynb</span>
+              </button>
+
+              <!-- Import .ipynb Hidden File Input -->
+              <label
+                class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded flex items-center space-x-1 cursor-pointer"
+                title="Load an existing .ipynb notebook from your computer"
+              >
+                <span>📤</span>
+                <span>Open</span>
+                <input
+                  type="file"
+                  accept=".ipynb,application/json"
+                  @change="handleNotebookImport"
+                  class="hidden"
+                />
+              </label>
+
+              <!-- Reset to Default Tutorial -->
+              <button
+                @click="resetToDefaultNotebook"
+                class="text-slate-500 hover:text-slate-300 cursor-pointer ml-1"
+                title="Reset to default multi-cell tutorial notebook"
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+
+          <!-- SCROLLABLE NOTEBOOK DOCUMENT -->
+          <div class="flex-1 overflow-y-auto p-4 space-y-3.5 scrollbar-thin scrollbar-thumb-slate-800 font-mono">
+            <!-- RENDER CELLS -->
+            <div
+              v-for="(cell, index) in notebookCells"
+              :key="cell.id"
+              :class="[
+                'group rounded-xl border transition-all duration-150 bg-slate-900/60 overflow-hidden',
+                activeCellId === cell.id
+                  ? 'border-emerald-500/80 ring-1 ring-emerald-500/30 shadow-lg shadow-emerald-950/20'
+                  : 'border-slate-800 hover:border-slate-750'
+              ]"
+              @click="activeCellId = cell.id"
+            >
+              <!-- Cell Action Bar (Toolbar on Hover or Focus) -->
+              <div class="h-6 bg-slate-900/90 border-b border-slate-800/80 flex items-center justify-between px-2 text-[10px] text-slate-400 select-none">
+                <div class="flex items-center space-x-2">
+                  <span class="font-bold text-slate-500 text-[10px]">#{{ index + 1 }}</span>
+                  <span
+                    :class="[
+                      'px-1.5 py-0.2 rounded font-semibold uppercase text-[9px] border',
+                      cell.type === 'code' ? 'bg-emerald-950/80 text-emerald-400 border-emerald-800/60' : 'bg-sky-950/80 text-sky-400 border-sky-800/60'
+                    ]"
+                  >
+                    {{ cell.type }}
+                  </span>
+                  <span v-if="cell.isRunning" class="text-amber-400 font-semibold animate-pulse flex items-center space-x-1">
+                    <span>⚡</span>
+                    <span>Running...</span>
+                  </span>
+                </div>
+
+                <div class="flex items-center space-x-1.5 opacity-70 group-hover:opacity-100 transition-opacity">
+                  <button
+                    v-if="cell.type === 'code'"
+                    @click.stop="runCell(cell.id)"
+                    :disabled="cell.isRunning"
+                    class="hover:text-emerald-400 cursor-pointer p-0.5"
+                    title="Run cell (Shift+Enter)"
+                  >
+                    ▶
+                  </button>
+                  <button
+                    @click.stop="toggleCellType(cell.id)"
+                    class="hover:text-slate-200 cursor-pointer p-0.5"
+                    title="Toggle Code / Markdown"
+                  >
+                    ⇄ {{ cell.type === 'code' ? 'MD' : 'Code' }}
+                  </button>
+                  <button
+                    @click.stop="moveCell(cell.id, 'up')"
+                    :disabled="index === 0"
+                    class="hover:text-slate-200 cursor-pointer p-0.5 disabled:opacity-30"
+                    title="Move cell up"
+                  >
+                    ▲
+                  </button>
+                  <button
+                    @click.stop="moveCell(cell.id, 'down')"
+                    :disabled="index === notebookCells.length - 1"
+                    class="hover:text-slate-200 cursor-pointer p-0.5 disabled:opacity-30"
+                    title="Move cell down"
+                  >
+                    ▼
+                  </button>
+                  <button
+                    @click.stop="addCell('code', cell.id)"
+                    class="hover:text-slate-200 cursor-pointer p-0.5"
+                    title="Insert code cell below"
+                  >
+                    +
+                  </button>
+                  <button
+                    @click.stop="deleteCell(cell.id)"
+                    class="hover:text-rose-400 cursor-pointer p-0.5"
+                    title="Delete cell"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              <!-- Cell Main Content: Code / Markdown Input -->
+              <div class="flex items-stretch bg-slate-950">
+                <!-- Cell Prompt (In [1]: / In [ ]: / In [*]:) -->
+                <div class="w-14 shrink-0 p-2 text-right text-[11px] font-mono select-none border-r border-slate-900 bg-slate-950/80">
+                  <template v-if="cell.type === 'code'">
+                    <span v-if="cell.isRunning" class="text-amber-400 font-bold animate-pulse">In [*]:</span>
+                    <span v-else-if="cell.executionCount !== null" class="text-emerald-400 font-bold">In [{{ cell.executionCount }}]:</span>
+                    <span v-else class="text-slate-600">In [ ]:</span>
+                  </template>
+                  <template v-else>
+                    <span class="text-sky-500/80 text-[10px]">MD</span>
+                  </template>
+                </div>
+
+                <!-- Cell Editor Body -->
+                <div class="flex-1 overflow-hidden relative">
+                  <!-- 1. Code Editor Textarea -->
+                  <div v-if="cell.type === 'code'" class="w-full">
+                    <textarea
+                      :id="'cell-textarea-' + cell.id"
+                      v-model="cell.source"
+                      @keydown="handleCellKeydown($event, cell.id)"
+                      spellcheck="false"
+                      rows="4"
+                      class="w-full bg-transparent text-emerald-200/90 p-2.5 outline-none resize-y font-mono text-[11px] leading-relaxed selection:bg-emerald-900 selection:text-white"
+                      placeholder="# Write Python code here..."
+                    ></textarea>
+                  </div>
+
+                  <!-- 2. Markdown Cell (Edit vs Rendered Preview) -->
+                  <div v-else class="w-full">
+                    <div
+                      v-if="!cell.isEditingMarkdown"
+                      @dblclick="cell.isEditingMarkdown = true"
+                      class="p-3 text-xs text-slate-200 leading-relaxed font-sans prose prose-invert max-w-none cursor-pointer"
+                      title="Double-click to edit markdown"
+                    >
+                      <div v-html="renderSimpleMarkdown(cell.source)"></div>
+                    </div>
+                    <div v-else class="w-full">
+                      <textarea
+                        v-model="cell.source"
+                        @blur="cell.isEditingMarkdown = false"
+                        spellcheck="false"
+                        rows="3"
+                        class="w-full bg-slate-900 text-sky-200 p-2.5 outline-none resize-y font-mono text-[11px] leading-relaxed"
+                        placeholder="# Markdown heading or explanation..."
+                      ></textarea>
+                      <div class="px-2 py-1 bg-slate-900/90 text-right text-[10px] text-slate-400">
+                        Click outside or run to render markdown
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Cell Output Area (Directly below code cell) -->
+              <div
+                v-if="cell.type === 'code' && cell.outputs"
+                class="border-t border-slate-800 bg-slate-950/90 flex flex-col font-mono text-[11px]"
+              >
+                <!-- Output Status Bar -->
+                <div class="h-6 bg-slate-900/40 border-b border-slate-900 flex items-center justify-between px-3 text-[10px] text-slate-400">
+                  <div class="flex items-center space-x-2">
+                    <span class="text-slate-500 font-bold">Out [{{ cell.executionCount || ' ' }}]:</span>
+                    <span v-if="cell.outputs.execution_time_ms !== undefined" class="text-slate-400">
+                      ⚡ {{ (cell.outputs.execution_time_ms / 1000).toFixed(2) }}s
+                    </span>
+                  </div>
+                  <button
+                    @click="cell.outputs = null"
+                    class="text-slate-500 hover:text-slate-300 cursor-pointer"
+                    title="Clear cell output"
+                  >
+                    Clear ✕
+                  </button>
+                </div>
+
+                <!-- Stdout Logs -->
+                <div v-if="cell.outputs.logs" class="p-3 overflow-x-auto text-slate-200 leading-relaxed max-h-60 scrollbar-thin">
+                  <pre class="whitespace-pre-wrap">{{ cell.outputs.logs }}</pre>
+                </div>
+
+                <!-- Error Traceback -->
+                <div v-if="cell.outputs.error" class="p-3 bg-rose-950/40 border-t border-rose-900/50 text-rose-300 text-xs">
+                  <div class="font-bold flex items-center space-x-1.5 text-rose-400">
+                    <span>⚠️</span>
+                    <span>Execution Error:</span>
+                  </div>
+                  <pre class="mt-1 whitespace-pre-wrap text-[11px] font-mono text-rose-200">{{ cell.outputs.error }}</pre>
+                </div>
+
+                <!-- Generated Map Layer Badges -->
+                <div
+                  v-if="cell.outputs.cell_layers && cell.outputs.cell_layers.length > 0"
+                  class="p-2.5 bg-emerald-950/30 border-t border-emerald-900/40 flex flex-wrap gap-2 items-center"
+                >
+                  <span class="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
+                    Layers Added:
+                  </span>
+                  <div
+                    v-for="lyr in cell.outputs.cell_layers"
+                    :key="lyr.name"
+                    class="flex items-center space-x-1.5 px-2 py-0.5 rounded bg-emerald-900/50 border border-emerald-700/80 text-[10px] text-emerald-200"
+                  >
+                    <span>🗺️</span>
+                    <span class="font-bold">{{ lyr.name }}</span>
+                    <button
+                      @click="focusMapLayer(lyr.name)"
+                      class="text-[9px] bg-emerald-600 hover:bg-emerald-500 text-white px-1 rounded cursor-pointer ml-1"
+                    >
+                      View on Map ↗
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Generated Output Files -->
+                <div
+                  v-if="cell.outputs.output_files && cell.outputs.output_files.length > 0"
+                  class="p-2.5 bg-purple-950/30 border-t border-purple-900/40 flex flex-wrap gap-2 items-center"
+                >
+                  <span class="text-[10px] font-bold text-purple-400 uppercase tracking-wider">
+                    Files Created:
+                  </span>
+                  <a
+                    v-for="f in cell.outputs.output_files"
+                    :key="f.name"
+                    :href="f.download_url"
+                    target="_blank"
+                    class="flex items-center space-x-1.5 px-2 py-0.5 rounded bg-purple-900/50 border border-purple-700/80 text-[10px] text-purple-200 hover:bg-purple-800 transition-colors"
+                  >
+                    <span>📁</span>
+                    <span class="font-bold font-mono">{{ f.name }}</span>
+                    <span class="text-[9px] text-purple-300">({{ f.formatted_size }})</span>
+                    <span>↗</span>
+                  </a>
+                </div>
+
+                <!-- Extracted Data Metrics Preview -->
+                <div
+                  v-if="cell.outputs.data && Object.keys(cell.outputs.data).length > 0"
+                  class="p-2 bg-amber-950/20 border-t border-amber-900/30 text-[10px] flex items-center space-x-2"
+                >
+                  <span class="font-bold text-amber-400">Data variables:</span>
+                  <span
+                    v-for="(val, key) in cell.outputs.data"
+                    :key="key"
+                    class="font-mono bg-amber-900/40 border border-amber-800 px-1.5 py-0.2 rounded text-amber-200"
+                  >
+                    {{ key }} = {{ typeof val === 'object' ? JSON.stringify(val) : val }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bottom Add Cell Action -->
+            <div class="flex items-center justify-center space-x-2 pt-2 pb-6">
+              <button
+                @click="addCell('code')"
+                class="px-3 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-750 text-slate-300 hover:text-white rounded-lg text-xs font-semibold flex items-center space-x-1 cursor-pointer transition-colors"
+              >
+                <span>+ Code Cell</span>
+              </button>
+              <button
+                @click="addCell('markdown')"
+                class="px-3 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-750 text-slate-300 hover:text-white rounded-lg text-xs font-semibold flex items-center space-x-1 cursor-pointer transition-colors"
+              >
+                <span>+ Markdown Cell</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- RIGHT/CENTER: RESULTS & VISUALIZATION INSPECTOR -->
+        <section
+          v-show="layoutMode !== 'notebook'"
+          :class="[
+            'flex flex-col h-full bg-slate-900 overflow-hidden transition-all duration-150',
+            layoutMode === 'split' ? 'w-5/12' : 'w-full'
+          ]"
+        >
+          <!-- Inspector Tab Headers -->
+          <div class="h-9 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-3 shrink-0 text-xs">
+            <div class="flex items-center space-x-1">
+              <button
+                @click="inspectorTab = 'map'"
+                :class="[
+                  'px-3 py-1 rounded font-semibold transition-colors cursor-pointer flex items-center space-x-1.5',
+                  inspectorTab === 'map' ? 'bg-slate-800 text-emerald-400 border border-slate-700' : 'text-slate-400 hover:text-slate-200'
+                ]"
+              >
+                <span>🗺️</span>
+                <span>Map Viewer</span>
+                <span v-if="resultLayers.length > 0" class="text-[9px] bg-emerald-950 text-emerald-400 px-1 rounded-full border border-emerald-800">
+                  {{ resultLayers.length }}
+                </span>
+              </button>
+
+              <button
+                @click="inspectorTab = 'data'"
+                :class="[
+                  'px-3 py-1 rounded font-semibold transition-colors cursor-pointer flex items-center space-x-1.5',
+                  inspectorTab === 'data' ? 'bg-slate-800 text-amber-400 border border-slate-700' : 'text-slate-400 hover:text-slate-200'
+                ]"
+              >
+                <span>📊</span>
+                <span>Data after processing</span>
+                <span v-if="Object.keys(resultData).length > 0" class="text-[9px] bg-amber-950 text-amber-400 px-1 rounded-full border border-amber-800">
+                  {{ Object.keys(resultData).length }}
+                </span>
+              </button>
+
+              <button
+                @click="inspectorTab = 'files'"
+                :class="[
+                  'px-3 py-1 rounded font-semibold transition-colors cursor-pointer flex items-center space-x-1.5',
+                  inspectorTab === 'files' ? 'bg-slate-800 text-purple-400 border border-slate-700' : 'text-slate-400 hover:text-slate-200'
+                ]"
+              >
+                <span>📁</span>
+                <span>Output Files</span>
+                <span v-if="resultOutputFiles.length > 0" class="text-[9px] bg-purple-950 text-purple-400 px-1 rounded-full border border-purple-800">
+                  {{ resultOutputFiles.length }}
+                </span>
+              </button>
+
+              <button
+                @click="inspectorTab = 'console'"
+                :class="[
+                  'px-3 py-1 rounded font-semibold transition-colors cursor-pointer flex items-center space-x-1.5',
+                  inspectorTab === 'console' ? 'bg-slate-800 text-sky-400 border border-slate-700' : 'text-slate-400 hover:text-slate-200'
+                ]"
+              >
+                <span>💻</span>
+                <span>Terminal</span>
+                <span v-if="hasExecutionError" class="text-[9px] bg-rose-950 text-rose-400 px-1 rounded-full border border-rose-800">
+                  !
+                </span>
+              </button>
+            </div>
+
+            <div class="flex items-center space-x-2 text-[11px] font-mono text-slate-400">
+              <span v-if="lastExecutionTimeMs !== null">
+                Duration: <strong class="text-slate-200">{{ (lastExecutionTimeMs / 1000).toFixed(2) }}s</strong>
               </span>
             </div>
-            <button
-              @click="removeGeeTileLayer"
-              class="text-slate-400 hover:text-rose-400 cursor-pointer p-0.5"
-              title="Remove layer"
-            >
-              ✕
-            </button>
           </div>
 
-          <div class="flex items-center justify-between text-[11px]">
-            <span class="text-slate-400">Mode:</span>
-            <span class="font-mono text-emerald-400 font-semibold">{{ activeGeeLayerInfo.vis_mode }}</span>
-          </div>
+          <!-- TAB 1: INTERACTIVE MAP VIEWER -->
+          <div v-show="inspectorTab === 'map'" class="flex-1 relative w-full h-full bg-slate-950">
+            <div ref="mapContainer" class="w-full h-full"></div>
 
-          <!-- Layer Opacity Slider -->
-          <div class="space-y-1">
-            <div class="flex justify-between text-[10px] text-slate-400">
-              <span>Layer Opacity</span>
-              <span class="font-mono">{{ Math.round(geeLayerOpacity * 100) }}%</span>
+            <!-- Map Floating Toolbar (Basemap & AOI Tools) -->
+            <div class="absolute top-2.5 left-2.5 z-10 flex items-center space-x-1.5 bg-slate-900/95 backdrop-blur border border-slate-750 rounded-xl p-1 shadow-2xl">
+              <select
+                v-model="activeBasemap"
+                @change="switchBasemap"
+                class="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-0.5 outline-none font-semibold cursor-pointer"
+              >
+                <option value="dark">🌑 Dark Canvas</option>
+                <option value="satellite">🛰️ Satellite (Esri)</option>
+                <option value="osm">🗺️ OpenStreetMap</option>
+                <option value="topo">🏔️ OpenTopo</option>
+              </select>
+
+              <div class="h-4 w-px bg-slate-800"></div>
+
+              <!-- Draw AOI buttons -->
+              <button
+                @click="startDraw('Polygon')"
+                :class="[
+                  'px-2 py-0.5 rounded text-xs font-semibold transition-colors cursor-pointer',
+                  activeDrawType === 'Polygon' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+                ]"
+                title="Draw polygon AOI on map"
+              >
+                ⬡ Polygon
+              </button>
+              <button
+                @click="startDraw('Box')"
+                :class="[
+                  'px-2 py-0.5 rounded text-xs font-semibold transition-colors cursor-pointer',
+                  activeDrawType === 'Box' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+                ]"
+                title="Draw bounding box AOI on map"
+              >
+                □ Box
+              </button>
             </div>
-            <input
-              v-model.number="geeLayerOpacity"
-              @input="updateGeeLayerOpacity"
-              type="range"
-              min="0.1"
-              max="1.0"
-              step="0.05"
-              class="w-full accent-emerald-400 cursor-pointer h-1.5 bg-slate-800 rounded"
-            />
+
+            <!-- Map Floating Layer Switcher (Top-Right) -->
+            <div
+              v-if="resultLayers.length > 0"
+              class="absolute top-2.5 right-2.5 z-10 w-64 bg-slate-900/95 backdrop-blur border border-slate-750 rounded-xl p-2.5 shadow-2xl space-y-2 max-h-80 overflow-y-auto scrollbar-thin text-xs"
+            >
+              <div class="flex items-center justify-between pb-1 border-b border-slate-800">
+                <span class="font-bold text-slate-200 text-[11px] flex items-center space-x-1">
+                  <span>Layers</span>
+                  <span class="text-emerald-400 font-mono">({{ resultLayers.length }})</span>
+                </span>
+                <button
+                  @click="clearAllResultLayers"
+                  class="text-[10px] text-slate-400 hover:text-rose-400 cursor-pointer"
+                >
+                  Clear All
+                </button>
+              </div>
+
+              <div class="space-y-2">
+                <div
+                  v-for="(layer, idx) in resultLayers"
+                  :key="layer.name + idx"
+                  class="bg-slate-950/80 p-2 rounded-lg border border-slate-800 space-y-1.5"
+                >
+                  <div class="flex items-center justify-between">
+                    <span class="font-semibold text-slate-200 truncate max-w-[150px] text-[11px]" :title="layer.name">
+                      {{ layer.name }}
+                    </span>
+                    <button
+                      @click="removeResultLayer(idx)"
+                      class="text-slate-500 hover:text-rose-400 cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <!-- Layer Opacity -->
+                  <div class="flex items-center space-x-2 text-[10px] text-slate-400">
+                    <span>Opacity</span>
+                    <input
+                      v-model.number="layer.opacity"
+                      @input="updateLayerOpacity(idx)"
+                      type="range"
+                      min="0.1"
+                      max="1.0"
+                      step="0.05"
+                      class="w-full accent-emerald-400 h-1 bg-slate-800 rounded cursor-pointer"
+                    />
+                    <span class="font-mono text-[9px]">{{ Math.round(layer.opacity * 100) }}%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Coordinates HUD (Bottom-Right) -->
+            <div class="absolute bottom-2.5 right-2.5 z-10 flex items-center space-x-2 bg-slate-900/90 backdrop-blur border border-slate-750 rounded px-2 py-0.5 text-[10px] font-mono text-slate-400 pointer-events-none">
+              <span>Lon: {{ mouseLon !== null ? mouseLon.toFixed(3) + '°' : '--' }}</span>
+              <span>Lat: {{ mouseLat !== null ? mouseLat.toFixed(3) + '°' : '--' }}</span>
+              <span class="text-emerald-400">Z: {{ currentZoom.toFixed(1) }}</span>
+            </div>
           </div>
-        </div>
 
-        <!-- Coordinates HUD (Bottom-Right) -->
-        <div class="absolute bottom-3 right-3 z-10 flex items-center space-x-2 bg-slate-900/90 backdrop-blur border border-slate-700/80 rounded-md px-2 py-0.5 text-[10px] font-mono text-slate-400 pointer-events-none">
-          <span>Lon: {{ mouseLon !== null ? mouseLon.toFixed(3) + '°' : '--' }}</span>
-          <span>Lat: {{ mouseLat !== null ? mouseLat.toFixed(3) + '°' : '--' }}</span>
-          <span class="text-emerald-400">Z: {{ currentZoom.toFixed(1) }}</span>
-        </div>
+          <!-- TAB 2: DATA AFTER PROCESSING (TABLE & JSON) -->
+          <div v-show="inspectorTab === 'data'" class="flex-1 flex flex-col p-3 overflow-hidden bg-slate-950 text-xs">
+            <div class="flex items-center justify-between pb-1.5 border-b border-slate-800 shrink-0">
+              <div class="flex items-center space-x-2">
+                <span class="font-bold text-slate-200 text-xs">Data After Processing</span>
+                <span class="text-[10px] text-slate-400 font-mono">(variables saved in `data` or `results`)</span>
+              </div>
+              <button
+                @click="copyDataJson"
+                class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[10px] cursor-pointer"
+              >
+                Copy JSON
+              </button>
+            </div>
+
+            <div class="flex-1 overflow-auto pt-2">
+              <div v-if="Object.keys(resultData).length === 0" class="text-slate-500 italic p-6 text-center">
+                No computed variables returned yet. In your Python notebook cells, store values in `data["your_metric"] = ...` to inspect them here after processing.
+              </div>
+              <table v-else class="w-full border-collapse text-left font-mono text-[11px]">
+                <thead>
+                  <tr class="border-b border-slate-800 text-slate-400">
+                    <th class="py-1.5 px-3">Metric / Property</th>
+                    <th class="py-1.5 px-3">Computed Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="(val, key) in resultData"
+                    :key="key"
+                    class="border-b border-slate-850 hover:bg-slate-900/60 transition-colors"
+                  >
+                    <td class="py-1.5 px-3 font-semibold text-emerald-400">{{ key }}</td>
+                    <td class="py-1.5 px-3 text-slate-200 break-all">{{ typeof val === 'object' ? JSON.stringify(val) : val }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- TAB 3: OUTPUT FILES (PROCESSED / EXPORTED) -->
+          <div v-show="inspectorTab === 'files'" class="flex-1 flex flex-col p-3 overflow-hidden bg-slate-950 text-xs">
+            <div class="flex items-center justify-between pb-1.5 border-b border-slate-800 shrink-0">
+              <span class="font-bold text-slate-200 text-xs">Generated Output Files</span>
+              <span class="text-slate-400 text-[10px] font-mono">Location: ./data/processed/</span>
+            </div>
+
+            <div class="flex-1 overflow-auto pt-2 space-y-2">
+              <div v-if="resultOutputFiles.length === 0" class="text-slate-500 italic p-6 text-center">
+                No newly generated files detected in this session. Write output files to `processed_dir` in your notebook cells to download or preview them here.
+              </div>
+              <div
+                v-for="file in resultOutputFiles"
+                :key="file.name"
+                class="p-2.5 rounded-xl border border-slate-800 bg-slate-900/80 flex items-center justify-between"
+              >
+                <div class="space-y-0.5">
+                  <div class="font-bold text-slate-100 font-mono">{{ file.name }}</div>
+                  <div class="text-[10px] text-slate-400 font-mono">
+                    Size: {{ file.formatted_size }} | Format: {{ file.extension }}
+                  </div>
+                </div>
+
+                <div class="flex items-center space-x-2">
+                  <a
+                    :href="file.download_url"
+                    target="_blank"
+                    class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-[10px] transition-colors"
+                  >
+                    Download File ↗
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 4: CONSOLE LOGS & TERMINAL OUTPUT -->
+          <div v-show="inspectorTab === 'console'" class="flex-1 flex flex-col p-3 overflow-hidden bg-slate-950 font-mono text-xs">
+            <div class="flex items-center justify-between pb-1.5 border-b border-slate-800 shrink-0">
+              <span class="text-slate-400 text-[11px]">Notebook Execution Terminal (Cumulative)</span>
+              <div class="flex items-center space-x-2">
+                <button
+                  @click="copyConsoleLogs"
+                  class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[10px] cursor-pointer"
+                >
+                  Copy Logs
+                </button>
+                <button
+                  @click="consoleLogs = ''"
+                  class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 rounded text-[10px] cursor-pointer"
+                >
+                  Clear Console
+                </button>
+              </div>
+            </div>
+
+            <div class="flex-1 overflow-auto pt-2 space-y-1 text-[11px] leading-relaxed text-slate-200">
+              <div v-if="!consoleLogs" class="text-slate-600 italic p-4 text-center">
+                Notebook execution logs and cumulative stdout will appear here.
+              </div>
+              <pre v-else class="whitespace-pre-wrap font-mono">{{ consoleLogs }}</pre>
+            </div>
+          </div>
+        </section>
       </main>
+    </div>
 
-      <!-- RIGHT SLIDE-OVER: Harvest / Export Drawer -->
-      <aside
-        v-if="isHarvestDrawerOpen"
-        class="w-80 bg-slate-900 border-l border-slate-800 flex flex-col h-full shrink-0 z-20 shadow-2xl p-4 space-y-4 animate-in slide-in-from-right duration-150 text-xs"
-      >
+    <!-- ================= LOAD GEOJSON AOI MODAL ================= -->
+    <div
+      v-if="showAoiModal"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-100"
+    >
+      <div class="bg-slate-900 border border-sky-600/80 rounded-2xl w-full max-w-lg shadow-2xl p-5 space-y-4 text-xs text-slate-200">
         <div class="flex items-center justify-between pb-2 border-b border-slate-800">
           <div class="flex items-center space-x-2">
-            <span class="text-base">📥</span>
-            <h3 class="font-bold text-slate-100 text-xs uppercase tracking-wider">Export GeoTIFF</h3>
+            <span class="text-lg">🗺️</span>
+            <h3 class="font-bold text-sm text-slate-100">Load Study Area GeoJSON</h3>
           </div>
-          <button
-            @click="isHarvestDrawerOpen = false"
-            class="p-1 rounded text-slate-400 hover:text-slate-100 hover:bg-slate-800 cursor-pointer"
-          >
+          <button @click="showAoiModal = false" class="text-slate-400 hover:text-slate-100 cursor-pointer">
             ✕
           </button>
         </div>
 
-        <!-- Selected Dataset Spec -->
-        <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800 space-y-1">
-          <span class="text-[10px] font-mono text-emerald-400 font-bold uppercase">Dataset</span>
-          <div class="font-bold text-slate-200 truncate">{{ selectedDataset?.name }}</div>
-          <div class="text-[10px] font-mono text-slate-400 truncate">{{ selectedDataset?.id }}</div>
-        </div>
-
-        <!-- Destination Folder Picker -->
-        <div class="space-y-1">
-          <label class="block font-bold text-slate-300 uppercase tracking-wider text-[10px]">
-            Destination Folder
-          </label>
+        <!-- Option 1: Upload from Local Computer -->
+        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
+          <span class="font-bold text-slate-200 block text-xs">Option A: Upload .geojson from Computer</span>
           <input
-            v-model="exportDestDir"
-            type="text"
-            class="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-200 outline-none font-mono"
-            placeholder="/home/himalaya/Desktop/divakar/test/gee"
+            type="file"
+            accept=".geojson,.json"
+            @change="handleLocalGeoJsonUpload"
+            class="block w-full text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-sky-600 file:text-white hover:file:bg-sky-500 cursor-pointer"
           />
         </div>
 
-        <!-- Resolution Scale -->
-        <div class="space-y-1">
-          <label class="block font-bold text-slate-300 uppercase tracking-wider text-[10px]">
-            Spatial Resolution / Scale (meters)
-          </label>
-          <select
-            v-model.number="exportScale"
-            class="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-200 outline-none font-mono cursor-pointer"
-          >
-            <option :value="10">10m (Sentinel-2 / Dynamic World)</option>
-            <option :value="30">30m (Landsat / SRTM / Global Forest)</option>
-            <option :value="60">60m (Regional analysis)</option>
-            <option :value="100">100m (Fast thumbnail / overview)</option>
-          </select>
-        </div>
-
-        <!-- Study Area Notice -->
-        <div
-          :class="[
-            'p-2.5 rounded-xl border text-[11px]',
-            hasAoi ? 'bg-emerald-950/30 border-emerald-800 text-emerald-300' : 'bg-amber-950/40 border-amber-800 text-amber-300'
-          ]"
-        >
-          <span v-if="hasAoi">✓ Study Area defined on map. Image will be clipped to bounds.</span>
-          <span v-else>⚠ No Study Area drawn. Please draw a Polygon or Box on the map first.</span>
-        </div>
-
-        <!-- Download Action Button -->
-        <button
-          @click="startExport"
-          :disabled="isExporting || !hasAoi"
-          class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-950 flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
-        >
-          <svg v-if="isExporting" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-          </svg>
-          <span v-else>📥</span>
-          <span>{{ isExporting ? 'Exporting GeoTIFF...' : 'Download GeoTIFF' }}</span>
-        </button>
-
-        <!-- Completed Export Result -->
-        <div
-          v-if="exportResult"
-          class="p-2.5 bg-slate-950 border border-emerald-600 rounded-xl space-y-1.5 text-[11px]"
-        >
-          <div class="text-emerald-400 font-bold flex items-center space-x-1">
-            <span>✓</span>
-            <span>Export Finished</span>
+        <!-- Option 2: Select from Saved AOIs -->
+        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-200 text-xs">Option B: Choose from Saved AOIs</span>
+            <button @click="loadSavedAois" class="text-sky-400 text-[10px] hover:underline cursor-pointer">
+              Refresh
+            </button>
           </div>
-          <div class="text-slate-300 font-mono text-[10px] break-all">
-            Saved to: {{ exportResult.local_filepath || exportResult.filename }}
+          <div class="max-h-32 overflow-y-auto space-y-1 pr-1 scrollbar-thin">
+            <div v-if="savedAoisList.length === 0" class="text-slate-500 text-[11px] italic">
+              No saved AOIs found.
+            </div>
+            <div
+              v-for="aoiItem in savedAoisList"
+              :key="aoiItem.id"
+              @click="selectSavedAoi(aoiItem)"
+              class="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-750 flex items-center justify-between cursor-pointer"
+            >
+              <div>
+                <span class="font-semibold text-slate-200">{{ aoiItem.name }}</span>
+                <span class="text-[10px] font-mono text-sky-400 ml-2">({{ aoiItem.area_km2.toFixed(1) }} km²)</span>
+              </div>
+              <span class="text-xs text-sky-400 font-bold">Select ➔</span>
+            </div>
           </div>
-          <a
-            :href="exportResult.download_url"
-            target="_blank"
-            class="block text-center py-1 bg-emerald-900/50 hover:bg-emerald-800 text-emerald-200 rounded font-bold text-[10px] mt-1"
-          >
-            Direct GeoTIFF Download Link ↗
-          </a>
         </div>
-      </aside>
+
+        <!-- Option 3: Presets (e.g. Ladakh) -->
+        <div class="flex items-center space-x-2">
+          <button
+            @click="loadLadakhPreset"
+            class="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl text-xs transition-colors cursor-pointer text-center"
+          >
+            🏔️ Load Ladakh Region Preset
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- ================= GEE AUTHENTICATION MODAL ================= -->
@@ -549,26 +1077,19 @@
       v-if="showAuthModal"
       class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-100"
     >
-      <div class="bg-slate-900 border border-amber-500/80 rounded-2xl w-full max-w-xl shadow-2xl p-6 space-y-4 text-xs text-slate-200">
-        <!-- Modal Header -->
-        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+      <div class="bg-slate-900 border border-amber-600/80 rounded-2xl w-full max-w-lg shadow-2xl p-5 space-y-4 text-xs text-slate-200">
+        <div class="flex items-center justify-between pb-2 border-b border-slate-800">
           <div class="flex items-center space-x-2">
-            <span class="text-xl">⚡</span>
-            <div>
-              <h2 class="font-bold text-sm text-slate-100">Google Earth Engine Authentication</h2>
-              <p class="text-[11px] text-slate-400">Link your Google account or Google Cloud Project</p>
-            </div>
+            <span class="text-lg">🔐</span>
+            <h3 class="font-bold text-sm text-slate-100">Google Earth Engine Authentication</h3>
           </div>
-          <button
-            @click="showAuthModal = false"
-            class="p-1 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 cursor-pointer"
-          >
+          <button @click="showAuthModal = false" class="text-slate-400 hover:text-slate-100 cursor-pointer">
             ✕
           </button>
         </div>
 
-        <!-- Auth Method Tabs -->
-        <div class="flex items-center space-x-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
+        <!-- Auth Tabs -->
+        <div class="flex items-center bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs">
           <button
             @click="authTab = 'oauth'"
             :class="[
@@ -576,7 +1097,7 @@
               authTab === 'oauth' ? 'bg-amber-600 text-slate-950 font-bold' : 'text-slate-400 hover:text-slate-200'
             ]"
           >
-            🌐 Google Account (Interactive)
+            🌐 Google OAuth
           </button>
           <button
             @click="authTab = 'project'"
@@ -598,16 +1119,15 @@
           </button>
         </div>
 
-        <!-- TAB 1: INTERACTIVE GOOGLE ACCOUNT (PRIMARY USER REQUEST) -->
+        <!-- OAuth Tab -->
         <div v-if="authTab === 'oauth'" class="space-y-3.5">
-          <!-- Step 1: Open Google Verification Page -->
           <div class="bg-amber-950/40 border border-amber-700/80 rounded-xl p-3.5 space-y-2">
             <div class="flex items-center justify-between">
               <span class="font-bold text-amber-300 text-xs">Step 1: Sign in with Google</span>
               <span class="text-[10px] font-mono text-amber-400 bg-amber-950 px-1.5 py-0.5 rounded border border-amber-800">Official GEE OAuth</span>
             </div>
             <p class="text-[11px] text-amber-200/90 leading-relaxed">
-              Click the button below to open Google's official Earth Engine verification page in your browser. Log in and copy the authorization code provided by Google.
+              Click below to open Google's Earth Engine verification page in your browser. Log in and copy the authorization code.
             </p>
             <button
               @click="openExternalAuthPage"
@@ -619,10 +1139,8 @@
             </button>
           </div>
 
-          <!-- Step 2: Paste Authorization Code & Project ID -->
           <div class="space-y-3 bg-slate-950/60 p-3.5 rounded-xl border border-slate-800">
             <span class="font-bold text-slate-300 text-xs block">Step 2: Enter Authorization Code & Cloud Project</span>
-
             <div>
               <label class="block text-[11px] text-slate-400 mb-1">Authorization Code (from Google)</label>
               <input
@@ -632,7 +1150,6 @@
                 class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none font-mono focus:border-amber-500"
               />
             </div>
-
             <div>
               <label class="block text-[11px] text-slate-400 mb-1">Google Cloud Project ID</label>
               <input
@@ -641,12 +1158,7 @@
                 placeholder="e.g. ee-my-project or project-id-12345"
                 class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none font-mono focus:border-amber-500"
               />
-              <span class="text-[10px] text-slate-500 block mt-0.5">
-                Required by Earth Engine. See
-                <a href="https://console.cloud.google.com/apis/library/earthengine.googleapis.com" target="_blank" class="text-amber-400 underline">GCP Console ↗</a>
-              </span>
             </div>
-
             <button
               @click="submitAuthCode"
               :disabled="isSubmittingAuth || !authCodeInput"
@@ -658,12 +1170,11 @@
           </div>
         </div>
 
-        <!-- TAB 2: CLOUD PROJECT ID ONLY -->
+        <!-- Project ID Tab -->
         <div v-else-if="authTab === 'project'" class="space-y-3 bg-slate-950/60 p-3.5 rounded-xl border border-slate-800">
           <p class="text-[11px] text-slate-400 leading-relaxed">
             If your Google credentials already exist on this machine or via gcloud, specify the Earth Engine Cloud Project ID to initialize.
           </p>
-
           <div>
             <label class="block text-[11px] text-slate-400 mb-1">Google Cloud Project ID</label>
             <input
@@ -673,7 +1184,6 @@
               class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none font-mono focus:border-amber-500"
             />
           </div>
-
           <button
             @click="submitProjectId"
             :disabled="isSubmittingAuth || !authProjectInput"
@@ -683,12 +1193,11 @@
           </button>
         </div>
 
-        <!-- TAB 3: SERVICE ACCOUNT JSON -->
+        <!-- Service Account Tab -->
         <div v-else class="space-y-3 bg-slate-950/60 p-3.5 rounded-xl border border-slate-800">
           <p class="text-[11px] text-slate-400 leading-relaxed">
             Authenticate using a Google Cloud Service Account JSON key with the Earth Engine Resource Viewer role.
           </p>
-
           <div>
             <label class="block text-[11px] text-slate-400 mb-1">Service Account Key JSON</label>
             <textarea
@@ -698,7 +1207,6 @@
               class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-[11px] text-slate-100 font-mono outline-none focus:border-amber-500"
             ></textarea>
           </div>
-
           <button
             @click="submitServiceAccount"
             :disabled="isSubmittingAuth || !serviceAccountJsonInput"
@@ -712,21 +1220,21 @@
         <div
           v-if="authModalMessage"
           :class="[
-            'p-3 rounded-xl border text-xs',
-            authModalError ? 'bg-rose-950/80 border-rose-800 text-rose-300' : 'bg-emerald-950/80 border-emerald-800 text-emerald-300'
+            'p-2.5 rounded-lg text-xs font-mono',
+            authModalError ? 'bg-rose-950/80 text-rose-300 border border-rose-800' : 'bg-emerald-950/80 text-emerald-300 border border-emerald-800'
           ]"
         >
           {{ authModalMessage }}
         </div>
 
-        <!-- Modal Footer Actions -->
+        <!-- Footer Actions -->
         <div class="flex items-center justify-between pt-2 border-t border-slate-800">
           <button
             v-if="eeStatus.is_authenticated"
             @click="logoutGee"
-            class="text-[11px] text-rose-400 hover:text-rose-300 underline cursor-pointer"
+            class="text-rose-400 hover:text-rose-300 text-xs font-semibold cursor-pointer"
           >
-            Logout / Clear GEE Credentials
+            Disconnect Credentials
           </button>
           <div v-else></div>
 
@@ -743,7 +1251,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import Map from 'ol/Map'
 import View from 'ol/View'
 import TileLayer from 'ol/layer/Tile'
@@ -757,17 +1265,94 @@ import { Style, Stroke, Fill } from 'ol/style'
 import { fromLonLat, toLonLat } from 'ol/proj'
 import { api } from '../services/api'
 
-// Connection Status State
+// Studio Mode: 'gee' or 'local'
+const executionMode = ref<'gee' | 'local'>('gee')
+const layoutMode = ref<'split' | 'notebook' | 'map'>('split')
+
+// Left Sidebar & Tabs
+const sidebarTab = ref<'catalog' | 'snippets' | 'files'>('catalog')
+const catalogDatasets = ref<any[]>([])
+const activeCategory = ref('all')
+const catalogSearchQuery = ref('')
+const curatedSnippets = ref<any[]>([])
+const localFilesList = ref<any[]>([])
+
+const categories = [
+  { id: 'all', label: 'All' },
+  { id: 'optical', label: '🛰️ Optical' },
+  { id: 'radar', label: '📡 Radar SAR' },
+  { id: 'landcover', label: '🌲 Land Cover' },
+  { id: 'elevation', label: '🏔️ Elevation' },
+  { id: 'climate', label: '🌡️ Climate' },
+  { id: 'water', label: '💧 Water' },
+  { id: 'local', label: '💻 Local' },
+]
+
+// =========================================================================
+// JUPYTER NOTEBOOK STATE
+// =========================================================================
+interface NotebookCell {
+  id: string
+  type: 'code' | 'markdown'
+  source: string
+  executionCount: number | null
+  isRunning: boolean
+  outputs: {
+    logs?: string
+    error?: string
+    cell_layers?: any[]
+    data?: Record<string, any>
+    output_files?: any[]
+    execution_time_ms?: number
+  } | null
+  isEditingMarkdown?: boolean
+}
+
+const notebookCells = ref<NotebookCell[]>([])
+const activeCellId = ref<string>('cell-1')
+const executionCounter = ref<number>(1)
+const isKernelBusy = ref<boolean>(false)
+const sessionId = ref<string>(`session_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`)
+
+// Inspector & Results Tabs
+const inspectorTab = ref<'map' | 'data' | 'files' | 'console'>('map')
+const consoleLogs = ref<string>('')
+const hasExecutionError = ref(false)
+const lastExecutionTimeMs = ref<number | null>(null)
+const resultLayers = ref<any[]>([])
+const resultData = ref<Record<string, any>>({})
+const resultOutputFiles = ref<any[]>([])
+
+// AOI Management State
+const showAoiModal = ref(false)
+const hasAoi = ref(false)
+const activeAoiName = ref<string | null>(null)
+const activeAoiArea = ref<number | null>(null)
+const loadedAoiGeoJson = ref<any | null>(null)
+const savedAoisList = ref<any[]>([])
+
+// OpenLayers Map State
+const mapContainer = ref<HTMLElement | null>(null)
+let olMap: Map | null = null
+let baseTileLayer: TileLayer | null = null
+let aoiSource: VectorSource = new VectorSource()
+let aoiLayer: VectorLayer | null = null
+let currentDrawInteraction: Draw | null = null
+let dynamicOlLayers: TileLayer[] = []
+
+const activeBasemap = ref<'dark' | 'satellite' | 'osm' | 'topo'>('dark')
+const activeDrawType = ref<'Polygon' | 'Box' | null>(null)
+const mouseLon = ref<number | null>(null)
+const mouseLat = ref<number | null>(null)
+const currentZoom = ref<number>(6)
+
+// GEE Auth State
 const eeStatus = ref<any>({
   available: true,
   is_authenticated: false,
   initialized: false,
   project_id: null,
-  credentials_exist: false,
-  message: 'Loading status...',
 })
-
-// Modal & Auth State
 const showAuthModal = ref(false)
 const authTab = ref<'oauth' | 'project' | 'service_account'>('oauth')
 const authCodeInput = ref('')
@@ -779,62 +1364,77 @@ const authModalMessage = ref<string | null>(null)
 const authModalError = ref(false)
 let currentSessionId: string | null = null
 
-// Catalog & Filter State
-const sidebarView = ref<'catalog' | 'controls'>('catalog')
-const datasets = ref<any[]>([])
-const selectedDataset = ref<any | null>(null)
-const activeCategory = ref('all')
-const searchQuery = ref('')
-const customAssetId = ref('')
-
-const categories = [
-  { id: 'all', label: 'All' },
-  { id: 'optical', label: '🛰️ Optical' },
-  { id: 'radar', label: '📡 Radar SAR' },
-  { id: 'landcover', label: '🌲 Land Cover' },
-  { id: 'elevation', label: '🏔️ Elevation' },
-  { id: 'climate', label: '🌡️ Climate' },
-  { id: 'water', label: '💧 Water' },
+// =========================================================================
+// DEFAULT NOTEBOOK WORKFLOWS
+// =========================================================================
+const DEFAULT_GEE_NOTEBOOK: NotebookCell[] = [
+  {
+    id: 'cell-md-1',
+    type: 'markdown',
+    source: `# 🌍 Google Earth Engine Cloud Workflow\n\nInteractive Jupyter Python environment powered by **Google Earth Engine** (\`ee\`) and \`Map\`.\n- Multi-cell state persistence: Variables and functions defined in earlier cells persist into subsequent cells.\n- If a study area is loaded, it is injected as **\`aoi\`** (an \`ee.Geometry\`).`,
+    executionCount: null,
+    isRunning: false,
+    outputs: null,
+  },
+  {
+    id: 'cell-1',
+    type: 'code',
+    source: `import ee\n\n# 1. Query Sentinel-2 L2A Surface Reflectance\n# Filters by cloud cover and date range\ncollection = (\n    ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")\n    .filterDate("2024-01-01", "2024-06-30")\n    .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 20))\n)\n\nif aoi is not None:\n    collection = collection.filterBounds(aoi)\n\nprint("Collection initialized.")\nprint(f"Total scenes available: {collection.size().getInfo()}")`,
+    executionCount: null,
+    isRunning: false,
+    outputs: null,
+  },
+  {
+    id: 'cell-2',
+    type: 'code',
+    source: `# 2. Compute cloud-free median composite and display True-Color RGB\nimage = collection.median()\nif aoi is not None:\n    image = image.clip(aoi)\n\nrgb_vis = {"bands": ["B4", "B3", "B2"], "min": 0, "max": 3000}\nMap.addLayer(image, rgb_vis, "Sentinel-2 True Color (RGB)")\nprint("True Color layer added to interactive Map!")`,
+    executionCount: null,
+    isRunning: false,
+    outputs: null,
+  },
+  {
+    id: 'cell-3',
+    type: 'code',
+    source: `# 3. Calculate Normalized Difference Vegetation Index (NDVI)\nndvi = image.normalizedDifference(["B8", "B4"]).rename("NDVI")\nndvi_vis = {\n    "min": -0.1, "max": 0.8,\n    "palette": ["#a50026", "#d73027", "#f46d43", "#fdae61", "#ffffbf", "#a6d96a", "#1a9850", "#006837"]\n}\nMap.addLayer(ndvi, ndvi_vis, "Sentinel-2 NDVI")\n\n# Extract zonal statistics over AOI\nif aoi is not None:\n    stats = ndvi.reduceRegion(\n        reducer=ee.Reducer.mean(),\n        geometry=aoi,\n        scale=20,\n        maxPixels=1e8\n    ).getInfo()\n    data["mean_ndvi"] = stats.get("NDVI")\n    print("Mean NDVI over AOI:", stats)\nelse:\n    print("NDVI composite visualized on Map.")`,
+    executionCount: null,
+    isRunning: false,
+    outputs: null,
+  },
 ]
 
-// Query Controls State
-const queryDateStart = ref('2024-01-01')
-const queryDateEnd = ref('2024-12-31')
-const queryCloudCover = ref(20)
-const queryVisMode = ref('true_color')
-const queryReducer = ref('median')
-
-// Map & Visualization State
-const mapContainer = ref<HTMLElement | null>(null)
-let olMap: Map | null = null
-let baseTileLayer: TileLayer | null = null
-let aoiSource: VectorSource = new VectorSource()
-let aoiLayer: VectorLayer | null = null
-let currentDrawInteraction: Draw | null = null
-let geeTileLayer: TileLayer | null = null
-
-const activeBasemap = ref<'dark' | 'satellite' | 'osm' | 'topo'>('dark')
-const activeDrawType = ref<'Polygon' | 'Box' | null>(null)
-const hasAoi = ref(false)
-const mouseLon = ref<number | null>(null)
-const mouseLat = ref<number | null>(null)
-const currentZoom = ref<number>(6)
-
-const isVisualizing = ref(false)
-const visualizeError = ref<string | null>(null)
-const activeGeeLayerInfo = ref<any | null>(null)
-const geeLayerOpacity = ref(0.9)
-
-// Harvest / Export State
-const isHarvestDrawerOpen = ref(false)
-const exportDestDir = ref('/home/himalaya/Desktop/divakar/test/gee')
-const exportScale = ref(30)
-const isExporting = ref(false)
-const exportResult = ref<any | null>(null)
+const DEFAULT_LOCAL_NOTEBOOK: NotebookCell[] = [
+  {
+    id: 'cell-md-local-1',
+    type: 'markdown',
+    source: `# 💻 Local File Geospatial Processing\n\nProcess downloaded rasters and shapefiles directly on your machine using **Rasterio**, **NumPy**, **GeoPandas**, and **Shapely**.\n- Local storage scanned from \`./data/downloads\` and \`./data/processed\`.\n- Generated GeoTIFFs written to \`processed_dir\` are tracked and made available for download!`,
+    executionCount: null,
+    isRunning: false,
+    outputs: null,
+  },
+  {
+    id: 'cell-local-1',
+    type: 'code',
+    source: `import os\nfrom pathlib import Path\nimport numpy as np\nimport rasterio\n\nprint("Scanning available downloaded files in GeoHarvest storage:")\nfor f in local_files[:5]:\n    print(f" - {f['name']} ({f['root']}, {f['extension']})")`,
+    executionCount: null,
+    isRunning: false,
+    outputs: null,
+  },
+  {
+    id: 'cell-local-2',
+    type: 'code',
+    source: `# Check for candidate GeoTIFFs\ntif_candidates = [f['absolute_path'] for f in local_files if f['extension'] in ['.tif', '.tiff']]\n\nif not tif_candidates:\n    print("No downloaded GeoTIFF found. Harvest a satellite scene or specify a file path.")\n    data["status"] = "No GeoTIFF available"\nelse:\n    input_tif = tif_candidates[0]\n    with rasterio.open(input_tif) as src:\n        print(f"Loaded: {Path(input_tif).name}")\n        print(f"Shape: {src.width} x {src.height}, Bands: {src.count}, CRS: {src.crs}")\n        data["raster_width"] = src.width\n        data["raster_height"] = src.height\n        data["raster_bands"] = src.count\n        data["raster_crs"] = str(src.crs)\n        Map.addLayer(input_tif, name="Local GeoTIFF")`,
+    executionCount: null,
+    isRunning: false,
+    outputs: null,
+  },
+]
 
 onMounted(async () => {
+  resetToDefaultNotebook()
   await fetchStatus()
-  await loadDatasets()
+  await loadCatalogDatasets()
+  await loadSnippets()
+  await loadLocalFiles()
   initMap()
 })
 
@@ -845,6 +1445,336 @@ onUnmounted(() => {
   }
 })
 
+function setExecutionMode(mode: 'gee' | 'local') {
+  executionMode.value = mode
+  resetToDefaultNotebook()
+}
+
+function resetToDefaultNotebook() {
+  const template = executionMode.value === 'gee' ? DEFAULT_GEE_NOTEBOOK : DEFAULT_LOCAL_NOTEBOOK
+  notebookCells.value = JSON.parse(JSON.stringify(template))
+  if (notebookCells.value.length > 0) {
+    activeCellId.value = notebookCells.value[0].id
+  }
+}
+
+// =========================================================================
+// NOTEBOOK CELL OPERATIONS
+// =========================================================================
+function addCell(type: 'code' | 'markdown' = 'code', afterId?: string) {
+  const newId = 'cell-' + Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 5)
+  const newCell: NotebookCell = {
+    id: newId,
+    type,
+    source: type === 'code' ? '' : '### Documentation\nEnter markdown text here...',
+    executionCount: null,
+    isRunning: false,
+    outputs: null,
+    isEditingMarkdown: type === 'markdown',
+  }
+
+  const targetId = afterId || activeCellId.value
+  const idx = notebookCells.value.findIndex((c) => c.id === targetId)
+  if (idx !== -1) {
+    notebookCells.value.splice(idx + 1, 0, newCell)
+  } else {
+    notebookCells.value.push(newCell)
+  }
+  activeCellId.value = newId
+
+  nextTick(() => {
+    if (type === 'code') {
+      const el = document.getElementById('cell-textarea-' + newId)
+      if (el) el.focus()
+    }
+  })
+}
+
+function deleteCell(cellId: string) {
+  if (notebookCells.value.length <= 1) {
+    // If only one cell, clear it rather than empty document
+    notebookCells.value[0].source = ''
+    notebookCells.value[0].outputs = null
+    notebookCells.value[0].executionCount = null
+    return
+  }
+  const idx = notebookCells.value.findIndex((c) => c.id === cellId)
+  if (idx !== -1) {
+    notebookCells.value.splice(idx, 1)
+    const nextIdx = Math.min(idx, notebookCells.value.length - 1)
+    activeCellId.value = notebookCells.value[nextIdx].id
+  }
+}
+
+function moveCell(cellId: string, direction: 'up' | 'down') {
+  const idx = notebookCells.value.findIndex((c) => c.id === cellId)
+  if (idx === -1) return
+  if (direction === 'up' && idx > 0) {
+    const temp = notebookCells.value[idx]
+    notebookCells.value[idx] = notebookCells.value[idx - 1]
+    notebookCells.value[idx - 1] = temp
+  } else if (direction === 'down' && idx < notebookCells.value.length - 1) {
+    const temp = notebookCells.value[idx]
+    notebookCells.value[idx] = notebookCells.value[idx + 1]
+    notebookCells.value[idx + 1] = temp
+  }
+}
+
+function toggleCellType(cellId: string) {
+  const cell = notebookCells.value.find((c) => c.id === cellId)
+  if (cell) {
+    cell.type = cell.type === 'code' ? 'markdown' : 'code'
+    if (cell.type === 'markdown') {
+      cell.outputs = null
+      cell.executionCount = null
+      cell.isEditingMarkdown = false
+    }
+  }
+}
+
+function clearAllOutputs() {
+  notebookCells.value.forEach((c) => {
+    c.outputs = null
+    c.executionCount = null
+  })
+  consoleLogs.value = ''
+  resultData.value = {}
+  resultOutputFiles.value = []
+}
+
+// =========================================================================
+// KERNEL RESTART & VARIABLE PERSISTENCE
+// =========================================================================
+async function restartKernel() {
+  isKernelBusy.value = true
+  try {
+    await api.restartEarthEngineEmulator(sessionId.value)
+    sessionId.value = `session_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
+    executionCounter.value = 1
+    clearAllOutputs()
+    clearAllResultLayers()
+    consoleLogs.value = '[Kernel Restarted: Session variables and namespace have been reset.]\n'
+  } catch (err: any) {
+    console.error('Failed to restart kernel', err)
+  } finally {
+    isKernelBusy.value = false
+  }
+}
+
+// =========================================================================
+// CELL & NOTEBOOK EXECUTION
+// =========================================================================
+function handleCellKeydown(e: KeyboardEvent, cellId: string) {
+  if (e.key === 'Tab') {
+    e.preventDefault()
+    const textarea = document.getElementById('cell-textarea-' + cellId) as HTMLTextAreaElement
+    if (!textarea) return
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const cell = notebookCells.value.find((c) => c.id === cellId)
+    if (cell) {
+      cell.source = cell.source.substring(0, start) + '    ' + cell.source.substring(end)
+      nextTick(() => {
+        textarea.selectionStart = textarea.selectionEnd = start + 4
+      })
+    }
+  } else if (e.shiftKey && e.key === 'Enter') {
+    e.preventDefault()
+    runCell(cellId, true)
+  } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault()
+    runCell(cellId, false)
+  }
+}
+
+function runActiveCell() {
+  if (activeCellId.value) {
+    runCell(activeCellId.value)
+  }
+}
+
+async function runCell(cellId: string, advanceToNext: boolean = false) {
+  const cell = notebookCells.value.find((c) => c.id === cellId)
+  if (!cell) return
+
+  if (cell.type === 'markdown') {
+    cell.isEditingMarkdown = false
+    if (advanceToNext) {
+      advanceOrAddCell(cellId)
+    }
+    return
+  }
+
+  cell.isRunning = true
+  isKernelBusy.value = true
+  hasExecutionError.value = false
+
+  try {
+    const aoiPayload = loadedAoiGeoJson.value || getDrawnAoiGeoJson()
+    const res = await api.runEarthEngineEmulator({
+      code: cell.source,
+      mode: executionMode.value,
+      aoi: aoiPayload,
+      session_id: sessionId.value,
+      cell_id: cell.id,
+    })
+
+    const count = executionCounter.value++
+    cell.executionCount = count
+    lastExecutionTimeMs.value = res.execution_time_ms
+
+    cell.outputs = {
+      logs: res.logs,
+      error: res.error,
+      cell_layers: res.cell_layers || [],
+      data: res.data || {},
+      output_files: res.output_files || [],
+      execution_time_ms: res.execution_time_ms,
+    }
+
+    if (res.logs) {
+      consoleLogs.value += `\n[In ${count}]:\n${res.logs}\n`
+    }
+    if (res.error) {
+      hasExecutionError.value = true
+      consoleLogs.value += `\n[In ${count} ERROR]:\n${res.error}\n`
+    }
+
+    // Merge global results
+    if (res.data) {
+      resultData.value = { ...resultData.value, ...res.data }
+    }
+    if (res.output_files && res.output_files.length > 0) {
+      resultOutputFiles.value = [...res.output_files, ...resultOutputFiles.value]
+    }
+
+    // Render layers on Map
+    if (res.layers && res.layers.length > 0) {
+      renderResultLayers(res.layers)
+    }
+
+    if (res.center && olMap) {
+      olMap.getView().animate({
+        center: fromLonLat(res.center),
+        zoom: res.zoom || olMap.getView().getZoom() || 8,
+        duration: 800,
+      })
+    }
+
+    if (advanceToNext) {
+      advanceOrAddCell(cellId)
+    }
+  } catch (err: any) {
+    cell.outputs = {
+      error: err.message,
+    }
+    hasExecutionError.value = true
+  } finally {
+    cell.isRunning = false
+    isKernelBusy.value = false
+  }
+}
+
+function advanceOrAddCell(currentId: string) {
+  const idx = notebookCells.value.findIndex((c) => c.id === currentId)
+  if (idx !== -1) {
+    if (idx < notebookCells.value.length - 1) {
+      activeCellId.value = notebookCells.value[idx + 1].id
+      nextTick(() => {
+        const el = document.getElementById('cell-textarea-' + activeCellId.value)
+        if (el) el.focus()
+      })
+    } else {
+      addCell('code', currentId)
+    }
+  }
+}
+
+async function runAllCells() {
+  if (isKernelBusy.value) return
+  for (const cell of notebookCells.value) {
+    if (cell.type === 'code') {
+      activeCellId.value = cell.id
+      await runCell(cell.id, false)
+      if (cell.outputs?.error) {
+        // Stop execution on first error like standard Jupyter
+        break
+      }
+    }
+  }
+}
+
+// =========================================================================
+// EXPORT & IMPORT .IPYNB
+// =========================================================================
+function exportNotebook() {
+  const ipynbObj = {
+    cells: notebookCells.value.map((c) => ({
+      cell_type: c.type,
+      metadata: {},
+      source: c.source.split('\n').map((l, i, arr) => (i < arr.length - 1 ? l + '\n' : l)),
+      execution_count: c.type === 'code' ? c.executionCount : undefined,
+      outputs: c.outputs && c.outputs.logs ? [{
+        name: 'stdout',
+        output_type: 'stream',
+        text: [c.outputs.logs],
+      }] : [],
+    })),
+    metadata: {
+      kernelspec: {
+        display_name: executionMode.value === 'gee' ? 'Python 3 (Google Earth Engine)' : 'Python 3 (Local Geospatial)',
+        language: 'python',
+        name: 'python3',
+      },
+      language_info: {
+        name: 'python',
+        version: '3.11',
+      },
+    },
+    nbformat: 4,
+    nbformat_minor: 5,
+  }
+
+  const blob = new Blob([JSON.stringify(ipynbObj, null, 2)], { type: 'application/x-ipynb+json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `geoharvest_${executionMode.value}_notebook.ipynb`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+async function handleNotebookImport(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  try {
+    const text = await file.text()
+    const parsed = JSON.parse(text)
+    if (parsed.cells && Array.isArray(parsed.cells)) {
+      notebookCells.value = parsed.cells.map((c: any, i: number) => {
+        const sourceStr = Array.isArray(c.source) ? c.source.join('') : (c.source || '')
+        return {
+          id: 'imported-cell-' + i + '-' + Date.now().toString(36),
+          type: c.cell_type === 'markdown' ? 'markdown' : 'code',
+          source: sourceStr,
+          executionCount: c.execution_count || null,
+          isRunning: false,
+          outputs: null,
+          isEditingMarkdown: false,
+        }
+      })
+      if (notebookCells.value.length > 0) {
+        activeCellId.value = notebookCells.value[0].id
+      }
+    }
+  } catch (err: any) {
+    alert(`Could not parse .ipynb file: ${err.message}`)
+  }
+}
+
+// =========================================================================
+// SIDEBAR CATALOG & SNIPPET INTEGRATION
+// =========================================================================
 async function fetchStatus() {
   try {
     eeStatus.value = await api.getEarthEngineStatus()
@@ -856,171 +1786,249 @@ async function fetchStatus() {
   }
 }
 
-async function loadDatasets() {
+async function loadCatalogDatasets() {
   try {
-    datasets.value = await api.getEarthEngineDatasets(activeCategory.value, searchQuery.value)
-    if (!selectedDataset.value && datasets.value.length > 0) {
-      selectedDataset.value = datasets.value[0]
-      queryVisMode.value = selectedDataset.value.default_vis_mode || 'true_color'
+    catalogDatasets.value = await api.getEarthEngineDatasets(activeCategory.value, catalogSearchQuery.value)
+  } catch (e: any) {
+    console.error('Failed to load catalog datasets', e)
+  }
+}
+
+async function loadSnippets() {
+  try {
+    curatedSnippets.value = await api.getEmulatorSnippets()
+  } catch (e: any) {
+    console.error('Failed to load snippets', e)
+  }
+}
+
+async function loadLocalFiles() {
+  try {
+    localFilesList.value = await api.getEmulatorLocalFiles()
+  } catch (e: any) {
+    console.error('Failed to load local files', e)
+  }
+}
+
+async function insertDatasetCodeAsCell(datasetId: string) {
+  try {
+    const res = await api.getEmulatorTemplate(datasetId)
+    if (res && res.code) {
+      addCell('code')
+      const target = notebookCells.value.find((c) => c.id === activeCellId.value)
+      if (target) {
+        target.source = res.code
+      }
     }
   } catch (e: any) {
-    console.error('Failed to load datasets', e)
+    console.error('Failed to insert dataset code', e)
   }
 }
 
-function selectDataset(ds: any) {
-  selectedDataset.value = ds
-  queryVisMode.value = ds.default_vis_mode || 'true_color'
-  sidebarView.value = 'controls'
-}
-
-async function loadCustomAsset() {
-  if (!customAssetId.value.trim()) return
-  try {
-    const info = await api.getEarthEngineAssetInfo(customAssetId.value.trim())
-    const customDs = {
-      id: customAssetId.value.trim(),
-      name: `Custom Asset: ${customAssetId.value.trim()}`,
-      category: 'custom',
-      type: info.type === 'ImageCollection' ? 'image_collection' : 'image',
-      provider: 'Earth Engine Asset',
-      resolution: 'Custom',
-      temporal_range: 'Custom',
-      description: `Custom Earth Engine Asset with ${info.bands?.length || 0} bands.`,
-      default_vis_mode: 'custom_vis',
-      supported_vis_modes: ['custom_vis'],
+function insertSnippetCodeAsCell(snip: any) {
+  if (snip && snip.code) {
+    if (snip.mode) {
+      executionMode.value = snip.mode
     }
-    selectedDataset.value = customDs
-    sidebarView.value = 'controls'
-  } catch (e: any) {
-    alert(`Could not load custom asset: ${e.message}`)
+    addCell('code')
+    const target = notebookCells.value.find((c) => c.id === activeCellId.value)
+    if (target) {
+      target.source = snip.code
+    }
   }
 }
 
-function formatVisModeLabel(mode: string): string {
-  const map: Record<string, string> = {
-    true_color: '🌿 True Color (RGB)',
-    false_color: '🔴 False Color (NIR / Vegetation)',
-    ndvi: '🌱 NDVI (Vegetation Index)',
-    ndwi: '💧 NDWI (Water Index)',
-    mndwi: '🌊 MNDWI (Modified Water Index)',
-    swir: '🔥 SWIR Composite',
-    elevation_colormap: '🏔️ Elevation Colormap',
-    hillshade: '⛰️ Shaded Relief Hillshade',
-    precipitation: '🌧️ Precipitation (mm)',
-    temperature_kelvin: '🌡️ Surface Temperature',
-    lulc_classified: '🗺️ Land Use Classification (9 Classes)',
-    sar_composite: '📡 SAR Dual-Pol RGB (VV+VH / HH+HV)',
-    vv_amplitude: '📡 Co-Pol Amplitude (VV / HH)',
-    vh_amplitude: '📡 Cross-Pol Amplitude (VH / HV)',
-    hh_amplitude: '📡 HH Amplitude (Polar/Ice)',
-    hv_amplitude: '📡 HV Amplitude (Polar/Ice)',
-    water_occurrence: '🌊 Water Occurrence (1984-2021)',
+function insertFilePathIntoActiveCell(absPath: string) {
+  const target = notebookCells.value.find((c) => c.id === activeCellId.value)
+  if (target) {
+    target.source += `\ninput_file = r"${absPath}"\n`
+  } else {
+    addCell('code')
+    const newTarget = notebookCells.value.find((c) => c.id === activeCellId.value)
+    if (newTarget) newTarget.source = `input_file = r"${absPath}"\n`
   }
-  return map[mode] || mode
 }
 
-// Authentication Actions
-function openAuthModal() {
-  showAuthModal.value = true
-  authModalMessage.value = null
-  authModalError.value = false
+// Markdown Renderer Helper
+function renderSimpleMarkdown(content: string): string {
+  if (!content) return ''
+  let html = content
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+
+  // Code blocks
+  html = html.replace(/```([a-z]*)\n([\s\S]*?)```/g, '<pre class="bg-slate-900 border border-slate-800 p-2 rounded text-emerald-300 font-mono text-[11px] overflow-x-auto">$2</pre>')
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, '<code class="bg-slate-900 px-1 py-0.5 rounded text-emerald-400 font-mono text-[10px]">$1</code>')
+  // Headers
+  html = html.replace(/^### (.*$)/gim, '<h3 class="text-sm font-bold text-slate-100 mt-2 mb-1">$1</h3>')
+  html = html.replace(/^## (.*$)/gim, '<h2 class="text-base font-bold text-slate-100 mt-2.5 mb-1.5">$1</h2>')
+  html = html.replace(/^# (.*$)/gim, '<h1 class="text-lg font-extrabold text-slate-100 mt-3 mb-2">$1</h1>')
+  // Bold & Italic
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-100">$1</strong>')
+  html = html.replace(/\*(.*?)\*/g, '<em class="italic text-slate-300">$1</em>')
+  // Bullet lists
+  html = html.replace(/^\- (.*$)/gim, '<li class="ml-4 list-disc text-slate-300 text-xs">$1</li>')
+  // Paragraphs
+  html = html.replace(/\n\n/g, '<div class="h-2"></div>')
+  html = html.replace(/\n/g, '<br/>')
+
+  return html
 }
 
-async function openExternalAuthPage() {
-  isGeneratingAuthUrl.value = true
-  authModalMessage.value = null
+// =========================================================================
+// OPENLAYERS MAP & LAYER RENDERING
+// =========================================================================
+function renderResultLayers(layers: any[]) {
+  resultLayers.value = layers
+  if (!olMap) return
+
+  // Remove previous dynamic layers
+  for (const l of dynamicOlLayers) {
+    olMap.removeLayer(l)
+  }
+  dynamicOlLayers = []
+
+  // Add each layer
+  layers.forEach((layerSpec) => {
+    if (layerSpec.layer_type === 'gee_tile' && layerSpec.tile_url) {
+      const tileL = new TileLayer({
+        source: new XYZ({
+          url: layerSpec.tile_url,
+          maxZoom: 18,
+        }),
+        opacity: layerSpec.opacity ?? 1.0,
+        zIndex: 5,
+      })
+      olMap?.addLayer(tileL)
+      dynamicOlLayers.push(tileL)
+    }
+  })
+}
+
+function focusMapLayer(layerName: string) {
+  inspectorTab.value = 'map'
+  layoutMode.value = 'split'
+}
+
+function updateLayerOpacity(idx: number) {
+  if (dynamicOlLayers[idx] && resultLayers.value[idx]) {
+    dynamicOlLayers[idx].setOpacity(resultLayers.value[idx].opacity)
+  }
+}
+
+function removeResultLayer(idx: number) {
+  if (dynamicOlLayers[idx] && olMap) {
+    olMap.removeLayer(dynamicOlLayers[idx])
+    dynamicOlLayers.splice(idx, 1)
+  }
+  resultLayers.value.splice(idx, 1)
+}
+
+function clearAllResultLayers() {
+  if (olMap) {
+    for (const l of dynamicOlLayers) {
+      olMap.removeLayer(l)
+    }
+  }
+  dynamicOlLayers = []
+  resultLayers.value = []
+}
+
+// =========================================================================
+// AOI MANAGEMENT
+// =========================================================================
+function clearActiveAoi() {
+  hasAoi.value = false
+  activeAoiName.value = null
+  activeAoiArea.value = null
+  loadedAoiGeoJson.value = null
+  aoiSource.clear()
+}
+
+async function loadSavedAois() {
   try {
-    const res = await api.getEarthEngineAuthUrl()
-    currentSessionId = res.session_id
-    // Open official verification URL in a new window/tab
-    window.open(res.auth_url || res.auth_page_url, '_blank')
-    authModalMessage.value = 'Opened Google verification page in new tab. Sign in and copy the authorization code.'
-    authModalError.value = false
+    savedAoisList.value = await api.listSavedAOIs()
   } catch (e: any) {
-    authModalMessage.value = `Failed to generate auth URL: ${e.message}`
-    authModalError.value = true
-  } finally {
-    isGeneratingAuthUrl.value = false
+    console.error('Failed to load saved AOIs', e)
   }
 }
 
-async function submitAuthCode() {
-  if (!authCodeInput.value.trim()) return
-  isSubmittingAuth.value = true
-  authModalMessage.value = null
+async function selectSavedAoi(aoiItem: any) {
   try {
-    const res = await api.exchangeEarthEngineAuthCode({
-      auth_code: authCodeInput.value.trim(),
-      session_id: currentSessionId || undefined,
-      project_id: authProjectInput.value.trim() || undefined,
-    })
-    authModalMessage.value = res.message || 'Successfully authenticated with Google Earth Engine!'
-    authModalError.value = false
-    await fetchStatus()
-    setTimeout(() => {
-      showAuthModal.value = false
-    }, 1500)
+    const res = await fetch(aoiItem.download_url)
+    const geo = await res.json()
+    applyLoadedGeoJson(geo, aoiItem.name, aoiItem.area_km2)
+    showAoiModal.value = false
   } catch (e: any) {
-    authModalMessage.value = e.message || 'Authorization failed. Check the code and project ID.'
-    authModalError.value = true
-  } finally {
-    isSubmittingAuth.value = false
+    alert(`Could not load AOI: ${e.message}`)
   }
 }
 
-async function submitProjectId() {
-  if (!authProjectInput.value.trim()) return
-  isSubmittingAuth.value = true
-  authModalMessage.value = null
+async function loadLadakhPreset() {
   try {
-    await api.setEarthEngineProject(authProjectInput.value.trim())
-    authModalMessage.value = 'Google Cloud Project ID updated and verified!'
-    authModalError.value = false
-    await fetchStatus()
-    setTimeout(() => {
-      showAuthModal.value = false
-    }, 1200)
+    const res = await api.getLadakhSample()
+    applyLoadedGeoJson(res.geojson, res.name, res.analysis?.area_km2)
+    showAoiModal.value = false
   } catch (e: any) {
-    authModalMessage.value = e.message
-    authModalError.value = true
-  } finally {
-    isSubmittingAuth.value = false
+    alert(`Could not load Ladakh preset: ${e.message}`)
   }
 }
 
-async function submitServiceAccount() {
-  isSubmittingAuth.value = true
-  authModalMessage.value = null
+async function handleLocalGeoJsonUpload(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
   try {
-    const parsed = JSON.parse(serviceAccountJsonInput.value)
-    await api.authenticateEarthEngineServiceAccount({
-      service_account_json: parsed,
-      project_id: authProjectInput.value.trim() || undefined,
-    })
-    authModalMessage.value = 'Service account successfully authorized!'
-    authModalError.value = false
-    await fetchStatus()
-    setTimeout(() => {
-      showAuthModal.value = false
-    }, 1200)
-  } catch (e: any) {
-    authModalMessage.value = `Service account error: ${e.message}`
-    authModalError.value = true
-  } finally {
-    isSubmittingAuth.value = false
+    const text = await file.text()
+    const geo = JSON.parse(text)
+    const valRes = await api.validateAOI({ geometry: geo })
+    if (valRes && valRes.valid) {
+      applyLoadedGeoJson(geo, file.name.replace(/\.[^/.]+$/, ''), valRes.area_km2)
+      showAoiModal.value = false
+    } else {
+      alert(`Invalid GeoJSON: ${valRes?.error || 'Unknown validation error'}`)
+    }
+  } catch (err: any) {
+    alert(`Failed to parse GeoJSON file: ${err.message}`)
   }
 }
 
-async function logoutGee() {
-  if (confirm('Clear Earth Engine credentials from this session?')) {
-    await api.logoutEarthEngine()
-    await fetchStatus()
-    showAuthModal.value = false
+function applyLoadedGeoJson(geo: any, name: string, areaKm2?: number) {
+  aoiSource.clear()
+  const format = new GeoJSON()
+  const features = format.readFeatures(geo, {
+    dataProjection: 'EPSG:4326',
+    featureProjection: 'EPSG:3857',
+  })
+
+  if (features && features.length > 0) {
+    aoiSource.addFeatures(features)
+    hasAoi.value = true
+    activeAoiName.value = name
+    activeAoiArea.value = areaKm2 || null
+    loadedAoiGeoJson.value = geo
+
+    if (olMap) {
+      const extent = aoiSource.getExtent()
+      olMap.getView().fit(extent, { padding: [40, 40, 40, 40], duration: 800 })
+    }
   }
 }
 
-// Map Initialization
+function getDrawnAoiGeoJson(): any {
+  if (aoiSource.isEmpty()) return null
+  const format = new GeoJSON()
+  const features = aoiSource.getFeatures()
+  if (features.length === 0) return null
+  const obj = format.writeFeatureObject(features[0], {
+    dataProjection: 'EPSG:4326',
+    featureProjection: 'EPSG:3857',
+  })
+  return obj.geometry
+}
+
+// MAP SETUP & DRAWING
 function initMap() {
   if (!mapContainer.value) return
 
@@ -1035,8 +2043,8 @@ function initMap() {
   aoiLayer = new VectorLayer({
     source: aoiSource,
     style: new Style({
-      stroke: new Stroke({ color: '#10b981', width: 2.5 }),
-      fill: new Fill({ color: 'rgba(16, 185, 129, 0.15)' }),
+      stroke: new Stroke({ color: '#38bdf8', width: 2.5 }),
+      fill: new Fill({ color: 'rgba(56, 189, 248, 0.15)' }),
     }),
     zIndex: 10,
   })
@@ -1091,7 +2099,6 @@ function switchBasemap() {
   }
 }
 
-// Draw AOI Tools
 function startDraw(type: 'Polygon' | 'Box') {
   if (!olMap) return
   if (currentDrawInteraction) {
@@ -1123,6 +2130,8 @@ function startDraw(type: 'Polygon' | 'Box') {
   currentDrawInteraction.on('drawend', () => {
     activeDrawType.value = null
     hasAoi.value = true
+    activeAoiName.value = 'Drawn AOI Boundary'
+    loadedAoiGeoJson.value = getDrawnAoiGeoJson()
     if (olMap && currentDrawInteraction) {
       olMap.removeInteraction(currentDrawInteraction)
       currentDrawInteraction = null
@@ -1132,107 +2141,118 @@ function startDraw(type: 'Polygon' | 'Box') {
   olMap.addInteraction(currentDrawInteraction)
 }
 
-function clearAoi() {
-  if (olMap && currentDrawInteraction) {
-    olMap.removeInteraction(currentDrawInteraction)
-    currentDrawInteraction = null
-  }
-  activeDrawType.value = null
-  aoiSource.clear()
-  hasAoi.value = false
+// =========================================================================
+// GEE AUTHENTICATION ACTIONS
+// =========================================================================
+function openAuthModal() {
+  showAuthModal.value = true
+  authModalMessage.value = null
+  authModalError.value = false
 }
 
-function getAoiGeoJson(): any {
-  if (aoiSource.isEmpty()) return null
-  const format = new GeoJSON()
-  const features = aoiSource.getFeatures()
-  if (features.length === 0) return null
-  const obj = format.writeFeatureObject(features[0], {
-    dataProjection: 'EPSG:4326',
-    featureProjection: 'EPSG:3857',
-  })
-  return obj.geometry
-}
-
-// GEE Visualization Action
-async function visualizeOnMap() {
-  if (!selectedDataset.value) return
-  isVisualizing.value = true
-  visualizeError.value = null
-
+async function openExternalAuthPage() {
+  isGeneratingAuthUrl.value = true
+  authModalMessage.value = null
   try {
-    const aoiGeom = getAoiGeoJson()
-    const res = await api.visualizeEarthEngineDataset({
-      dataset_id: selectedDataset.value.id,
-      geometry: aoiGeom,
-      date_start: queryDateStart.value,
-      date_end: queryDateEnd.value,
-      cloud_cover: queryCloudCover.value,
-      vis_mode: queryVisMode.value,
-      reducer: queryReducer.value,
-    })
-
-    activeGeeLayerInfo.value = res
-
-    // Render / update OpenLayers XYZ tile layer
-    if (!olMap) return
-    if (geeTileLayer) {
-      olMap.removeLayer(geeTileLayer)
-    }
-
-    geeTileLayer = new TileLayer({
-      source: new XYZ({
-        url: res.tile_url,
-        maxZoom: 18,
-      }),
-      opacity: geeLayerOpacity.value,
-      zIndex: 5,
-    })
-
-    olMap.addLayer(geeTileLayer)
+    const res = await api.getEarthEngineAuthUrl()
+    currentSessionId = res.session_id
+    window.open(res.auth_url || res.auth_page_url, '_blank')
+    authModalMessage.value = 'Opened Google verification page in new tab. Sign in and copy the authorization code.'
+    authModalError.value = false
   } catch (e: any) {
-    visualizeError.value = e.message || 'Failed to render GEE tile layer.'
+    authModalMessage.value = `Failed to generate auth URL: ${e.message}`
+    authModalError.value = true
   } finally {
-    isVisualizing.value = false
+    isGeneratingAuthUrl.value = false
   }
 }
 
-function updateGeeLayerOpacity() {
-  if (geeTileLayer) {
-    geeTileLayer.setOpacity(geeLayerOpacity.value)
-  }
-}
-
-function removeGeeTileLayer() {
-  if (olMap && geeTileLayer) {
-    olMap.removeLayer(geeTileLayer)
-    geeTileLayer = null
-    activeGeeLayerInfo.value = null
-  }
-}
-
-// Export GeoTIFF Action
-async function startExport() {
-  if (!selectedDataset.value || !hasAoi.value) return
-  isExporting.value = true
-  exportResult.value = null
+async function submitAuthCode() {
+  if (!authCodeInput.value.trim()) return
+  isSubmittingAuth.value = true
+  authModalMessage.value = null
   try {
-    const aoiGeom = getAoiGeoJson()
-    const res = await api.exportEarthEngineDataset({
-      dataset_id: selectedDataset.value.id,
-      geometry: aoiGeom,
-      date_start: queryDateStart.value,
-      date_end: queryDateEnd.value,
-      cloud_cover: queryCloudCover.value,
-      vis_mode: queryVisMode.value,
-      destination_dir: exportDestDir.value,
-      scale: exportScale.value,
+    const res = await api.exchangeEarthEngineAuthCode({
+      auth_code: authCodeInput.value.trim(),
+      session_id: currentSessionId || undefined,
+      project_id: authProjectInput.value.trim() || undefined,
     })
-    exportResult.value = res
+    authModalMessage.value = res.message || 'Successfully authenticated with Google Earth Engine!'
+    authModalError.value = false
+    await fetchStatus()
+    setTimeout(() => { showAuthModal.value = false }, 1500)
   } catch (e: any) {
-    alert(`Export failed: ${e.message}`)
+    authModalMessage.value = e.message || 'Authorization failed. Check the code and project ID.'
+    authModalError.value = true
   } finally {
-    isExporting.value = false
+    isSubmittingAuth.value = false
   }
+}
+
+async function submitProjectId() {
+  if (!authProjectInput.value.trim()) return
+  isSubmittingAuth.value = true
+  authModalMessage.value = null
+  try {
+    await api.setEarthEngineProject(authProjectInput.value.trim())
+    authModalMessage.value = 'Google Cloud Project ID updated and verified!'
+    authModalError.value = false
+    await fetchStatus()
+    setTimeout(() => { showAuthModal.value = false }, 1200)
+  } catch (e: any) {
+    authModalMessage.value = e.message
+    authModalError.value = true
+  } finally {
+    isSubmittingAuth.value = false
+  }
+}
+
+async function submitServiceAccount() {
+  isSubmittingAuth.value = true
+  authModalMessage.value = null
+  try {
+    const parsed = JSON.parse(serviceAccountJsonInput.value)
+    await api.authenticateEarthEngineServiceAccount({
+      service_account_json: parsed,
+      project_id: authProjectInput.value.trim() || undefined,
+    })
+    authModalMessage.value = 'Service account successfully authorized!'
+    authModalError.value = false
+    await fetchStatus()
+    setTimeout(() => { showAuthModal.value = false }, 1200)
+  } catch (e: any) {
+    authModalMessage.value = `Service account error: ${e.message}`
+    authModalError.value = true
+  } finally {
+    isSubmittingAuth.value = false
+  }
+}
+
+async function logoutGee() {
+  if (confirm('Clear Earth Engine credentials from this session?')) {
+    await api.logoutEarthEngine()
+    await fetchStatus()
+    showAuthModal.value = false
+  }
+}
+
+function copyConsoleLogs() {
+  navigator.clipboard.writeText(consoleLogs.value)
+}
+
+function copyDataJson() {
+  navigator.clipboard.writeText(JSON.stringify(resultData.value, null, 2))
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let i = 0
+  let num = bytes
+  while (num >= 1024 && i < units.length - 1) {
+    num /= 1024
+    i++
+  }
+  return `${num.toFixed(1)} ${units[i]}`
 }
 </script>

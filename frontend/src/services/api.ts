@@ -634,5 +634,108 @@ export const api = {
     if (!res.ok) throw new Error(body.detail || 'Failed to inspect asset info')
     return body
   },
+
+  async runEarthEngineEmulator(params: {
+    code: string
+    mode: 'gee' | 'local'
+    aoi?: any
+    session_id?: string
+    cell_id?: string
+  }): Promise<{
+    success: boolean
+    execution_time_ms: number
+    mode: string
+    logs: string
+    error?: string
+    cell_id?: string
+    layers: Array<{
+      name: string
+      layer_type: string
+      tile_url?: string
+      geojson?: any
+      raster_path?: string
+      vis_params?: any
+      shown: boolean
+      opacity: number
+    }>
+    cell_layers?: Array<{
+      name: string
+      layer_type: string
+      tile_url?: string
+      geojson?: any
+      raster_path?: string
+      vis_params?: any
+      shown: boolean
+      opacity: number
+    }>
+    data: Record<string, any>
+    output_files: Array<{
+      name: string
+      path: string
+      size_bytes: number
+      formatted_size: string
+      extension: string
+      download_url: string
+    }>
+    center?: [number, number]
+    zoom?: number
+  }> {
+    const res = await fetch(`${BASE_URL}/earthengine/emulator/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    })
+    const body = await res.json()
+    if (!res.ok) throw new Error(body.detail || 'Emulator execution failed')
+    return body
+  },
+
+  async restartEarthEngineEmulator(sessionId: string): Promise<{ status: string; message: string }> {
+    const res = await fetch(`${BASE_URL}/earthengine/emulator/restart`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId }),
+    })
+    const body = await res.json()
+    if (!res.ok) throw new Error(body.detail || 'Failed to restart kernel')
+    return body
+  },
+
+  async getEmulatorSnippets(category?: string, mode?: string): Promise<Array<{
+    id: string
+    title: string
+    category: string
+    mode: string
+    description: string
+    code: string
+  }>> {
+    const q = new URLSearchParams()
+    if (category) q.set('category', category)
+    if (mode) q.set('mode', mode)
+    const res = await fetch(`${BASE_URL}/earthengine/emulator/snippets?${q.toString()}`)
+    if (!res.ok) throw new Error('Failed to fetch snippets')
+    return res.json()
+  },
+
+  async getEmulatorTemplate(datasetId: string): Promise<{ dataset_id: string; code: string }> {
+    const q = new URLSearchParams({ dataset_id: datasetId })
+    const res = await fetch(`${BASE_URL}/earthengine/emulator/template?${q.toString()}`)
+    if (!res.ok) throw new Error('Failed to fetch dataset template')
+    return res.json()
+  },
+
+  async getEmulatorLocalFiles(): Promise<Array<{
+    name: string
+    relative_path: string
+    absolute_path: string
+    root: string
+    size_bytes: number
+    extension: string
+  }>> {
+    const res = await fetch(`${BASE_URL}/earthengine/emulator/local-files`)
+    if (!res.ok) throw new Error('Failed to fetch local files')
+    return res.json()
+  },
 }
+
 

@@ -22,7 +22,9 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     GEOHARVEST_HOST=0.0.0.0 \
     GEOHARVEST_PORT=9009 \
-    DEBIAN_FRONTEND=noninteractive
+    DEBIAN_FRONTEND=noninteractive \
+    UV_HTTP_TIMEOUT=300 \
+    UV_CONCURRENT_DOWNLOADS=4
 
 # Install essential system dependencies for GDAL/PROJ/GEOS and networking
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -36,12 +38,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Install uv for fast, reliable package resolution and parallel downloads
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+
 WORKDIR /app
 
 # Install Python backend dependencies
 COPY requirements.txt ./
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system \
+    --index-url https://mirrors.aliyun.com/pypi/simple/ \
+    --extra-index-url https://pypi.org/simple/ \
+    -r requirements.txt
 
 # Copy backend code, configurations, and launcher
 COPY backend/ ./backend/

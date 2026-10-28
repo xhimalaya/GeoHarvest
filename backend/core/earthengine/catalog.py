@@ -286,6 +286,323 @@ CURATED_EE_DATASETS: List[EEDatasetSpec] = [
 ]
 
 
+THEMATIC_SNIPPETS: List[Dict[str, Any]] = [
+    {
+        "id": "s2_ndvi",
+        "title": "Sentinel-2 Cloud-Free RGB & NDVI",
+        "category": "optical",
+        "mode": "gee",
+        "description": "Filters Sentinel-2 Surface Reflectance for cloud-free pixels, builds median composite, and calculates NDVI vegetation index.",
+        "code": """import ee
+
+# 1. Filter Sentinel-2 MSI Harmonized collection
+collection = (
+    ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+    .filterDate("2024-01-01", "2024-06-30")
+    .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 20))
+)
+if aoi is not None:
+    collection = collection.filterBounds(aoi)
+
+# 2. Compute cloud-free median composite
+image = collection.median()
+if aoi is not None:
+    image = image.clip(aoi)
+
+# 3. Add True-Color RGB Layer
+rgb_vis = {"bands": ["B4", "B3", "B2"], "min": 0, "max": 3000}
+Map.addLayer(image, rgb_vis, "Sentinel-2 True Color RGB")
+
+# 4. Compute NDVI (Normalized Difference Vegetation Index)
+ndvi = image.normalizedDifference(["B8", "B4"]).rename("NDVI")
+ndvi_vis = {
+    "min": -0.1, "max": 0.8,
+    "palette": ["#a50026", "#d73027", "#f46d43", "#fdae61", "#ffffbf", "#a6d96a", "#1a9850", "#006837"]
+}
+Map.addLayer(ndvi, ndvi_vis, "Sentinel-2 NDVI")
+
+# 5. Extract statistics
+if aoi is not None:
+    stats = ndvi.reduceRegion(
+        reducer=ee.Reducer.mean().combine(ee.Reducer.minMax(), sharedInputs=True),
+        geometry=aoi,
+        scale=20,
+        maxPixels=1e8
+    ).getInfo()
+    print("AOI NDVI Statistics:", stats)
+    data["mean_ndvi"] = stats.get("NDVI_mean")
+    data["max_ndvi"] = stats.get("NDVI_max")
+    data["min_ndvi"] = stats.get("NDVI_min")
+else:
+    print("Sentinel-2 Composite visualized on map.")
+"""
+    },
+    {
+        "id": "s1_sar_flood",
+        "title": "Sentinel-1 SAR Radar & Water Backscatter",
+        "category": "radar",
+        "mode": "gee",
+        "description": "Extracts dual-pol VV/VH SAR backscatter amplitude and detects potential surface water & flooded areas.",
+        "code": """import ee
+
+# 1. Filter Sentinel-1 C-band Synthetic Aperture Radar
+collection = (
+    ee.ImageCollection("COPERNICUS/S1_GRD")
+    .filter(ee.Filter.listContains("transmitterReceiverPolarisation", "VV"))
+    .filter(ee.Filter.eq("instrumentMode", "IW"))
+    .filterDate("2024-01-01", "2024-06-30")
+)
+if aoi is not None:
+    collection = collection.filterBounds(aoi)
+
+sar_img = collection.mosaic()
+if aoi is not None:
+    sar_img = sar_img.clip(aoi)
+
+# 2. Display SAR VV Amplitude
+sar_vis = {"bands": ["VV"], "min": -25, "max": 0, "palette": ["#000000", "#777777", "#ffffff"]}
+Map.addLayer(sar_img, sar_vis, "Sentinel-1 SAR (VV)")
+
+# 3. Detect low-backscatter water threshold (typically < -16 dB)
+water_mask = sar_img.select("VV").lt(-16).selfMask()
+water_vis = {"palette": ["#0055ff"]}
+Map.addLayer(water_mask, water_vis, "Detected Water (SAR < -16dB)")
+
+print("SAR Backscatter Mosaic loaded. Low radar backscatter denotes smooth open water.")
+"""
+    },
+    {
+        "id": "dynamic_world_lulc",
+        "title": "Dynamic World 10m NRT Land Cover",
+        "category": "landcover",
+        "mode": "gee",
+        "description": "Visualizes Google & WRI Dynamic World 10m deep-learning land cover classifications.",
+        "code": """import ee
+
+# 1. Filter Dynamic World collection
+dw = (
+    ee.ImageCollection("GOOGLE/DYNAMICWORLD/V1")
+    .filterDate("2024-01-01", "2024-06-30")
+)
+if aoi is not None:
+    dw = dw.filterBounds(aoi)
+
+# 2. Take mode (most frequent classification)
+classification = dw.select("label").reduce(ee.Reducer.mode())
+if aoi is not None:
+    classification = classification.clip(aoi)
+
+# 3. Dynamic World color palette for 9 land cover classes
+dw_vis = {
+    "min": 0,
+    "max": 8,
+    "palette": [
+        "#419BDF", # 0: Water
+        "#397D49", # 1: Trees
+        "#88B053", # 2: Grass
+        "#7A87C6", # 3: Flooded vegetation
+        "#E49635", # 4: Crops
+        "#DFC35A", # 5: Shrub & scrub
+        "#C4281B", # 6: Built area
+        "#A59B8F", # 7: Bare ground
+        "#B39FE1"  # 8: Snow & ice
+    ]
+}
+Map.addLayer(classification, dw_vis, "Dynamic World Land Cover (10m)")
+print("Dynamic World 10m Land Cover classification map rendered.")
+"""
+    },
+    {
+        "id": "srtm_dem",
+        "title": "NASA SRTM 30m Elevation & Slope",
+        "category": "elevation",
+        "mode": "gee",
+        "description": "Computes terrain elevation color ramp and calculates slope angle in degrees.",
+        "code": """import ee
+
+# 1. Load NASA SRTM 30m Global Digital Elevation Model
+dem = ee.Image("USGS/SRTMGL1_003")
+if aoi is not None:
+    dem = dem.clip(aoi)
+
+# 2. Elevation Colormap
+elev_vis = {
+    "bands": ["elevation"],
+    "min": 0,
+    "max": 4000,
+    "palette": ["#006600", "#002200", "#fff700", "#ab7634", "#c4d0ff", "#ffffff"]
+}
+Map.addLayer(dem, elev_vis, "SRTM Elevation (m)")
+
+# 3. Calculate Slope in degrees
+slope = ee.Terrain.slope(dem)
+slope_vis = {"min": 0, "max": 45, "palette": ["#ffffff", "#ffcc00", "#ff0000"]}
+Map.addLayer(slope, slope_vis, "Terrain Slope (deg)")
+
+if aoi is not None:
+    elev_stats = dem.reduceRegion(
+        reducer=ee.Reducer.minMax().combine(ee.Reducer.mean(), sharedInputs=True),
+        geometry=aoi,
+        scale=30,
+        maxPixels=1e8
+    ).getInfo()
+    print("Elevation Stats (m):", elev_stats)
+    data["elevation_min"] = elev_stats.get("elevation_min")
+    data["elevation_max"] = elev_stats.get("elevation_max")
+    data["elevation_mean"] = elev_stats.get("elevation_mean")
+"""
+    },
+    {
+        "id": "chirps_rainfall",
+        "title": "CHIRPS Precipitation Total & Reducer",
+        "category": "climate",
+        "mode": "gee",
+        "description": "Computes cumulative precipitation (rainfall sum in mm) over the study area for a multi-month period.",
+        "code": """import ee
+
+# 1. Filter CHIRPS daily precipitation collection
+chirps = (
+    ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY")
+    .filterDate("2024-01-01", "2024-03-31")
+)
+if aoi is not None:
+    chirps = chirps.filterBounds(aoi)
+
+# 2. Calculate cumulative rainfall sum (mm)
+total_precip = chirps.sum()
+if aoi is not None:
+    total_precip = total_precip.clip(aoi)
+
+precip_vis = {
+    "min": 0,
+    "max": 300,
+    "palette": ["#ffffff", "#e0f3f8", "#abd9e9", "#74add1", "#4575b4", "#313695", "#000080"]
+}
+Map.addLayer(total_precip, precip_vis, "CHIRPS Total Rainfall (mm)")
+
+if aoi is not None:
+    mean_precip = total_precip.reduceRegion(
+        reducer=ee.Reducer.mean(),
+        geometry=aoi,
+        scale=5000,
+        maxPixels=1e8
+    ).getInfo()
+    print("AOI Cumulative Rainfall Mean (mm):", mean_precip)
+    data["mean_cumulative_rainfall_mm"] = mean_precip.get("precipitation")
+"""
+    },
+    {
+        "id": "local_rasterio_ndvi",
+        "title": "Local: Rasterio NDVI Calculation",
+        "category": "local",
+        "mode": "local",
+        "description": "Processes a downloaded multi-band GeoTIFF on your local disk using Rasterio & NumPy to compute NDVI and save to ./data/processed/.",
+        "code": """import os
+from pathlib import Path
+import numpy as np
+import rasterio
+
+print("Available downloaded files in local storage:")
+for f in local_files[:5]:
+    print(f" - {f['name']} ({f['root']})")
+
+# Look for downloaded GeoTIFFs
+tif_candidates = [f['absolute_path'] for f in local_files if f['extension'] in ['.tif', '.tiff']]
+
+if not tif_candidates:
+    print("No downloaded GeoTIFF found in ./data/downloads or ./data/processed.")
+    print("Tip: Harvest a Sentinel-2 or Landsat scene, or specify a direct local path.")
+else:
+    input_tif = tif_candidates[0]
+    print(f"Processing local raster: {input_tif}")
+
+    with rasterio.open(input_tif) as src:
+        print(f"Raster Dimensions: {src.width} x {src.height}, Bands: {src.count}, CRS: {src.crs}")
+        # If at least 4 bands, assume B4 (Red) is band 3 or 4, B8 (NIR) is band 4 or 8
+        red_band_idx = 1
+        nir_band_idx = min(src.count, 4)
+
+        red = src.read(red_band_idx).astype(float)
+        nir = src.read(nir_band_idx).astype(float)
+
+        # Avoid division by zero
+        denom = (nir + red)
+        denom[denom == 0] = np.nan
+        ndvi = (nir - red) / denom
+
+        # Save output to processed_dir
+        out_path = Path(processed_dir) / "local_ndvi_output.tif"
+        meta = src.meta.copy()
+        meta.update(count=1, dtype=rasterio.float32, nodata=-9999.0)
+
+        with rasterio.open(out_path, "w", **meta) as dst:
+            dst.write(ndvi.astype(rasterio.float32), 1)
+
+        print(f"Saved processed NDVI raster to: {out_path}")
+        mean_val = float(np.nanmean(ndvi))
+        max_val = float(np.nanmax(ndvi))
+        min_val = float(np.nanmin(ndvi))
+        print(f"Computed NDVI Statistics: Mean={mean_val:.3f}, Min={min_val:.3f}, Max={max_val:.3f}")
+
+        data["mean_ndvi"] = round(mean_val, 4)
+        data["max_ndvi"] = round(max_val, 4)
+        data["min_ndvi"] = round(min_val, 4)
+
+        # Preview layer on the map
+        Map.addLayer(str(out_path), name="Processed Local NDVI")
+"""
+    },
+    {
+        "id": "local_clip_aoi",
+        "title": "Local: Clip GeoTIFF to Loaded AOI GeoJSON",
+        "category": "local",
+        "mode": "local",
+        "description": "Clips a local downloaded raster using the active GeoJSON study area with Rasterio mask.",
+        "code": """from pathlib import Path
+import rasterio
+from rasterio.mask import mask
+
+if aoi is None:
+    print("Warning: No AOI GeoJSON loaded. Please load a GeoJSON or draw an AOI on the map.")
+else:
+    # Find local GeoTIFF
+    tif_candidates = [f['absolute_path'] for f in local_files if f['extension'] in ['.tif', '.tiff']]
+    if not tif_candidates:
+        print("No local GeoTIFF found. Download a dataset or upload a raster first.")
+    else:
+        input_tif = tif_candidates[0]
+        print(f"Clipping {Path(input_tif).name} using loaded study area...")
+
+        # Extract geometry shape
+        shapes = [aoi_shape] if "aoi_shape" in globals() and aoi_shape else []
+        if not shapes:
+            import shapely.geometry
+            shapes = [shapely.geometry.shape(aoi)]
+
+        with rasterio.open(input_tif) as src:
+            out_img, out_transform = mask(src, shapes, crop=True)
+            out_meta = src.meta.copy()
+            out_meta.update({
+                "height": out_img.shape[1],
+                "width": out_img.shape[2],
+                "transform": out_transform
+            })
+
+            out_path = Path(processed_dir) / f"clipped_{Path(input_tif).name}"
+            with rasterio.open(out_path, "w", **out_meta) as dst:
+                dst.write(out_img)
+
+            print(f"Clipped raster saved to: {out_path}")
+            data["clipped_width"] = out_img.shape[2]
+            data["clipped_height"] = out_img.shape[1]
+            data["bands"] = out_img.shape[0]
+
+            Map.addLayer(str(out_path), name=f"Clipped {Path(input_tif).name}")
+"""
+    }
+]
+
+
 class EarthEngineCatalog:
     """Provides dataset lookup, category filtering, and metadata extraction."""
 
@@ -307,5 +624,76 @@ class EarthEngineCatalog:
     def get_dataset(self, dataset_id: str) -> Optional[EEDatasetSpec]:
         return self._datasets.get(dataset_id)
 
+    def get_snippets(self, category: Optional[str] = None, mode: Optional[str] = None) -> List[Dict[str, Any]]:
+        snippets = THEMATIC_SNIPPETS
+        if category and category != "all":
+            snippets = [s for s in snippets if s.get("category") == category]
+        if mode:
+            snippets = [s for s in snippets if s.get("mode") == mode]
+        return snippets
+
+    def get_code_template(self, dataset_id: str) -> str:
+        """Generates ready-to-run Python starter code for any dataset in the catalog."""
+        ds = self.get_dataset(dataset_id)
+        if not ds:
+            return f"# Earth Engine Script for {dataset_id}\nimport ee\n\nimage = ee.Image('{dataset_id}')\nif aoi is not None:\n    image = image.clip(aoi)\nMap.addLayer(image, {{}}, '{dataset_id}')\n"
+
+        # Check if matched in thematic snippets
+        for snip in THEMATIC_SNIPPETS:
+            if ds.id in snip.get("code", ""):
+                return snip["code"]
+
+        bands = ds.default_bands or ["B4", "B3", "B2"]
+        vis_preset = ds.vis_presets.get(ds.default_vis_mode, {})
+        vis_str = json.dumps(vis_preset, indent=4) if vis_preset else "{}"
+
+        if ds.type == "image_collection":
+            cloud_filter = ""
+            if ds.cloud_filter_field:
+                cloud_filter = f'    .filter(ee.Filter.lt("{ds.cloud_filter_field}", 20))\n'
+
+            return f'''import ee
+
+# {ds.name} ({ds.provider})
+# Spatial Resolution: {ds.resolution} | Temporal: {ds.temporal_range}
+
+# 1. Filter image collection
+collection = (
+    ee.ImageCollection("{ds.id}")
+    .filterDate("2024-01-01", "2024-06-30")
+{cloud_filter})
+if aoi is not None:
+    collection = collection.filterBounds(aoi)
+
+# 2. Compute composite
+image = collection.median()
+if aoi is not None:
+    image = image.clip(aoi)
+
+# 3. Add to Map
+vis_params = {vis_str}
+Map.addLayer(image, vis_params, "{ds.name}")
+
+print("Visualized {ds.name} successfully.")
+'''
+        else:
+            return f'''import ee
+
+# {ds.name} ({ds.provider})
+# Spatial Resolution: {ds.resolution} | Temporal: {ds.temporal_range}
+
+# 1. Load Image
+image = ee.Image("{ds.id}")
+if aoi is not None:
+    image = image.clip(aoi)
+
+# 2. Add to Map
+vis_params = {vis_str}
+Map.addLayer(image, vis_params, "{ds.name}")
+
+print("Visualized {ds.name} successfully.")
+'''
+
 
 ee_catalog = EarthEngineCatalog()
+

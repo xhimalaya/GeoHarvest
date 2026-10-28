@@ -187,3 +187,74 @@ async def get_dataset_info(asset_id: str = Query(..., description="Earth Engine 
         return ee_service.get_dataset_info(asset_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# =========================================================================
+# PYTHON CODE EMULATOR ENDPOINTS
+# =========================================================================
+
+class EmulatorRunRequest(BaseModel):
+    code: str
+    mode: Optional[str] = "gee"  # "gee" or "local"
+    aoi: Optional[Dict[str, Any]] = None
+    session_id: Optional[str] = None
+    cell_id: Optional[str] = None
+
+
+class EmulatorRestartRequest(BaseModel):
+    session_id: str
+
+
+@router.post("/emulator/run")
+async def run_emulator_script(req: EmulatorRunRequest):
+    """
+    Executes a Python geospatial script or Jupyter notebook cell in GEE or Local Processing mode.
+    Captures stdout print statements, layer definitions, output files, and data metrics.
+    Preserves in-memory session variables across multiple cells when session_id is provided.
+    """
+    from backend.core.earthengine.emulator import ee_emulator
+    try:
+        result = ee_emulator.execute(
+            code=req.code,
+            mode=req.mode or "gee",
+            aoi_geojson=req.aoi,
+            session_id=req.session_id,
+        )
+        if req.cell_id:
+            result["cell_id"] = req.cell_id
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Emulator execution failed: {str(e)}")
+
+
+@router.post("/emulator/restart")
+async def restart_emulator_session(req: EmulatorRestartRequest):
+    """
+    Resets the in-memory Python kernel execution state and clears session variables.
+    """
+    from backend.core.earthengine.emulator import ee_emulator
+    return ee_emulator.reset_session(req.session_id)
+
+
+@router.get("/emulator/snippets")
+async def list_emulator_snippets(
+    category: Optional[str] = Query(None, description="Category filter (optical, radar, landcover, elevation, climate, local)"),
+    mode: Optional[str] = Query(None, description="Mode filter (gee, local)")
+):
+    """Returns curated Python script snippets for satellites, themes, and local processing."""
+    return ee_catalog.get_snippets(category=category, mode=mode)
+
+
+@router.get("/emulator/template")
+async def get_emulator_template(dataset_id: str = Query(..., description="Earth Engine dataset or collection ID")):
+    """Returns a ready-to-run starter Python script for a specific catalog dataset."""
+    code = ee_catalog.get_code_template(dataset_id)
+    return {"dataset_id": dataset_id, "code": code}
+
+
+@router.get("/emulator/local-files")
+async def list_emulator_local_files():
+    """Lists available downloaded GeoTIFFs and GeoJSON files on the host machine for local processing."""
+    from backend.core.earthengine.emulator import ee_emulator
+    return ee_emulator._scan_local_files()
+
