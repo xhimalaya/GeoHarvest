@@ -1,121 +1,490 @@
 <template>
-  <div class="h-full w-full overflow-hidden bg-slate-950 p-6 flex flex-col text-slate-100">
-    <!-- Header -->
-    <div class="flex items-center justify-between mb-6 pb-4 border-b border-slate-800 shrink-0">
+  <div class="h-full w-full overflow-hidden bg-slate-950 p-5 flex flex-col text-slate-100">
+    <!-- Top Header & Tool Selector Ribbon -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-800 shrink-0">
       <div>
-        <h1 class="text-xl font-bold flex items-center space-x-2">
-          <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-          </svg>
-          <span>Recipe Processing Engine</span>
-          <span class="text-xs px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800 text-emerald-400 font-mono">v0.2</span>
+        <h1 class="text-lg font-bold flex items-center space-x-2">
+          <span>🧰</span>
+          <span>Raster Geoprocessing Studio</span>
+          <span class="text-[11px] px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-emerald-400 font-mono">
+            GDAL / Rasterio Engine
+          </span>
         </h1>
-        <p class="text-xs text-slate-400 mt-1">
-          Recipe-driven transformation: AOI clipping, cloud masking, auto-UTM reprojection, and Cloud-Optimized GeoTIFF (COG) generation with internal pyramids
+        <p class="text-xs text-slate-400 mt-0.5">
+          Clip (Extract by Mask), Mosaic to New Raster, Band Stacking (Composite), Spectral Indices, DEM Terrain Analysis, Reproject/Resample, and Zonal Statistics
         </p>
       </div>
 
-      <div class="flex items-center space-x-3">
+      <div class="flex items-center space-x-2">
         <button
-          @click="loadInitialData"
-          class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs font-semibold flex items-center space-x-1.5 transition-colors border border-slate-700"
+          @click="refreshWorkspace"
+          class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-md text-xs font-semibold flex items-center space-x-1.5 border border-slate-700 cursor-pointer"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          <span>Refresh Catalog</span>
+          <span>🔄 Refresh Rasters ({{ localRasters.length }})</span>
         </button>
       </div>
     </div>
 
-    <!-- Main 2-column layout -->
-    <div class="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-6">
-      <!-- Left Column: Pipeline Setup (7 cols) -->
-      <div class="lg:col-span-7 overflow-y-auto space-y-5 pr-2">
-        <!-- 1. Select Input Source / Assets -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-          <div class="flex items-center justify-between">
-            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center space-x-2">
-              <span class="w-5 h-5 rounded-full bg-sky-500/20 text-sky-400 flex items-center justify-center text-[11px] font-mono">1</span>
-              <span>Input Satellite Assets</span>
-            </h2>
-            <span class="text-[11px] text-slate-500 font-mono">
-              {{ selectedAssetIds.length }} asset(s) selected
-            </span>
+    <!-- Tool Tabs Bar -->
+    <div class="flex flex-wrap gap-1.5 mb-4 shrink-0">
+      <button
+        v-for="t in tools"
+        :key="t.id"
+        @click="harvestStore.openProcessingTool(t.id)"
+        :class="[
+          'px-3 py-2 rounded-lg text-xs font-bold border transition-all flex items-center space-x-2 cursor-pointer',
+          activeTool === t.id
+            ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm bw-primary-btn'
+            : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-800'
+        ]"
+      >
+        <span>{{ t.icon }}</span>
+        <span>{{ t.name }}</span>
+      </button>
+    </div>
+
+    <!-- Main 2-Column Studio Grid -->
+    <div class="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-5">
+      <!-- LEFT COLUMN (7 Cols): Active Tool Configuration Form -->
+      <div class="lg:col-span-7 overflow-y-auto pr-1 space-y-4">
+        <!-- TOOL 1: CLIP RASTER (EXTRACT BY MASK) -->
+        <div v-if="activeTool === 'clip'" class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div>
+              <h2 class="text-sm font-bold text-white">✂️ Clip Raster (Extract by Mask)</h2>
+              <p class="text-xs text-slate-400">Crops any GeoTIFF raster to your active Map AOI polygon or custom GeoJSON boundary.</p>
+            </div>
+            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">Extract by Mask</span>
           </div>
 
-          <!-- Dataset picker -->
-          <div v-if="datasets.length > 0" class="space-y-2">
-            <label class="block text-xs text-slate-300 font-semibold uppercase tracking-wider">Select Catalog Dataset:</label>
-            <SearchableSelect
-              v-model="selectedDatasetId"
-              :options="datasetOptions"
-              placeholder="Select catalog dataset..."
-              search-placeholder="Search datasets by id, collection..."
-              size="md"
-            />
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-300 mb-1">Input Raster File (.tif)</label>
+              <select
+                v-model="singleInputPath"
+                class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono"
+              >
+                <option value="">-- Select a local raster or click one on the right --</option>
+                <option v-for="r in localRasters" :key="r.absolute_path" :value="r.absolute_path">
+                  [{{ r.root }}] {{ r.name }} ({{ formatBytes(r.size_bytes) }})
+                </option>
+              </select>
+              <input
+                v-model="singleInputPath"
+                type="text"
+                placeholder="Or enter absolute path: /app/data/downloads/..."
+                class="w-full mt-1.5 bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-300 font-mono"
+              />
+            </div>
 
-            <!-- Asset selection checkboxes -->
-            <div v-if="currentDataset" class="space-y-2 mt-2">
-              <div class="flex items-center justify-between text-[11px] text-slate-400">
-                <span>Select Bands to Process:</span>
-                <button
-                  @click="selectAllDatasetAssets"
-                  class="text-sky-400 hover:text-sky-300 text-[11px] underline"
-                >
-                  Select All
-                </button>
-              </div>
-
-              <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                <div
-                  v-for="asset in currentDataset.assets"
-                  :key="asset.id"
-                  @click="toggleAsset(asset.id)"
-                  :class="[
-                    'p-2.5 rounded-lg border cursor-pointer transition-all flex flex-col justify-between text-xs',
-                    selectedAssetIds.includes(asset.id)
-                      ? 'bg-sky-950/40 border-sky-600 text-sky-200'
-                      : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
-                  ]"
-                >
-                  <div class="flex items-center justify-between">
-                    <span class="font-bold font-mono">{{ asset.name }}</span>
-                    <span
-                      class="w-3.5 h-3.5 rounded border flex items-center justify-center text-[9px]"
-                      :class="selectedAssetIds.includes(asset.id) ? 'bg-sky-500 border-sky-400 text-white' : 'border-slate-700'"
-                    >
-                      <span v-if="selectedAssetIds.includes(asset.id)">&check;</span>
-                    </span>
-                  </div>
-                  <div class="text-[10px] text-slate-500 font-mono mt-1 truncate" :title="asset.asset_type">
-                    type: {{ asset.asset_type || 'remote' }}
-                  </div>
-                  <div v-if="asset.local_path" class="text-[9px] text-emerald-400 font-mono mt-0.5 truncate" :title="asset.local_path">
-                    local file ready
-                  </div>
+            <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between">
+              <div>
+                <div class="text-xs font-bold text-slate-200">Clipping Geometry (AOI Mask)</div>
+                <div v-if="harvestStore.hasAoi" class="text-[11px] text-emerald-400 mt-0.5">
+                  ✓ Using Active Map AOI: {{ harvestStore.aoiName }} ({{ harvestStore.aoiAnalysis?.area_km2?.toLocaleString() }} km²)
+                </div>
+                <div v-else class="text-[11px] text-amber-400 mt-0.5">
+                  ℹ️ No custom AOI drawn on map — will use default Ladakh Study Area polygon (or draw one in Map & Harvest).
                 </div>
               </div>
+              <router-link to="/" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 border border-slate-700">
+                🗺️ Edit AOI on Map
+              </router-link>
             </div>
-          </div>
 
-          <!-- Empty catalog fallback / test assets info -->
-          <div v-else class="p-4 bg-slate-950/60 rounded-lg border border-slate-800 text-xs text-slate-400 space-y-2">
-            <p>No harvested datasets found in the local catalog yet.</p>
-            <p class="text-[11px] text-slate-500">
-              Run a harvest job from the <strong>Harvest</strong> tab, or run the automated pipeline tests to populate assets.
-            </p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">Output Filename (Optional)</label>
+                <input
+                  v-model="outputFilename"
+                  type="text"
+                  placeholder="clipped_output.tif"
+                  class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono"
+                />
+              </div>
+              <div class="flex items-center pt-5 space-x-2">
+                <input id="cog-clip" v-model="exportAsCog" type="checkbox" class="h-4 w-4 rounded" />
+                <label for="cog-clip" class="text-xs text-slate-300 cursor-pointer">
+                  Build Cloud-Optimized GeoTIFF (COG) with internal pyramids
+                </label>
+              </div>
+            </div>
+
+            <button
+              @click="executeClip"
+              :disabled="isExecuting || !singleInputPath"
+              class="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs cursor-pointer bw-primary-btn"
+            >
+              {{ isExecuting ? '⏳ Clipping Raster...' : '✂️ Run Clip Raster' }}
+            </button>
           </div>
         </div>
 
-        <!-- 2. Select Processing Recipe -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-          <div class="flex items-center justify-between">
-            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center space-x-2">
-              <span class="w-5 h-5 rounded-full bg-sky-500/20 text-sky-400 flex items-center justify-center text-[11px] font-mono">2</span>
-              <span>Processing Recipe</span>
-            </h2>
-            <span class="text-[11px] text-slate-500 font-mono">{{ recipes.length }} recipes available</span>
+        <!-- TOOL 2: MOSAIC RASTERS -->
+        <div v-if="activeTool === 'mosaic'" class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div>
+              <h2 class="text-sm font-bold text-white">🧩 Mosaic Rasters (Stitch Tiles)</h2>
+              <p class="text-xs text-slate-400">Merges multiple adjacent satellite scenes or DEM tiles into a seamless single GeoTIFF with automatic CRS alignment.</p>
+            </div>
+            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">Mosaic to New Raster</span>
+          </div>
+
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-bold text-slate-300">
+                Select Rasters to Mosaic ({{ multiInputPaths.length }} selected)
+              </label>
+              <div class="space-x-2 text-xs">
+                <button @click="multiInputPaths = localRasters.map(r => r.absolute_path)" class="text-emerald-400 underline cursor-pointer">Select All</button>
+                <button @click="multiInputPaths = []" class="text-slate-400 underline cursor-pointer">Clear</button>
+              </div>
+            </div>
+
+            <div class="max-h-52 overflow-y-auto bg-slate-950 border border-slate-800 rounded-lg p-2 space-y-1">
+              <div v-if="localRasters.length === 0" class="text-xs text-slate-500 p-4 text-center">
+                No local rasters found. Download scenes from Map & Harvest or WMS first.
+              </div>
+              <label
+                v-for="r in localRasters"
+                :key="r.absolute_path"
+                class="flex items-center justify-between p-2 rounded hover:bg-slate-900 cursor-pointer text-xs"
+              >
+                <div class="flex items-center space-x-2 truncate">
+                  <input type="checkbox" :value="r.absolute_path" v-model="multiInputPaths" class="rounded" />
+                  <span class="font-mono text-slate-200 truncate">{{ r.name }}</span>
+                </div>
+                <span class="text-[10px] font-mono text-slate-400 shrink-0">{{ formatBytes(r.size_bytes) }}</span>
+              </label>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">Target CRS (Optional)</label>
+                <input
+                  v-model="targetCRS"
+                  type="text"
+                  placeholder="EPSG:32643"
+                  class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono"
+                />
+              </div>
+              <div class="flex flex-col justify-end space-y-1.5">
+                <label class="flex items-center space-x-2 text-xs text-slate-300 cursor-pointer">
+                  <input v-model="clipToAOI" type="checkbox" class="rounded" />
+                  <span>Also Clip Mosaic to Active AOI</span>
+                </label>
+                <label class="flex items-center space-x-2 text-xs text-slate-300 cursor-pointer">
+                  <input v-model="exportAsCog" type="checkbox" class="rounded" />
+                  <span>Export as Cloud-Optimized GeoTIFF (COG)</span>
+                </label>
+              </div>
+            </div>
+
+            <button
+              @click="executeMosaic"
+              :disabled="isExecuting || multiInputPaths.length === 0"
+              class="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs cursor-pointer bw-primary-btn"
+            >
+              {{ isExecuting ? '⏳ Mosaicking Rasters...' : `🧩 Run Mosaic (${multiInputPaths.length} Rasters)` }}
+            </button>
+          </div>
+        </div>
+
+        <!-- TOOL 3: BAND STACKING (COMPOSITE BANDS) -->
+        <div v-if="activeTool === 'stack'" class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div>
+              <h2 class="text-sm font-bold text-white">📚 Band Stacking (Composite Multi-Band GeoTIFF)</h2>
+              <p class="text-xs text-slate-400">Combines separate spectral band files (e.g. Red, Green, Blue, NIR, SWIR) into a single aligned multi-band raster stack.</p>
+            </div>
+            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">Composite Bands</span>
+          </div>
+
+          <div class="space-y-3">
+            <label class="block text-xs font-bold text-slate-300">
+              Select Band Files in Stack Order ({{ multiInputPaths.length }} bands selected)
+            </label>
+            <div class="max-h-52 overflow-y-auto bg-slate-950 border border-slate-800 rounded-lg p-2 space-y-1">
+              <label
+                v-for="r in localRasters"
+                :key="r.absolute_path"
+                class="flex items-center justify-between p-2 rounded hover:bg-slate-900 cursor-pointer text-xs"
+              >
+                <div class="flex items-center space-x-2 truncate">
+                  <input type="checkbox" :value="r.absolute_path" v-model="multiInputPaths" class="rounded" />
+                  <span class="font-mono text-slate-200 truncate">{{ r.name }}</span>
+                </div>
+                <span
+                  v-if="multiInputPaths.indexOf(r.absolute_path) > -1"
+                  class="px-2 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-bold"
+                >
+                  Band #{{ multiInputPaths.indexOf(r.absolute_path) + 1 }}
+                </span>
+              </label>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">Output Stack Filename</label>
+                <input
+                  v-model="outputFilename"
+                  type="text"
+                  placeholder="composite_stack.tif"
+                  class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono"
+                />
+              </div>
+              <div class="flex items-center pt-5 space-x-2">
+                <input v-model="clipToAOI" type="checkbox" class="rounded" />
+                <span class="text-xs text-slate-300">Clip Stack to Active AOI</span>
+              </div>
+            </div>
+
+            <button
+              @click="executeStackBands"
+              :disabled="isExecuting || multiInputPaths.length === 0"
+              class="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs cursor-pointer bw-primary-btn"
+            >
+              {{ isExecuting ? '⏳ Stacking Bands...' : `📚 Build Multi-Band Stack (${multiInputPaths.length} files)` }}
+            </button>
+          </div>
+        </div>
+
+        <!-- TOOL 4: SPECTRAL INDICES & RASTER CALCULATOR -->
+        <div v-if="activeTool === 'index'" class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div>
+              <h2 class="text-sm font-bold text-white">🌿 Spectral Indices & Raster Band Calculator</h2>
+              <p class="text-xs text-slate-400">Compute NDVI, NDWI, MNDWI, NDSI (Snow/Ice), NDBI, SAVI, EVI, NBR, or custom Band Math expressions.</p>
+            </div>
+            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">Band Arithmetic</span>
+          </div>
+
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-300 mb-1">Select Spectral Index or Custom Formula</label>
+              <div class="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
+                <button
+                  v-for="idx in indexPresets"
+                  :key="idx.id"
+                  @click="spectralIndexType = idx.id"
+                  :class="[
+                    'p-2 rounded border text-left transition-colors cursor-pointer',
+                    spectralIndexType === idx.id
+                      ? 'bg-emerald-600 text-white border-emerald-500 bw-primary-btn'
+                      : 'bg-slate-950 text-slate-300 border-slate-800 hover:bg-slate-800'
+                  ]"
+                >
+                  <div class="text-xs font-bold">{{ idx.label }}</div>
+                  <div class="text-[10px] opacity-80 truncate">{{ idx.desc }}</div>
+                </button>
+              </div>
+            </div>
+
+            <div v-if="spectralIndexType === 'custom'">
+              <label class="block text-xs font-bold text-slate-300 mb-1">Custom Band Math Expression (Use B1, B2, B3)</label>
+              <input
+                v-model="customFormula"
+                type="text"
+                placeholder="(B1 - B2) / (B1 + B2 + 1e-6)"
+                class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono"
+              />
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">Band 1 Raster ({{ currentIndexLabels.b1 }})</label>
+                <select v-model="band1Path" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono">
+                  <option value="">-- Select Raster --</option>
+                  <option v-for="r in localRasters" :key="r.absolute_path" :value="r.absolute_path">{{ r.name }}</option>
+                </select>
+                <div class="mt-1 flex items-center space-x-2">
+                  <span class="text-[10px] text-slate-400">Band Number in File:</span>
+                  <input v-model.number="band1Idx" type="number" min="1" max="30" class="w-16 bg-slate-950 border border-slate-700 rounded px-2 py-0.5 text-xs font-mono" />
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">Band 2 Raster ({{ currentIndexLabels.b2 }})</label>
+                <select v-model="band2Path" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono">
+                  <option value="">-- Select Raster --</option>
+                  <option v-for="r in localRasters" :key="r.absolute_path" :value="r.absolute_path">{{ r.name }}</option>
+                </select>
+                <div class="mt-1 flex items-center space-x-2">
+                  <span class="text-[10px] text-slate-400">Band Number in File:</span>
+                  <input v-model.number="band2Idx" type="number" min="1" max="30" class="w-16 bg-slate-950 border border-slate-700 rounded px-2 py-0.5 text-xs font-mono" />
+                </div>
+              </div>
+            </div>
+
+            <button
+              @click="executeSpectralIndex"
+              :disabled="isExecuting || !band1Path || !band2Path"
+              class="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs cursor-pointer bw-primary-btn"
+            >
+              {{ isExecuting ? '⏳ Computing Spectral Index...' : `🌿 Compute ${spectralIndexType.toUpperCase()} Raster` }}
+            </button>
+          </div>
+        </div>
+
+        <!-- TOOL 5: TERRAIN ANALYSIS (DEM) -->
+        <div v-if="activeTool === 'terrain'" class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div>
+              <h2 class="text-sm font-bold text-white">⛰️ DEM Surface & Terrain Analysis</h2>
+              <p class="text-xs text-slate-400">Derive Slope, Hillshade, Aspect, Terrain Ruggedness Index (TRI), or Topographic Position Index (TPI) from any Digital Elevation Model.</p>
+            </div>
+            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">Surface Toolbox</span>
+          </div>
+
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-300 mb-1">Input DEM Raster (.tif)</label>
+              <select v-model="singleInputPath" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono">
+                <option value="">-- Select Elevation / DEM Raster --</option>
+                <option v-for="r in localRasters" :key="r.absolute_path" :value="r.absolute_path">{{ r.name }}</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-300 mb-1">Surface Derivative Operation</label>
+              <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                <button
+                  v-for="op in terrainOps"
+                  :key="op.id"
+                  @click="terrainOp = op.id"
+                  :class="[
+                    'p-2.5 rounded-lg border text-left transition-colors cursor-pointer',
+                    terrainOp === op.id
+                      ? 'bg-emerald-600 text-white border-emerald-500 bw-primary-btn'
+                      : 'bg-slate-950 text-slate-300 border-slate-800 hover:bg-slate-800'
+                  ]"
+                >
+                  <div class="text-xs font-bold">{{ op.label }}</div>
+                  <div class="text-[10px] opacity-80">{{ op.sub }}</div>
+                </button>
+              </div>
+            </div>
+
+            <div v-if="terrainOp === 'hillshade'" class="grid grid-cols-3 gap-3">
+              <div>
+                <label class="block text-[11px] text-slate-400 mb-1">Azimuth (°)</label>
+                <input v-model.number="hillshadeAzimuth" type="number" class="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs font-mono" />
+              </div>
+              <div>
+                <label class="block text-[11px] text-slate-400 mb-1">Sun Altitude (°)</label>
+                <input v-model.number="hillshadeAltitude" type="number" class="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs font-mono" />
+              </div>
+              <div>
+                <label class="block text-[11px] text-slate-400 mb-1">Z-Factor</label>
+                <input v-model.number="terrainZFactor" type="number" step="0.1" class="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs font-mono" />
+              </div>
+            </div>
+
+            <button
+              @click="executeTerrain"
+              :disabled="isExecuting || !singleInputPath"
+              class="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs cursor-pointer bw-primary-btn"
+            >
+              {{ isExecuting ? '⏳ Running Terrain Derivative...' : `⛰️ Generate ${terrainOp.toUpperCase()} Raster` }}
+            </button>
+          </div>
+        </div>
+
+        <!-- TOOL 6: REPROJECT, RESAMPLE & COG BUILDER -->
+        <div v-if="activeTool === 'reproject'" class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div>
+              <h2 class="text-sm font-bold text-white">🌐 Project Raster, Resample & COG Builder</h2>
+              <p class="text-xs text-slate-400">Transform coordinate reference systems (UTM / WGS84), change pixel resolution, and build Cloud-Optimized GeoTIFF overviews.</p>
+            </div>
+            <button
+              @click="recommendCRSForLadakh"
+              class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-emerald-400 border border-slate-700 cursor-pointer"
+            >
+              🎯 Auto-Recommend UTM
+            </button>
+          </div>
+
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-300 mb-1">Input Raster File (.tif)</label>
+              <select v-model="singleInputPath" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono">
+                <option value="">-- Select Input Raster --</option>
+                <option v-for="r in localRasters" :key="r.absolute_path" :value="r.absolute_path">{{ r.name }}</option>
+              </select>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">Target CRS</label>
+                <input v-model="targetCRS" type="text" placeholder="EPSG:32643" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">Target Resolution (Optional)</label>
+                <input v-model.number="targetResolution" type="number" step="1" placeholder="Keep native" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">Resampling Kernel</label>
+                <select v-model="resamplingMethod" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                  <option value="bilinear">Bilinear (Continuous)</option>
+                  <option value="cubic">Cubic Convolution (Smooth)</option>
+                  <option value="nearest">Nearest Neighbor (Categorical)</option>
+                  <option value="average">Average (Downsampling)</option>
+                </select>
+              </div>
+            </div>
+
+            <button
+              @click="executeReproject"
+              :disabled="isExecuting || !singleInputPath"
+              class="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs cursor-pointer bw-primary-btn"
+            >
+              {{ isExecuting ? '⏳ Reprojecting & Building COG...' : '🌐 Run Project Raster & COG Export' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- TOOL 7: ZONAL STATISTICS & HISTOGRAM -->
+        <div v-if="activeTool === 'stats'" class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div>
+              <h2 class="text-sm font-bold text-white">📊 Zonal Statistics & Band Histogram Inspector</h2>
+              <p class="text-xs text-slate-400">Compute per-band Min, Max, Mean, StdDev, Median, Percentiles (P5/P95), and 12-bin distributions across the raster or active AOI.</p>
+            </div>
+            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">Zonal Statistics</span>
+          </div>
+
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-300 mb-1">Select Raster to Inspect</label>
+              <select v-model="singleInputPath" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono">
+                <option value="">-- Select Raster --</option>
+                <option v-for="r in localRasters" :key="r.absolute_path" :value="r.absolute_path">{{ r.name }}</option>
+              </select>
+            </div>
+
+            <label class="flex items-center space-x-2 text-xs text-slate-300 cursor-pointer">
+              <input v-model="clipToAOI" type="checkbox" class="rounded" />
+              <span>Mask Zonal Statistics to Active Map AOI Polygon</span>
+            </label>
+
+            <button
+              @click="executeStats"
+              :disabled="isExecuting || !singleInputPath"
+              class="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs cursor-pointer bw-primary-btn"
+            >
+              {{ isExecuting ? '⏳ Computing Zonal Statistics...' : '📊 Compute Band Statistics & Histogram' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- TOOL 8: AUTOMATED MULTI-STAGE RECIPES -->
+        <div v-if="activeTool === 'recipe'" class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div>
+              <h2 class="text-sm font-bold text-white">⚙️ Automated Multi-Stage Processing Recipes</h2>
+              <p class="text-xs text-slate-400">Run end-to-end automated pipelines on catalog datasets with full provenance lineage tracking.</p>
+            </div>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -124,255 +493,174 @@
               :key="recipe.id"
               @click="selectedRecipeId = recipe.id"
               :class="[
-                'p-3.5 rounded-xl border cursor-pointer transition-all flex flex-col justify-between space-y-3',
+                'p-3 rounded-lg border cursor-pointer transition-all',
                 selectedRecipeId === recipe.id
-                  ? 'bg-slate-850 border-sky-500 ring-1 ring-sky-500/50 shadow-md'
-                  : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 text-slate-400'
+                  ? 'bg-slate-800 border-emerald-500'
+                  : 'bg-slate-950 border-slate-800 hover:border-slate-700'
               ]"
             >
-              <div>
-                <div class="flex items-center justify-between mb-1">
-                  <span class="font-bold text-xs text-slate-100">{{ recipe.name }}</span>
-                  <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
-                    {{ recipe.output_format || 'COG' }}
-                  </span>
-                </div>
-                <p class="text-[11px] text-slate-400 leading-relaxed">{{ recipe.description }}</p>
-              </div>
-
-              <div v-if="recipe.required_bands && recipe.required_bands.length > 0" class="space-y-1.5 pt-2 border-t border-slate-800/80">
-                <div class="text-[10px] text-slate-500 font-mono">Required Bands:</div>
-                <div class="flex flex-wrap gap-1">
-                  <span
-                    v-for="band in recipe.required_bands"
-                    :key="band"
-                    class="px-1.5 py-0.5 bg-slate-800 rounded text-[10px] font-mono text-sky-300"
-                  >
-                    {{ band }}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 3. Target CRS & AOI Optimization -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-          <div class="flex items-center justify-between">
-            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center space-x-2">
-              <span class="w-5 h-5 rounded-full bg-sky-500/20 text-sky-400 flex items-center justify-center text-[11px] font-mono">3</span>
-              <span>Target CRS Engine & Multi-Zone Detection</span>
-            </h2>
-            <button
-              @click="recommendCRSForLadakh"
-              :disabled="loadingCRS"
-              class="px-2.5 py-1 bg-sky-950 hover:bg-sky-900 border border-sky-800 text-sky-300 rounded text-xs font-medium transition-colors flex items-center space-x-1"
-            >
-              <svg v-if="loadingCRS" class="w-3 h-3 animate-spin text-sky-400" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-              </svg>
-              <span>Auto-Recommend for Ladakh</span>
-            </button>
-          </div>
-
-          <!-- Multi-zone Crossing Warning Banner -->
-          <div
-            v-if="crsRecommendation?.crosses_multiple_zones"
-            class="p-3.5 bg-amber-950/40 border border-amber-800/80 rounded-lg text-xs space-y-2 text-amber-200"
-          >
-            <div class="flex items-center space-x-2 font-semibold">
-              <svg class="w-4 h-4 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              <span>Multi-Zone Crossing Detected</span>
-            </div>
-            <p class="text-[11px] text-amber-300/90 leading-relaxed">
-              {{ crsRecommendation.warning }}
-            </p>
-            <div class="flex flex-wrap items-center gap-2 pt-1">
-              <span class="text-[10px] text-amber-400 font-mono">Candidates:</span>
-              <button
-                v-for="cand in crsRecommendation.candidates"
-                :key="cand.epsg"
-                @click="targetCRS = cand.epsg"
-                :class="[
-                  'px-2 py-0.5 rounded text-[10px] font-mono border transition-all',
-                  targetCRS === cand.epsg
-                    ? 'bg-amber-500 text-slate-950 font-bold border-amber-400'
-                    : 'bg-amber-950/60 text-amber-200 border-amber-800 hover:bg-amber-900/60'
-                ]"
-              >
-                {{ cand.epsg }} ({{ cand.type }})
-              </button>
+              <div class="font-bold text-xs text-white">{{ recipe.name }}</div>
+              <p class="text-[11px] text-slate-400 mt-1">{{ recipe.description }}</p>
             </div>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label class="block text-xs text-slate-400 font-medium mb-1">Target CRS String:</label>
-              <input
-                v-model="targetCRS"
-                type="text"
-                placeholder="e.g. EPSG:32643"
-                class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-sky-500"
-              />
-              <span class="text-[10px] text-slate-500 mt-1 block">
-                Primary UTM 43N (Ladakh West/Central) or UTM 44N (Ladakh East)
-              </span>
-            </div>
-
-            <div class="flex items-center space-x-3 pt-5">
-              <input
-                id="clip-checkbox"
-                v-model="clipToAOI"
-                type="checkbox"
-                class="rounded bg-slate-950 border-slate-800 text-sky-500 focus:ring-sky-500 h-4 w-4"
-              />
-              <label for="clip-checkbox" class="text-xs text-slate-300 cursor-pointer">
-                Clip raster to AOI boundary before export
-              </label>
-            </div>
+          <div v-if="datasets.length > 0" class="space-y-2">
+            <label class="block text-xs font-bold text-slate-300">Select Catalog Dataset</label>
+            <select v-model="selectedDatasetId" @change="selectAllDatasetAssets" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono">
+              <option v-for="ds in datasets" :key="ds.id" :value="ds.id">{{ ds.dataset_id }} ({{ ds.collection }})</option>
+            </select>
           </div>
-        </div>
 
-        <!-- Execute Action Button -->
-        <div class="pt-2">
           <button
             @click="runPipeline"
             :disabled="runningPipeline || selectedAssetIds.length === 0"
-            class="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-500 hover:to-sky-500 disabled:opacity-50 text-white font-bold text-sm tracking-wide rounded-xl shadow-lg transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:cursor-not-allowed"
+            class="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs cursor-pointer bw-primary-btn"
           >
-            <svg v-if="runningPipeline" class="w-4 h-4 animate-spin text-white" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-            </svg>
-            <span>{{ runningPipeline ? 'Executing Recipe Pipeline...' : 'Run Processing Pipeline' }}</span>
+            {{ runningPipeline ? '⏳ Running Recipe Pipeline...' : '⚙️ Execute Automated Recipe' }}
           </button>
         </div>
       </div>
 
-      <!-- Right Column: Checkpoints, Task Status & Lineage (5 cols) -->
-      <div class="lg:col-span-5 overflow-y-auto space-y-5">
-        <!-- Live Task Status & Checkpoint Progress -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-          <div class="flex items-center justify-between">
-            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center space-x-2">
-              <span class="w-2 h-2 rounded-full" :class="taskStatusClass"></span>
-              <span>Task Checkpoint Pipeline</span>
-            </h2>
-            <span v-if="activeTask" class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">
-              {{ activeTask.status }}
-            </span>
+      <!-- RIGHT COLUMN (5 Cols): Output Inspector & Local Raster Workspace Browser -->
+      <div class="lg:col-span-5 overflow-y-auto space-y-4 pr-1">
+        <!-- OUTPUT RESULT & STATS CARD -->
+        <div v-if="toolResult || toolError" class="bg-slate-900 border border-slate-700 rounded-xl p-4 space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-400">
+              {{ toolError ? '⚠️ Geoprocessing Error' : '✅ Geoprocessing Result' }}
+            </h3>
+            <button @click="toolResult = null; toolError = null" class="text-[11px] text-slate-400 hover:text-white">
+              Clear
+            </button>
           </div>
 
-          <div v-if="!activeTask" class="p-6 text-center text-xs text-slate-500 border border-dashed border-slate-800 rounded-lg">
-            No processing task executed yet. Configure the pipeline and click "Run Processing Pipeline".
+          <div v-if="toolError" class="p-3 rounded bg-red-950/50 border border-red-800 text-xs text-red-300">
+            {{ toolError }}
           </div>
 
-          <div v-else class="space-y-4">
-            <div class="text-xs text-slate-400 font-mono bg-slate-950/60 p-2.5 rounded border border-slate-800 space-y-1">
-              <div>Task ID: <span class="text-slate-200">{{ activeTask.task_id }}</span></div>
-              <div>Recipe: <span class="text-sky-400">{{ activeTask.recipe_id }}</span></div>
-              <div v-if="activeTask.current_stage">
-                Current Stage: <span class="text-emerald-400 font-semibold">{{ activeTask.current_stage }}</span>
+          <div v-if="toolResult" class="space-y-3 text-xs">
+            <div v-if="toolResult.output_path" class="p-2.5 rounded bg-slate-950 border border-slate-800 space-y-1 font-mono text-[11px]">
+              <div class="text-slate-400">Output File: <span class="text-white font-bold">{{ toolResult.output_path.split('/').pop() }}</span></div>
+              <div v-if="toolResult.crs" class="text-slate-400">CRS: <span class="text-emerald-300">{{ toolResult.crs }}</span></div>
+              <div v-if="toolResult.width" class="text-slate-400">
+                Dimensions: <span class="text-white">{{ toolResult.width }} × {{ toolResult.height }} px ({{ toolResult.band_count || toolResult.count || 1 }} band(s))</span>
+              </div>
+              <div v-if="toolResult.min_val !== undefined" class="text-slate-400">
+                Min / Max / Mean: <span class="text-white">{{ toolResult.min_val?.toFixed(3) }} / {{ toolResult.max_val?.toFixed(3) }} / {{ toolResult.mean_val?.toFixed(3) }}</span>
               </div>
             </div>
 
-            <!-- Stepped Checkpoint Stages -->
-            <div class="space-y-2">
-              <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Stages & Checkpoints:</div>
-              <div class="space-y-1.5">
-                <div
-                  v-for="stage in recipeStages"
-                  :key="stage.key"
-                  class="flex items-center justify-between p-2 rounded-lg text-xs bg-slate-950/60 border border-slate-800"
-                >
-                  <div class="flex items-center space-x-2">
-                    <span
-                      class="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold"
-                      :class="getStageBadgeClass(stage.key)"
-                    >
-                      <span v-if="isStageCompleted(stage.key)">&check;</span>
-                      <span v-else-if="isStageRunning(stage.key)" class="animate-spin text-sky-400">&bull;</span>
-                      <span v-else>&minus;</span>
-                    </span>
-                    <span :class="isStageCompleted(stage.key) ? 'text-slate-200 font-medium' : 'text-slate-400'">
-                      {{ stage.label }}
-                    </span>
+            <!-- Action Buttons on Output File -->
+            <div v-if="toolResult.output_path" class="flex items-center space-x-2">
+              <a
+                :href="getDownloadUrlForOutput(toolResult.output_path)"
+                target="_blank"
+                class="flex-1 py-2 px-3 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-center text-xs bw-primary-btn"
+              >
+                ⬇ Download Output GeoTIFF
+              </a>
+              <button
+                @click="useOutputAsInput(toolResult.output_path)"
+                class="py-2 px-3 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold cursor-pointer"
+                title="Chain this output raster into the next tool"
+              >
+                ↪ Use as Next Input
+              </button>
+            </div>
+
+            <!-- Zonal Statistics Per-Band Table -->
+            <div v-if="toolResult.bands && toolResult.bands.length > 0" class="space-y-2">
+              <div class="text-[11px] font-bold text-slate-300">
+                Raster CRS: {{ toolResult.crs }} • {{ toolResult.width }}×{{ toolResult.height }} px
+              </div>
+              <div
+                v-for="b in toolResult.bands"
+                :key="b.band"
+                class="p-2.5 rounded bg-slate-950 border border-slate-800 space-y-2"
+              >
+                <div class="flex items-center justify-between font-bold text-white">
+                  <span>Band {{ b.band }} ({{ b.description }})</span>
+                  <span class="font-mono text-[10px] text-slate-400">{{ b.dtype }}</span>
+                </div>
+                <div v-if="b.min !== null" class="grid grid-cols-4 gap-1.5 font-mono text-[11px] text-center">
+                  <div class="p-1 rounded bg-slate-900 border border-slate-800">
+                    <div class="text-[9px] text-slate-400">MIN</div>
+                    <div>{{ b.min.toFixed(2) }}</div>
                   </div>
-                  <span class="text-[10px] font-mono text-slate-500">
-                    {{ getStageStatusLabel(stage.key) }}
-                  </span>
+                  <div class="p-1 rounded bg-slate-900 border border-slate-800">
+                    <div class="text-[9px] text-slate-400">MAX</div>
+                    <div>{{ b.max.toFixed(2) }}</div>
+                  </div>
+                  <div class="p-1 rounded bg-slate-900 border border-slate-800">
+                    <div class="text-[9px] text-slate-400">MEAN</div>
+                    <div>{{ b.mean.toFixed(2) }}</div>
+                  </div>
+                  <div class="p-1 rounded bg-slate-900 border border-slate-800">
+                    <div class="text-[9px] text-slate-400">STD</div>
+                    <div>{{ b.std.toFixed(2) }}</div>
+                  </div>
+                </div>
+                <!-- Mini Visual Histogram -->
+                <div v-if="b.histogram_counts && b.histogram_counts.length > 0" class="pt-1">
+                  <div class="text-[9px] text-slate-400 mb-1">12-Bin Pixel Value Distribution</div>
+                  <div class="h-12 flex items-end space-x-1 bg-slate-900 p-1.5 rounded border border-slate-800">
+                    <div
+                      v-for="(cnt, idx) in b.histogram_counts"
+                      :key="idx"
+                      class="flex-1 bg-emerald-500 rounded-t"
+                      :style="{ height: `${Math.max(8, Math.round((cnt / Math.max(...b.histogram_counts, 1)) * 100))}%` }"
+                      :title="`Count: ${cnt}`"
+                    ></div>
+                  </div>
                 </div>
               </div>
-            </div>
-
-            <!-- Output Assets List -->
-            <div v-if="activeTask.output_assets && activeTask.output_assets.length > 0" class="space-y-2 pt-2 border-t border-slate-800">
-              <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Output Assets (COG GeoTIFF):</div>
-              <div class="space-y-2">
-                <div
-                  v-for="outId in activeTask.output_assets"
-                  :key="outId"
-                  class="p-2.5 bg-slate-950/80 rounded-lg border border-slate-800 text-xs flex items-center justify-between"
-                >
-                  <div class="overflow-hidden mr-2">
-                    <div class="font-mono text-slate-200 font-semibold truncate">{{ outId }}</div>
-                    <div class="text-[10px] text-emerald-400 font-mono mt-0.5">Tiled COG with overviews [2, 4, 8, 16]</div>
-                  </div>
-                  <button
-                    @click="fetchLineage(outId)"
-                    class="px-2 py-1 bg-sky-950 hover:bg-sky-900 border border-sky-800 text-sky-300 rounded text-[10px] font-mono shrink-0 transition-colors"
-                  >
-                    View Lineage
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Error message if any -->
-            <div v-if="activeTask.error" class="p-3 bg-rose-950/50 border border-rose-800 rounded-lg text-xs text-rose-200">
-              <div class="font-bold mb-1">Execution Error:</div>
-              <div class="font-mono text-[11px]">{{ activeTask.error }}</div>
             </div>
           </div>
         </div>
 
-        <!-- Lineage & Provenance Viewer -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-          <div class="flex items-center justify-between">
-            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center space-x-2">
-              <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-              </svg>
-              <span>Asset Lineage & Provenance</span>
-            </h2>
-            <span class="text-[10px] text-slate-500 font-mono">Audit Trail</span>
+        <!-- LOCAL RASTERS WORKSPACE BROWSER -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+            <div>
+              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-200">📁 Local Raster Workspace</h3>
+              <p class="text-[11px] text-slate-400">Click any file to load it into the active tool or download it.</p>
+            </div>
+            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+              {{ localRasters.length }} files
+            </span>
           </div>
 
-          <div v-if="!currentLineage || currentLineage.length === 0" class="p-4 text-center text-xs text-slate-500 border border-dashed border-slate-800 rounded-lg">
-            Select an output asset above to inspect its complete lineage graph and transform history.
+          <div v-if="localRasters.length === 0" class="p-6 text-center text-xs text-slate-500 border border-dashed border-slate-800 rounded-lg">
+            No `.tif` rasters in `data/downloads` or `data/processed` yet. Export a WMS GeoTIFF or run a satellite download job first.
           </div>
 
-          <div v-else class="space-y-2">
+          <div v-else class="max-h-96 overflow-y-auto space-y-1.5 pr-1">
             <div
-              v-for="(item, idx) in currentLineage"
-              :key="item.id || idx"
-              class="p-3 bg-slate-950/80 rounded-lg border border-purple-950/60 space-y-1.5 text-xs font-mono"
+              v-for="r in localRasters"
+              :key="r.absolute_path"
+              class="p-2.5 rounded-lg bg-slate-950 border border-slate-800 hover:border-slate-700 flex items-center justify-between gap-2 text-xs"
             >
-              <div class="flex items-center justify-between text-purple-300 font-semibold">
-                <span>Operation: {{ item.operation }}</span>
-                <span class="text-[10px] text-slate-400 font-normal">{{ formatDate(item.created_at) }}</span>
+              <div class="min-w-0 flex-1 cursor-pointer" @click="selectRasterFromBrowser(r.absolute_path)">
+                <div class="font-mono font-semibold text-slate-200 truncate" :title="r.name">{{ r.name }}</div>
+                <div class="text-[10px] text-slate-400 font-mono">
+                  [{{ r.root }}] • {{ formatBytes(r.size_bytes) }}
+                </div>
               </div>
-              <div class="text-[11px] text-slate-400">
-                Source: <span class="text-slate-300">{{ item.source_asset_id }}</span>
-              </div>
-              <div class="text-[11px] text-slate-400">
-                Derived: <span class="text-emerald-400">{{ item.derived_asset_id }}</span>
-              </div>
-              <div v-if="item.recipe_id" class="text-[10px] text-sky-400">
-                Recipe: {{ item.recipe_id }}
+              <div class="flex items-center space-x-1 shrink-0">
+                <button
+                  @click="selectRasterFromBrowser(r.absolute_path)"
+                  class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] cursor-pointer"
+                >
+                  Use
+                </button>
+                <a
+                  :href="api.getStorageDownloadUrl(r.relative_path, r.root)"
+                  target="_blank"
+                  class="px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold bw-primary-btn"
+                  title="Download GeoTIFF"
+                >
+                  ⬇
+                </a>
               </div>
             </div>
           </div>
@@ -385,140 +673,325 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { api } from '../services/api'
-import SearchableSelect, { type SelectOption } from '../components/SearchableSelect.vue'
-import type {
-  CatalogDataset,
-  ProcessingRecipe,
-  ProcessingTaskResult,
-  LineageItem,
-  CRSRecommendation,
-} from '../types'
+import { useHarvestStore } from '../stores/harvestStore'
+import type { CatalogDataset, ProcessingRecipe, ProcessingTaskResult } from '../types'
 
-const datasets = ref<CatalogDataset[]>([])
-const selectedDatasetId = ref<string>('')
-const selectedAssetIds = ref<string[]>([])
+const harvestStore = useHarvestStore()
 
-const datasetOptions = computed<SelectOption[]>(() => {
-  return datasets.value.map((ds) => ({
-    value: ds.id,
-    label: ds.dataset_id,
-    sublabel: `${ds.collection} • ${ds.assets?.length || 0} assets`,
-    category: ds.collection,
-    badge: `${ds.assets?.length || 0} assets`,
-    badgeColor: 'bg-slate-800 text-sky-400 border-slate-700'
-  }))
-})
+const tools = [
+  { id: 'clip' as const, icon: '✂️', name: 'Clip Raster' },
+  { id: 'mosaic' as const, icon: '🧩', name: 'Mosaic' },
+  { id: 'stack' as const, icon: '📚', name: 'Band Stack' },
+  { id: 'index' as const, icon: '🌿', name: 'Spectral Indices' },
+  { id: 'terrain' as const, icon: '⛰️', name: 'Terrain (DEM)' },
+  { id: 'reproject' as const, icon: '🌐', name: 'Reproject & COG' },
+  { id: 'stats' as const, icon: '📊', name: 'Zonal Stats' },
+  { id: 'recipe' as const, icon: '⚙️', name: 'Recipes' },
+]
 
-const recipes = ref<ProcessingRecipe[]>([])
-const selectedRecipeId = ref<string>('s2-aoi-cog')
+const activeTool = computed(() => harvestStore.activeProcessingTool)
 
-const targetCRS = ref<string>('EPSG:32643')
-const clipToAOI = ref<boolean>(true)
-const crsRecommendation = ref<CRSRecommendation | null>(null)
-const loadingCRS = ref<boolean>(false)
+// Local rasters list
+const localRasters = ref<Array<{
+  name: string
+  relative_path: string
+  absolute_path: string
+  root: string
+  size_bytes: number
+  modified_at: number
+}>>([])
 
-const activeTask = ref<ProcessingTaskResult | null>(null)
-const runningPipeline = ref<boolean>(false)
-const currentLineage = ref<LineageItem[]>([])
+// Shared tool inputs
+const singleInputPath = ref('')
+const multiInputPaths = ref<string[]>([])
+const outputFilename = ref('')
+const exportAsCog = ref(true)
+const clipToAOI = ref(true)
+const targetCRS = ref('EPSG:32643')
+const targetResolution = ref<number | undefined>(undefined)
+const resamplingMethod = ref('bilinear')
 
-const currentDataset = computed(() => {
-  return datasets.value.find((d) => d.id === selectedDatasetId.value)
-})
+// Spectral index inputs
+const spectralIndexType = ref('ndvi')
+const band1Path = ref('')
+const band2Path = ref('')
+const band1Idx = ref(1)
+const band2Idx = ref(1)
+const customFormula = ref('(B1 - B2) / (B1 + B2 + 1e-6)')
 
-const recipeStages = computed(() => {
-  const currentRecipe = recipes.value.find((r) => r.id === selectedRecipeId.value)
-  if (!currentRecipe) {
-    return [
-      { key: 'validate', label: '1. Validate Raster Geometry' },
-      { key: 'clip', label: '2. Clip to AOI Boundary' },
-      { key: 'cloud_mask', label: '3. Cloud Mask (SCL)' },
-      { key: 'reproject', label: '4. Reproject to UTM Zone' },
-      { key: 'build_cog', label: '5. Build COG & Pyramids' },
-    ]
+const indexPresets = [
+  { id: 'ndvi', label: 'NDVI', desc: 'Vegetation (NIR, Red)' },
+  { id: 'ndwi', label: 'NDWI', desc: 'Water (Green, NIR)' },
+  { id: 'mndwi', label: 'MNDWI', desc: 'Water (Green, SWIR1)' },
+  { id: 'ndsi', label: 'NDSI', desc: 'Snow/Glacier (Green, SWIR1)' },
+  { id: 'ndbi', label: 'NDBI', desc: 'Built-Up (SWIR1, NIR)' },
+  { id: 'savi', label: 'SAVI', desc: 'Soil-Adjusted Veg' },
+  { id: 'nbr', label: 'NBR', desc: 'Burn Ratio (NIR, SWIR2)' },
+  { id: 'custom', label: 'Custom Math', desc: 'Formula (B1, B2)' },
+]
+
+const currentIndexLabels = computed(() => {
+  const map: Record<string, { b1: string; b2: string }> = {
+    ndvi: { b1: 'NIR Band (e.g. B08)', b2: 'Red Band (e.g. B04)' },
+    ndwi: { b1: 'Green Band (e.g. B03)', b2: 'NIR Band (e.g. B08)' },
+    mndwi: { b1: 'Green Band (e.g. B03)', b2: 'SWIR-1 Band (e.g. B11)' },
+    ndsi: { b1: 'Green Band (e.g. B03)', b2: 'SWIR-1 Band (e.g. B11)' },
+    ndbi: { b1: 'SWIR-1 Band (e.g. B11)', b2: 'NIR Band (e.g. B08)' },
+    savi: { b1: 'NIR Band (e.g. B08)', b2: 'Red Band (e.g. B04)' },
+    nbr: { b1: 'NIR Band (e.g. B08)', b2: 'SWIR-2 Band (e.g. B12)' },
+    custom: { b1: 'Variable B1', b2: 'Variable B2' },
   }
-
-  return currentRecipe.steps.map((step: any, idx: number) => {
-    const stepName = typeof step === 'string' ? step : (step.name || 'step')
-    let label = `${idx + 1}. ${stepName}`
-    if (stepName === 'validate') label = `${idx + 1}. Validate Raster`
-    if (stepName === 'clip') label = `${idx + 1}. Clip to AOI`
-    if (stepName === 'cloud_mask') label = `${idx + 1}. Cloud Mask (SCL)`
-    if (stepName === 'reproject') label = `${idx + 1}. Reproject to UTM`
-    if (stepName === 'cog' || stepName === 'build_cog') label = `${idx + 1}. Build COG & Pyramids`
-    if (stepName === 'ndsi' || stepName === 'index_ndsi') label = `${idx + 1}. Calculate NDSI Index`
-    if (stepName === 'ndvi' || stepName === 'index_ndvi') label = `${idx + 1}. Calculate NDVI Index`
-    return { key: stepName, label }
-  })
+  return map[spectralIndexType.value] || { b1: 'Band 1', b2: 'Band 2' }
 })
 
-const taskStatusClass = computed(() => {
-  if (!activeTask.value) return 'bg-slate-600'
-  if (activeTask.value.status === 'COMPLETED') return 'bg-emerald-400'
-  if (activeTask.value.status === 'RUNNING') return 'bg-sky-400 animate-pulse'
-  if (activeTask.value.status === 'FAILED') return 'bg-rose-500'
-  return 'bg-amber-400'
-})
+// Terrain inputs
+const terrainOp = ref<'slope' | 'hillshade' | 'aspect' | 'tri' | 'tpi'>('slope')
+const hillshadeAzimuth = ref(315)
+const hillshadeAltitude = ref(45)
+const terrainZFactor = ref(1.0)
 
-onMounted(async () => {
-  await loadInitialData()
-  // Automatically trigger CRS recommendation for Ladakh
-  await recommendCRSForLadakh()
-})
+const terrainOps = [
+  { id: 'slope' as const, label: 'Slope', sub: 'Steepness (0-90°)' },
+  { id: 'hillshade' as const, label: 'Hillshade', sub: '3D Shaded Relief' },
+  { id: 'aspect' as const, label: 'Aspect', sub: 'Compass (0-360°)' },
+  { id: 'tri' as const, label: 'TRI', sub: 'Ruggedness Index' },
+  { id: 'tpi' as const, label: 'TPI', sub: 'Topographic Pos' },
+]
 
-async function loadInitialData() {
+// Execution state
+const isExecuting = ref(false)
+const toolResult = ref<any | null>(null)
+const toolError = ref<string | null>(null)
+
+// Legacy Recipe state
+const datasets = ref<CatalogDataset[]>([])
+const selectedDatasetId = ref('')
+const selectedAssetIds = ref<string[]>([])
+const recipes = ref<ProcessingRecipe[]>([])
+const selectedRecipeId = ref('s2-aoi-cog')
+const runningPipeline = ref(false)
+const activeTask = ref<ProcessingTaskResult | null>(null)
+
+const defaultLadakhPolygon = {
+  type: 'Polygon',
+  coordinates: [[[77.1, 33.8], [78.2, 33.8], [78.2, 34.6], [77.1, 34.6], [77.1, 33.8]]],
+}
+
+async function refreshWorkspace() {
   try {
-    const [dsList, recipeList] = await Promise.all([
-      api.getCatalogDatasets(),
-      api.getProcessingRecipes(),
+    const [rasters, dsList, recipeList] = await Promise.all([
+      api.getLocalRasters(),
+      api.getCatalogDatasets().catch(() => []),
+      api.getProcessingRecipes().catch(() => []),
     ])
-    datasets.value = dsList
-    recipes.value = recipeList
+    localRasters.value = rasters || []
+    datasets.value = dsList || []
+    recipes.value = recipeList || []
 
-    if (dsList.length > 0 && !selectedDatasetId.value) {
-      selectedDatasetId.value = dsList[0].id
+    const firstRaster = localRasters.value[0]
+    if (firstRaster && !singleInputPath.value) {
+      singleInputPath.value = firstRaster.absolute_path
+      band1Path.value = firstRaster.absolute_path
+      band2Path.value = localRasters.value[1]?.absolute_path || firstRaster.absolute_path
+    }
+    const firstDataset = datasets.value[0]
+    if (firstDataset && !selectedDatasetId.value) {
+      selectedDatasetId.value = firstDataset.id
       selectAllDatasetAssets()
     }
-  } catch (err) {
-    console.error('Failed to load catalog or recipes', err)
+  } catch (e) {
+    console.warn('Failed to refresh workspace:', e)
   }
 }
 
 function selectAllDatasetAssets() {
-  if (currentDataset.value) {
-    selectedAssetIds.value = currentDataset.value.assets.map((a) => a.id)
+  const ds = datasets.value.find((d) => d.id === selectedDatasetId.value)
+  if (ds) {
+    selectedAssetIds.value = ds.assets.map((a) => a.id)
   }
 }
 
-function toggleAsset(assetId: string) {
-  const idx = selectedAssetIds.value.indexOf(assetId)
-  if (idx > -1) {
-    selectedAssetIds.value.splice(idx, 1)
-  } else {
-    selectedAssetIds.value.push(assetId)
+function selectRasterFromBrowser(absPath: string) {
+  singleInputPath.value = absPath
+  if (activeTool.value === 'mosaic' || activeTool.value === 'stack') {
+    if (!multiInputPaths.value.includes(absPath)) {
+      multiInputPaths.value.push(absPath)
+    }
+  } else if (activeTool.value === 'index') {
+    if (!band1Path.value) band1Path.value = absPath
+    else band2Path.value = absPath
+  }
+}
+
+function useOutputAsInput(outputPath: string) {
+  singleInputPath.value = outputPath
+  band1Path.value = outputPath
+  refreshWorkspace()
+}
+
+function getDownloadUrlForOutput(outputPath: string): string {
+  const fileName = outputPath.split('/').pop() || ''
+  return api.getStorageDownloadUrl(fileName, 'processed')
+}
+
+async function executeClip() {
+  isExecuting.value = true
+  toolError.value = null
+  toolResult.value = null
+  try {
+    const geom = harvestStore.currentAoiGeometry || defaultLadakhPolygon
+    toolResult.value = await api.clipRaster({
+      input_path: singleInputPath.value,
+      aoi_geometry: geom,
+      output_filename: outputFilename.value.trim() || undefined,
+      to_cog: exportAsCog.value,
+    })
+    await refreshWorkspace()
+  } catch (e: any) {
+    toolError.value = e.message
+  } finally {
+    isExecuting.value = false
+  }
+}
+
+async function executeMosaic() {
+  isExecuting.value = true
+  toolError.value = null
+  toolResult.value = null
+  try {
+    const geom = clipToAOI.value ? (harvestStore.currentAoiGeometry || undefined) : undefined
+    toolResult.value = await api.executeMosaicClip({
+      input_file_paths: multiInputPaths.value,
+      aoi_geometry: geom,
+      target_crs: targetCRS.value.trim() || undefined,
+      to_cog: exportAsCog.value,
+    })
+    await refreshWorkspace()
+  } catch (e: any) {
+    toolError.value = e.message
+  } finally {
+    isExecuting.value = false
+  }
+}
+
+async function executeStackBands() {
+  isExecuting.value = true
+  toolError.value = null
+  toolResult.value = null
+  try {
+    const geom = clipToAOI.value ? (harvestStore.currentAoiGeometry || undefined) : undefined
+    toolResult.value = await api.stackBands({
+      input_file_paths: multiInputPaths.value,
+      aoi_geometry: geom,
+      target_crs: targetCRS.value.trim() || undefined,
+      output_filename: outputFilename.value.trim() || undefined,
+      to_cog: exportAsCog.value,
+    })
+    await refreshWorkspace()
+  } catch (e: any) {
+    toolError.value = e.message
+  } finally {
+    isExecuting.value = false
+  }
+}
+
+async function executeSpectralIndex() {
+  isExecuting.value = true
+  toolError.value = null
+  toolResult.value = null
+  try {
+    toolResult.value = await api.calculateSpectralIndex({
+      index_type: spectralIndexType.value,
+      band1_path: band1Path.value,
+      band2_path: band2Path.value,
+      band1_idx: band1Idx.value,
+      band2_idx: band2Idx.value,
+      custom_formula: spectralIndexType.value === 'custom' ? customFormula.value : undefined,
+      output_filename: outputFilename.value.trim() || undefined,
+      to_cog: exportAsCog.value,
+    })
+    await refreshWorkspace()
+  } catch (e: any) {
+    toolError.value = e.message
+  } finally {
+    isExecuting.value = false
+  }
+}
+
+async function executeTerrain() {
+  isExecuting.value = true
+  toolError.value = null
+  toolResult.value = null
+  try {
+    toolResult.value = await api.runTerrainAnalysis({
+      dem_path: singleInputPath.value,
+      operation: terrainOp.value,
+      azimuth: hillshadeAzimuth.value,
+      altitude: hillshadeAltitude.value,
+      z_factor: terrainZFactor.value,
+      output_filename: outputFilename.value.trim() || undefined,
+      to_cog: exportAsCog.value,
+    })
+    await refreshWorkspace()
+  } catch (e: any) {
+    toolError.value = e.message
+  } finally {
+    isExecuting.value = false
+  }
+}
+
+async function executeReproject() {
+  isExecuting.value = true
+  toolError.value = null
+  toolResult.value = null
+  try {
+    toolResult.value = await api.reprojectResampleRaster({
+      input_path: singleInputPath.value,
+      target_crs: targetCRS.value.trim() || undefined,
+      resolution: targetResolution.value || undefined,
+      resampling_method: resamplingMethod.value,
+      output_filename: outputFilename.value.trim() || undefined,
+      to_cog: exportAsCog.value,
+    })
+    await refreshWorkspace()
+  } catch (e: any) {
+    toolError.value = e.message
+  } finally {
+    isExecuting.value = false
+  }
+}
+
+async function executeStats() {
+  isExecuting.value = true
+  toolError.value = null
+  toolResult.value = null
+  try {
+    const geom = clipToAOI.value ? (harvestStore.currentAoiGeometry || undefined) : undefined
+    toolResult.value = await api.getRasterStats({
+      input_path: singleInputPath.value,
+      aoi_geometry: geom,
+    })
+  } catch (e: any) {
+    toolError.value = e.message
+  } finally {
+    isExecuting.value = false
   }
 }
 
 async function recommendCRSForLadakh() {
-  loadingCRS.value = true
   try {
-    // Ladakh bounding box [76.10, 33.15, 79.20, 35.15]
-    const res = await api.recommendCRS(undefined, [76.10, 33.15, 79.20, 35.15])
-    crsRecommendation.value = res
+    const bbox = harvestStore.aoiAnalysis?.bbox || [76.1, 33.15, 79.2, 35.15]
+    const res = await api.recommendCRS(undefined, bbox)
     if (res.recommended_crs) {
       targetCRS.value = res.recommended_crs
     }
-  } catch (err) {
-    console.error('Failed to recommend CRS', err)
-  } finally {
-    loadingCRS.value = false
-  }
+  } catch (e) {}
 }
 
 async function runPipeline() {
   if (selectedAssetIds.value.length === 0) return
   runningPipeline.value = true
-  currentLineage.value = []
-
+  toolError.value = null
   try {
     const res = await api.executeProcessing({
       recipe_id: selectedRecipeId.value,
@@ -526,64 +999,29 @@ async function runPipeline() {
       target_crs: targetCRS.value,
       clip_to_aoi: clipToAOI.value,
     })
-
     activeTask.value = res
-
-    // Fetch lineage for first output asset if completed
-    if (res.output_assets && res.output_assets.length > 0) {
-      await fetchLineage(res.output_assets[0])
-    }
-  } catch (err: any) {
-    activeTask.value = {
-      task_id: 'err-' + Date.now(),
-      status: 'FAILED',
-      recipe_id: selectedRecipeId.value,
-      error: err.message,
-    }
+    toolResult.value = res
+    await refreshWorkspace()
+  } catch (e: any) {
+    toolError.value = e.message
   } finally {
     runningPipeline.value = false
   }
 }
 
-async function fetchLineage(assetId: string) {
-  try {
-    const res = await api.getAssetLineage(assetId)
-    currentLineage.value = res.lineage
-  } catch (err) {
-    console.error('Failed to fetch lineage for asset', assetId, err)
+function formatBytes(bytes?: number) {
+  if (!bytes) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let b = bytes
+  let i = 0
+  while (b >= 1024 && i < units.length - 1) {
+    b /= 1024
+    i++
   }
+  return `${b.toFixed(1)} ${units[i]}`
 }
 
-function isStageCompleted(stageKey: string): boolean {
-  if (!activeTask.value) return false
-  if (activeTask.value.status === 'COMPLETED') return true
-  const cp = activeTask.value.checkpoint || {}
-  return !!cp[stageKey]
-}
-
-function isStageRunning(stageKey: string): boolean {
-  if (!activeTask.value || activeTask.value.status !== 'RUNNING') return false
-  return activeTask.value.current_stage === stageKey
-}
-
-function getStageBadgeClass(stageKey: string): string {
-  if (isStageCompleted(stageKey)) return 'bg-emerald-500/20 text-emerald-400'
-  if (isStageRunning(stageKey)) return 'bg-sky-500/20 text-sky-400'
-  return 'bg-slate-800 text-slate-500'
-}
-
-function getStageStatusLabel(stageKey: string): string {
-  if (isStageCompleted(stageKey)) return 'Done'
-  if (isStageRunning(stageKey)) return 'Running...'
-  return 'Pending'
-}
-
-function formatDate(isoStr?: string): string {
-  if (!isoStr) return ''
-  try {
-    return new Date(isoStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-  } catch {
-    return isoStr
-  }
-}
+onMounted(() => {
+  refreshWorkspace()
+})
 </script>

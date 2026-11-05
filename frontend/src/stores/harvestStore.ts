@@ -126,6 +126,23 @@ export const useHarvestStore = defineStore('harvest', {
     toposheetFilterDegree: 'all',
     toposheetFilterFormat: 'all',
     toposheetSortBy: 'sheet_asc' as 'sheet_asc' | 'sheet_desc' | 'scale_50k' | 'scale_250k' | 'lat_desc' | 'lat_asc' | 'lon_asc' | 'lon_desc',
+
+    // UI Theme & Ribbon Navbar State
+    uiTheme: ((typeof localStorage !== 'undefined' && localStorage.getItem('geoharvest_theme')) as 'bw-light' | 'bw-dark' | 'dark') || 'bw-dark',
+    activeHarvestStep: 1 as 1 | 2 | 3,
+    harvestShowAllSteps: false,
+    activeProcessingTool: 'clip' as 'clip' | 'mosaic' | 'stack' | 'index' | 'terrain' | 'reproject' | 'stats' | 'recipe',
+    isWmsModalOpen: false,
+    activeWmsLayers: [] as Array<{
+      id: string
+      name: string
+      title: string
+      url: string
+      version: string
+      opacity: number
+      visible: boolean
+    }>,
+    mapCommand: null as { type: string; payload?: any; timestamp: number } | null,
   }),
 
   getters: {
@@ -855,6 +872,7 @@ export const useHarvestStore = defineStore('harvest', {
         // Auto-select optimal contiguous scenes to fill entire AOI with zero gaps
         if (this.searchResults.length > 0) {
           this.selectAoiCoverage('clearest')
+          this.activeHarvestStep = 3
         } else {
           await this.calculateStorage()
         }
@@ -1140,6 +1158,58 @@ export const useHarvestStore = defineStore('harvest', {
         this.toposheetHarvestError = err.message || 'Failed to start batch harvest job.'
       } finally {
         this.isHarvestingToposheetBatch = false
+      }
+    },
+
+    setTheme(theme: 'bw-light' | 'bw-dark' | 'dark') {
+      this.uiTheme = theme
+      try {
+        localStorage.setItem('geoharvest_theme', theme)
+      } catch (e) {}
+      if (typeof document !== 'undefined') {
+        document.documentElement.classList.remove('theme-bw-light', 'theme-bw-dark', 'theme-dark')
+        document.documentElement.classList.add(`theme-${theme}`)
+      }
+    },
+
+    initTheme() {
+      this.setTheme(this.uiTheme)
+    },
+
+    triggerMapCommand(type: string, payload?: any) {
+      this.mapCommand = { type, payload, timestamp: Date.now() }
+    },
+
+    openProcessingTool(tool: 'clip' | 'mosaic' | 'stack' | 'index' | 'terrain' | 'reproject' | 'stats' | 'recipe') {
+      this.activeProcessingTool = tool
+    },
+
+    addWmsLayer(layer: { id?: string; name: string; title: string; url: string; version?: string; opacity?: number }) {
+      const id = layer.id || `${layer.url}__${layer.name}`
+      const existing = this.activeWmsLayers.find((l) => l.id === id)
+      if (existing) {
+        existing.visible = true
+        return
+      }
+      this.activeWmsLayers.push({
+        id,
+        name: layer.name,
+        title: layer.title || layer.name,
+        url: layer.url,
+        version: layer.version || '1.3.0',
+        opacity: layer.opacity ?? 0.85,
+        visible: true,
+      })
+    },
+
+    removeWmsLayer(id: string) {
+      this.activeWmsLayers = this.activeWmsLayers.filter((l) => l.id !== id)
+    },
+
+    toggleWmsLayer(id: string) {
+      const l = this.activeWmsLayers.find((item) => item.id === id)
+      if (l) {
+        l.visible = !l.visible
       }
     },
   },

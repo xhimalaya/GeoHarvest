@@ -64,10 +64,50 @@
       <div class="flex-1 overflow-y-auto p-3 space-y-3.5 text-xs text-slate-200 scrollbar-thin scrollbar-thumb-slate-700">
         <!-- 🛰️ SATELLITE DISCOVERY CONTROLS -->
         <template v-if="harvestStore.discoveryMode === 'satellite'">
+          <!-- Guided Workflow Stepper Bar -->
+          <div class="p-1.5 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between gap-1">
+            <button
+              @click="harvestStore.harvestShowAllSteps = false; harvestStore.activeHarvestStep = 1"
+              :class="[
+                'flex-1 py-1.5 px-2 rounded text-[11px] font-bold transition-colors cursor-pointer text-center',
+                !harvestStore.harvestShowAllSteps && harvestStore.activeHarvestStep === 1
+                  ? 'bg-emerald-600 text-white bw-primary-btn'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              ]"
+            >
+              1. Area & Source
+            </button>
+            <button
+              @click="harvestStore.harvestShowAllSteps = false; harvestStore.activeHarvestStep = 2"
+              :class="[
+                'flex-1 py-1.5 px-2 rounded text-[11px] font-bold transition-colors cursor-pointer text-center',
+                !harvestStore.harvestShowAllSteps && harvestStore.activeHarvestStep === 2
+                  ? 'bg-emerald-600 text-white bw-primary-btn'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              ]"
+            >
+              2. Satellite & Dates
+            </button>
+            <button
+              @click="harvestStore.harvestShowAllSteps = !harvestStore.harvestShowAllSteps"
+              :class="[
+                'py-1.5 px-2 rounded text-[10px] font-mono border transition-colors cursor-pointer',
+                harvestStore.harvestShowAllSteps
+                  ? 'bg-slate-800 text-white border-slate-600'
+                  : 'text-slate-400 border-transparent hover:text-white'
+              ]"
+              title="Show all controls at once"
+            >
+              All
+            </button>
+          </div>
+
+        <!-- STEP 2: SATELLITE, MISSION, DATES & CLOUD COVER -->
+        <div v-show="harvestStore.harvestShowAllSteps || harvestStore.activeHarvestStep === 2 || harvestStore.activeHarvestStep === 3" class="space-y-3.5">
         <!-- 1. Scientific Domain Filter Dropdown (Searchable) -->
         <div>
           <label class="block font-bold text-slate-300 mb-1 flex items-center justify-between text-xs uppercase tracking-wider">
-            <span>Domain</span>
+            <span>1. Sensor Domain</span>
             <span class="text-[10px] text-slate-400 font-mono">{{ harvestStore.filteredSatellites.length }} missions</span>
           </label>
 
@@ -87,7 +127,7 @@
             <input
               v-model="harvestStore.catalogQuery"
               type="text"
-              placeholder="Search missions, bands..."
+              placeholder="Search 43+ satellites, sensors, bands..."
               class="w-full bg-slate-900 border border-slate-700 rounded-md pl-7 pr-6 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-sky-500 placeholder-slate-500 font-medium"
             />
             <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -105,16 +145,16 @@
           <SearchableSelect
             v-model="harvestStore.selectedAgency"
             :options="agencyOptions"
-            placeholder="All Agencies"
-            search-placeholder="Filter agency..."
+            placeholder="All Space Agencies"
+            search-placeholder="Filter agency (NASA, ESA, ISRO, JAXA...)"
             size="sm"
           />
         </div>
 
-        <!-- 3. Mission / Constellation Selector (Searchable with 40+ satellites) -->
+        <!-- 3. Mission / Constellation Selector (Searchable with 43+ satellites) -->
         <div>
           <label class="block font-bold text-slate-300 mb-1 flex items-center justify-between text-xs uppercase tracking-wider">
-            <span>Mission</span>
+            <span>2. Satellite Mission</span>
             <span
               v-if="harvestStore.currentSatellite"
               :class="[
@@ -166,18 +206,30 @@
             </div>
           </div>
         </div>
+        </div>
 
+        <!-- STEP 1: AREA OF INTEREST & DATA SOURCE -->
+        <div v-show="harvestStore.harvestShowAllSteps || harvestStore.activeHarvestStep === 1" class="space-y-3.5">
         <!-- 4. Data Ecosystem Provider (Searchable) -->
         <div>
           <div class="flex items-center justify-between mb-1 text-xs">
-            <label class="font-bold text-slate-300 uppercase tracking-wider">Source</label>
-            <button
-              @click="openCredentialsForCurrent"
-              class="text-[10px] font-semibold text-amber-300 hover:text-amber-200 flex items-center space-x-1 cursor-pointer bg-amber-950/70 px-2 py-0.5 rounded border border-amber-800/80 transition-colors shadow-sm"
-              title="Configure S3 access keys or authentication tokens for this platform"
-            >
-              <span>🔑 Configure Keys</span>
-            </button>
+            <label class="font-bold text-slate-300 uppercase tracking-wider">Data Source & WMS</label>
+            <div class="flex items-center space-x-1">
+              <button
+                @click="harvestStore.isWmsModalOpen = true"
+                class="text-[10px] font-semibold text-emerald-300 hover:text-emerald-200 flex items-center space-x-1 cursor-pointer bg-emerald-950/70 px-2 py-0.5 rounded border border-emerald-800/80 transition-colors"
+                title="Connect OGC WMS Endpoints"
+              >
+                <span>🌐 WMS</span>
+              </button>
+              <button
+                @click="openCredentialsForCurrent"
+                class="text-[10px] font-semibold text-amber-300 hover:text-amber-200 flex items-center space-x-1 cursor-pointer bg-amber-950/70 px-2 py-0.5 rounded border border-amber-800/80 transition-colors shadow-sm"
+                title="Configure S3 access keys or authentication tokens for this platform"
+              >
+                <span>🔑 Keys</span>
+              </button>
+            </div>
           </div>
 
           <SearchableSelect
@@ -198,7 +250,7 @@
         <!-- 5. Area of Interest (AOI) Status & Setup -->
         <div>
           <label class="block font-bold text-slate-300 mb-1 text-xs uppercase tracking-wider flex justify-between items-center">
-            <span>Target AOI</span>
+            <span>Target Area (AOI)</span>
             <span
               v-if="harvestStore.hasAoi"
               class="text-xs text-emerald-400 font-mono font-semibold flex items-center space-x-1"
@@ -206,8 +258,30 @@
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
               <span>Active</span>
             </span>
-            <span v-else class="text-xs text-amber-400/80 font-mono">None</span>
+            <span v-else class="text-xs text-amber-400/80 font-mono">Draw or Pick Preset</span>
           </label>
+
+          <!-- Quick Draw / Preset Buttons right inside Step 1 -->
+          <div class="grid grid-cols-3 gap-1.5 mb-2">
+            <button
+              @click="harvestStore.triggerMapCommand('Box')"
+              class="py-1.5 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-semibold cursor-pointer text-center"
+            >
+              ⬛ Draw Box
+            </button>
+            <button
+              @click="harvestStore.triggerMapCommand('Polygon')"
+              class="py-1.5 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-semibold cursor-pointer text-center"
+            >
+              ⬠ Polygon
+            </button>
+            <button
+              @click="harvestStore.loadLadakhSample()"
+              class="py-1.5 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-semibold cursor-pointer text-center"
+            >
+              🏔️ Ladakh
+            </button>
+          </div>
 
           <!-- Active AOI Mini-Card -->
           <div v-if="harvestStore.hasAoi && harvestStore.aoiAnalysis" class="mb-2 p-2.5 bg-slate-950/80 border border-emerald-900/60 rounded-md space-y-2 text-xs">
@@ -313,11 +387,22 @@
               </div>
             </div>
           </div>
+
+          <button
+            v-if="!harvestStore.harvestShowAllSteps"
+            @click="harvestStore.activeHarvestStep = 2"
+            class="w-full mt-3 py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs cursor-pointer bw-primary-btn"
+          >
+            Next: 2. Select Satellite & Dates →
+          </button>
+        </div>
         </div>
 
+        <!-- STEP 2 PART B: DATE RANGE, CLOUD COVER & SEARCH -->
+        <div v-show="harvestStore.harvestShowAllSteps || harvestStore.activeHarvestStep === 2 || harvestStore.activeHarvestStep === 3" class="space-y-3.5">
         <!-- 6. Date Range & Quick Presets -->
         <div>
-          <label class="block font-bold text-slate-300 mb-1 text-xs uppercase tracking-wider">Date Range</label>
+          <label class="block font-bold text-slate-300 mb-1 text-xs uppercase tracking-wider">3. Date Range</label>
           <div v-if="harvestStore.supportsDatetimeFilter" class="space-y-1.5">
             <div class="grid grid-cols-2 gap-2">
               <div>
@@ -368,7 +453,7 @@
         <!-- 7. Cloud Cover Filter -->
         <div>
           <div class="flex justify-between items-center mb-1 text-xs">
-            <label class="font-bold text-slate-300 uppercase tracking-wider">Cloud Cover</label>
+            <label class="font-bold text-slate-300 uppercase tracking-wider">4. Max Cloud Cover</label>
             <span
               v-if="harvestStore.supportsCloudFilter"
               class="text-sky-300 font-mono font-bold bg-slate-850 px-1.5 py-0.5 rounded border border-slate-700 text-xs"
@@ -402,7 +487,7 @@
         <button
           @click="onSearchCatalog"
           :disabled="harvestStore.isSearching || !harvestStore.hasAoi"
-          class="w-full py-2.5 bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-500 hover:to-sky-400 disabled:opacity-50 text-white rounded-md font-bold text-xs tracking-wide flex items-center justify-center space-x-1.5 transition-all shadow-md shadow-sky-950/60 cursor-pointer disabled:cursor-not-allowed"
+          class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-md font-bold text-xs tracking-wide flex items-center justify-center space-x-1.5 transition-all shadow-md cursor-pointer disabled:cursor-not-allowed bw-primary-btn"
         >
           <svg v-if="harvestStore.isSearching" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -411,11 +496,11 @@
           <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
-          <span>{{ harvestStore.isSearching ? 'Querying STAC...' : 'Search Catalog' }}</span>
+          <span>{{ harvestStore.isSearching ? 'Querying STAC...' : 'Search Catalog & Open Scenes' }}</span>
         </button>
 
         <p v-if="!harvestStore.hasAoi" class="text-center text-xs text-slate-400 leading-tight">
-          Draw AOI on map or select a past drawn polygon.
+          Draw AOI on map or click "Step 1: Area & Source" to pick a preset.
         </p>
 
         <!-- Error Alert -->
@@ -424,6 +509,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <span>{{ harvestStore.errorMessage }}</span>
+        </div>
         </div>
       </template>
 

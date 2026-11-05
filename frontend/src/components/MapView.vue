@@ -946,6 +946,7 @@ import Group from 'ol/layer/Group'
 import Graticule from 'ol/layer/Graticule'
 import OSM from 'ol/source/OSM'
 import XYZ from 'ol/source/XYZ'
+import TileWMS from 'ol/source/TileWMS'
 import VectorSource from 'ol/source/Vector'
 import GeoJSON from 'ol/format/GeoJSON'
 import Draw, { createBox } from 'ol/interaction/Draw'
@@ -1091,10 +1092,12 @@ let scenesLayer: VectorLayer | null = null
 let temperatureRadarLayer: TileLayer | null = null
 let measureSource: VectorSource = new VectorSource()
 let measureLayer: VectorLayer | null = null
+let wmsLayerGroup: Group | null = null
 let currentDrawInteraction: Draw | null = null
 
 // Active scene image layers indexed by scene ID
 const activeSceneImageLayers = new Map<string, ImageLayer<ImageStatic>>()
+const activeWmsTileLayers = new Map<string, TileLayer<TileWMS>>()
 
 export interface MeasurementInfo {
   totalDistanceMeters: number
@@ -1265,6 +1268,12 @@ onMounted(() => {
     visible: harvestStore.showTemperatureRadar,
   })
 
+  // 8.5. OGC WMS Overlay Group (z: 9)
+  wmsLayerGroup = new Group({
+    zIndex: 9,
+    visible: true,
+  })
+
   // 9. Target AOI Polygon (z: 10)
   const aoiLayer = new VectorLayer({
     source: aoiSource,
@@ -1290,6 +1299,7 @@ onMounted(() => {
       graticuleLayer,
       scenesLayer,
       temperatureRadarLayer,
+      wmsLayerGroup,
       aoiLayer,
       measureLayer,
     ],
@@ -1358,6 +1368,7 @@ onMounted(() => {
 
   // Initialize scene raster layers
   updateSceneImageLayers()
+  updateWmsLayers()
 
   // Fetch initial live atmospheric telemetry for default view
   harvestStore.fetchLiveWeather(34.15, 77.5)
@@ -2026,6 +2037,94 @@ watch(
   (val) => {
     if (cloudFractionLayer) {
       cloudFractionLayer.setOpacity(val)
+    }
+  }
+)
+
+// Synchronize OGC WMS TileWMS layers with harvestStore.activeWmsLayers
+function updateWmsLayers() {
+  if (!wmsLayerGroup) return
+  const layersCollection = wmsLayerGroup.getLayers()
+  const targetIds = new Set(harvestStore.activeWmsLayers.map((l) => l.id))
+
+  for (const [id, layer] of activeWmsTileLayers.entries()) {
+    if (!targetIds.has(id)) {
+      layersCollection.remove(layer)
+      activeWmsTileLayers.delete(id)
+    }
+  }
+
+  for (const cfg of harvestStore.activeWmsLayers) {
+    let layer = activeWmsTileLayers.get(cfg.id)
+    if (!layer) {
+      layer = new TileLayer({
+        source: new TileWMS({
+          url: cfg.url,
+          params: {
+            LAYERS: cfg.name,
+            TILED: true,
+            VERSION: cfg.version || '1.3.0',
+            FORMAT: 'image/png',
+            TRANSPARENT: true,
+          },
+          crossOrigin: 'anonymous',
+        }),
+        opacity: cfg.opacity,
+        visible: cfg.visible,
+      })
+      activeWmsTileLayers.set(cfg.id, layer)
+      layersCollection.push(layer)
+    } else {
+      layer.setOpacity(cfg.opacity)
+      layer.setVisible(cfg.visible)
+    }
+  }
+}
+
+watch(
+  () => harvestStore.activeWmsLayers,
+  () => {
+    updateWmsLayers()
+  },
+  { deep: true }
+)
+
+// Watch mapCommand bus from Contextual Top Navbar (GIS Ribbon)
+watch(
+  () => harvestStore.mapCommand,
+  (cmd) => {
+    if (!cmd) return
+    switch (cmd.type) {
+      case 'Box':
+        startDraw('Box')
+        break
+      case 'Polygon':
+        startDraw('Polygon')
+        break
+      case 'Pan':
+        cancelDraw()
+        break
+      case 'Measure':
+        startMeasure()
+        break
+      case 'FitAOI':
+        zoomToAoi()
+        break
+      case 'ClearAOI':
+        clearAoi()
+        break
+      case 'ToggleLayers':
+        showLayersMenu.value = !showLayersMenu.value
+        break
+      case 'ToggleImagery':
+        toggleImagery()
+        break
+      case 'LadakhSample':
+        harvestStore.loadLadakhSample()
+        break
+      case 'Basemap':
+        if (cmd.payload) selectBasemap(cmd.payload)
+        break
     }
   }
 )

@@ -736,6 +736,190 @@ export const api = {
     if (!res.ok) throw new Error('Failed to fetch local files')
     return res.json()
   },
+
+  // WMS Endpoint Support
+  async getWmsPresets(): Promise<any[]> {
+    const res = await fetch(`${BASE_URL}/wms/presets`)
+    if (!res.ok) throw new Error('Failed to load WMS presets')
+    return res.json()
+  },
+
+  async fetchWmsCapabilities(url: string, version: string = '1.3.0'): Promise<{
+    service_url: string
+    service_title: string
+    service_abstract: string
+    version: string
+    layer_count: number
+    layers: Array<{
+      name: string
+      title: string
+      abstract: string
+      crs: string[]
+      bbox?: number[]
+      queryable: boolean
+    }>
+  }> {
+    const res = await fetch(`${BASE_URL}/wms/capabilities`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, version }),
+    })
+    const body = await res.json()
+    if (!res.ok) throw new Error(body.detail || 'Failed to parse WMS GetCapabilities')
+    return body
+  },
+
+  async exportWmsToGeoTiff(params: {
+    url: string
+    layers: string
+    version?: string
+    crs?: string
+    bbox?: number[]
+    aoi_geometry?: any
+    width?: number
+    height?: number
+    output_filename?: string
+  }): Promise<{
+    status: string
+    output_path: string
+    filename: string
+    size_bytes: number
+    crs: string
+    bbox: number[]
+    width: number
+    height: number
+    download_url: string
+  }> {
+    const res = await fetch(`${BASE_URL}/wms/export`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    })
+    const body = await res.json()
+    if (!res.ok) throw new Error(body.detail || 'WMS GeoTIFF export failed')
+    return body
+  },
+
+  // Raster Geoprocessing Studio Tools
+  async getLocalRasters(): Promise<Array<{
+    name: string
+    relative_path: string
+    absolute_path: string
+    root: string
+    size_bytes: number
+    modified_at: number
+  }>> {
+    const res = await fetch(`${BASE_URL}/processing/local-rasters`)
+    if (!res.ok) return []
+    return res.json()
+  },
+
+  async clipRaster(params: {
+    input_path: string
+    aoi_geometry: any
+    output_filename?: string
+    to_cog?: boolean
+  }): Promise<any> {
+    const res = await fetch(`${BASE_URL}/processing/clip`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    })
+    const body = await res.json()
+    if (!res.ok) throw new Error(body.detail || 'Raster clip failed')
+    return body
+  },
+
+  async stackBands(params: {
+    input_file_paths: string[]
+    band_names?: string[]
+    aoi_geometry?: any
+    target_crs?: string
+    output_filename?: string
+    to_cog?: boolean
+  }): Promise<any> {
+    const res = await fetch(`${BASE_URL}/processing/stack-bands`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    })
+    const body = await res.json()
+    if (!res.ok) throw new Error(body.detail || 'Band stacking failed')
+    return body
+  },
+
+  async calculateSpectralIndex(params: {
+    index_type: string
+    band1_path: string
+    band2_path: string
+    band3_path?: string
+    band1_idx?: number
+    band2_idx?: number
+    band3_idx?: number
+    custom_formula?: string
+    output_filename?: string
+    to_cog?: boolean
+  }): Promise<any> {
+    const res = await fetch(`${BASE_URL}/processing/spectral-index`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    })
+    const body = await res.json()
+    if (!res.ok) throw new Error(body.detail || 'Spectral index calculation failed')
+    return body
+  },
+
+  async runTerrainAnalysis(params: {
+    dem_path: string
+    operation: 'slope' | 'aspect' | 'hillshade' | 'tri' | 'tpi'
+    azimuth?: number
+    altitude?: number
+    z_factor?: number
+    output_filename?: string
+    to_cog?: boolean
+  }): Promise<any> {
+    const res = await fetch(`${BASE_URL}/processing/terrain`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    })
+    const body = await res.json()
+    if (!res.ok) throw new Error(body.detail || 'Terrain analysis failed')
+    return body
+  },
+
+  async reprojectResampleRaster(params: {
+    input_path: string
+    target_crs?: string
+    resolution?: number
+    resampling_method?: string
+    output_filename?: string
+    to_cog?: boolean
+  }): Promise<any> {
+    const res = await fetch(`${BASE_URL}/processing/reproject-resample`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    })
+    const body = await res.json()
+    if (!res.ok) throw new Error(body.detail || 'Reproject & resample failed')
+    return body
+  },
+
+  async getRasterStats(params: {
+    input_path: string
+    aoi_geometry?: any
+  }): Promise<any> {
+    const res = await fetch(`${BASE_URL}/processing/raster-stats`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    })
+    const body = await res.json()
+    if (!res.ok) throw new Error(body.detail || 'Raster statistics calculation failed')
+    return body
+  },
 }
 
 

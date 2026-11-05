@@ -396,3 +396,344 @@ async def execute_mosaic_clip(request: MosaicClipRequest, db: Session = Depends(
         "input_files_count": len(valid_paths),
         "output_path": out_path
     }
+
+
+# =========================================================================
+# RASTER GEOPROCESSING TOOLBOX ENDPOINTS
+# (Clip, Band Stack, Spectral Indices, Terrain Analysis, Reproject, Stats)
+# =========================================================================
+
+class DirectClipRequest(BaseModel):
+    input_file_path: Optional[str] = None
+    input_path: Optional[str] = None
+    aoi_geometry: Optional[Dict[str, Any]] = None
+    bbox: Optional[List[float]] = None  # [minLon, minLat, maxLon, maxLat]
+    output_filename: Optional[str] = None
+    nodata: float = 0.0
+    to_cog: bool = True
+
+
+class BandStackRequest(BaseModel):
+    input_file_paths: List[str]
+    band_names: Optional[List[str]] = None
+    aoi_geometry: Optional[Dict[str, Any]] = None
+    target_crs: Optional[str] = None
+    output_filename: Optional[str] = None
+    to_cog: bool = True
+    resampling_method: str = "bilinear"
+
+
+class SpectralIndexRequest(BaseModel):
+    index_type: str = "ndvi"  # ndvi, ndwi, mndwi, ndsi, ndbi, savi, evi, nbr, custom
+    band1_path: str
+    band2_path: Optional[str] = None
+    band3_path: Optional[str] = None
+    band1_idx: int = 1
+    band2_idx: int = 2
+    band3_idx: int = 3
+    custom_formula: Optional[str] = None
+    output_filename: Optional[str] = None
+    to_cog: bool = True
+
+
+class TerrainAnalysisRequest(BaseModel):
+    dem_path: str
+    operation: str = "hillshade"  # slope, aspect, hillshade, tri, tpi
+    azimuth: float = 315.0
+    altitude: float = 45.0
+    z_factor: float = 1.0
+    output_filename: Optional[str] = None
+    to_cog: bool = True
+
+
+class ReprojectResampleRequest(BaseModel):
+    input_file_path: Optional[str] = None
+    input_path: Optional[str] = None
+    target_crs: str = "EPSG:4326"
+    resolution: Optional[float] = None
+    resampling_method: str = "bilinear"
+    output_filename: Optional[str] = None
+    to_cog: bool = True
+
+
+class RasterStatsRequest(BaseModel):
+    input_file_path: Optional[str] = None
+    input_path: Optional[str] = None
+    aoi_geometry: Optional[Dict[str, Any]] = None
+
+
+@router.get("/local-rasters")
+async def list_local_rasters():
+    """Scans downloads and processed directories for all available raster files."""
+    import rasterio
+    from backend.app.dependencies.config import settings
+
+    valid_exts = {".tif", ".tiff", ".jp2", ".img", ".vrt"}
+    rasters = []
+    scan_dirs = [
+        ("downloads", settings.downloads_dir),
+        ("processed", settings.data_dir / "processed"),
+    ]
+    for folder_label, folder_path in scan_dirs:
+        if not folder_path.exists():
+            continue
+        for p in sorted(folder_path.rglob("*"), key=lambda x: x.stat().st_mtime if x.exists() else 0, reverse=True):
+            if p.is_file() and p.suffix.lower() in valid_exts and not p.name.startswith(".") and p.stat().st_size > 0:
+                abs_str = str(p.resolve())
+                try:
+                    rel_str = str(p.relative_to(folder_path))
+                except Exception:
+                    rel_str = p.name
+                info: Dict[str, Any] = {
+                    "name": p.name,
+                    "path": abs_str,
+                    "absolute_path": abs_str,
+                    "relative_path": rel_str,
+                    "folder": folder_label,
+                    "root": folder_label,
+                    "size_bytes": p.stat().st_size,
+                    "modified_at": datetime.datetime.fromtimestamp(p.stat().st_mtime).isoformat(),
+                    "bands": 1,
+                    "crs": "EPSG:4326",
+                    "dimensions": [0, 0],
+                }
+                try:
+                    with rasterio.open(str(p)) as src:
+                        info["bands"] = src.count
+                        info["crs"] = src.crs.to_string() if src.crs else "EPSG:4326"
+                        info["dimensions"] = [src.width, src.height]
+                        info["dtype"] = str(src.dtypes[0])
+                except Exception:
+                    pass
+                rasters.append(info)
+    return rasters
+
+
+@router.post("/clip")
+async def execute_direct_clip(req: DirectClipRequest):
+    """Clips any raster by GeoJSON AOI polygon or bounding box [minX, minY, maxX, maxY]."""
+    from backend.core.processing.raster_ops import RasterOps
+    from backend.app.dependencies.config import settings
+    import shapely.geometry
+
+    target_in = req.input_file_path or req.input_path
+    if not target_in:
+        raise HTTPException(status_code=400, detail="Provide input_path or input_file_path")
+    in_p = Path(target_in)
+    if not in_p.exists():
+        raise HTTPException(status_code=404, detail=f"Input raster not found: {target_in}")
+
+    aoi_geom = req.aoi_geometry
+    if not aoi_geom and req.bbox and len(req.bbox) == 4:
+        aoi_geom = shapely.geometry.mapping(shapely.geometry.box(*req.bbox))
+
+    if not aoi_geom:
+        raise HTTPException(status_code=400, detail="Provide either aoi_geometry or bbox [minLon, minLat, maxLon, maxLat].")
+
+    processed_dir = settings.data_dir / "processed"
+    processed_dir.mkdir(parents=True, exist_ok=True)
+    out_name = req.output_filename or f"{in_p.stem}_clipped_{uuid.uuid4().hex[:6]}.tif"
+    if not out_name.lower().endswith((".tif", ".tiff")):
+        out_name += ".tif"
+    out_path = str((processed_dir / out_name).resolve())
+
+    try:
+        temp_clip = out_path if not req.to_cog else str((processed_dir / f"_tmp_{out_name}").resolve())
+        RasterOps.clip_raster(str(in_p.resolve()), aoi_geom, temp_clip, nodata=req.nodata)
+        if req.to_cog:
+            RasterOps.build_cog(temp_clip, out_path)
+            Path(temp_clip).unlink(missing_ok=True)
+        meta = RasterOps.validate_raster(out_path)
+        return {
+            "status": "completed",
+            "operation": "CLIP",
+            "output_path": out_path,
+            "filename": Path(out_path).name,
+            "crs": meta.get("crs"),
+            "width": meta.get("width"),
+            "height": meta.get("height"),
+            "band_count": meta.get("count"),
+            "metadata": meta,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Clip failed: {str(e)}")
+
+
+@router.post("/stack-bands")
+async def execute_band_stack(req: BandStackRequest):
+    """Stacks multiple single-band or multi-band rasters into a composite multi-band GeoTIFF/COG."""
+    from backend.core.processing.raster_ops import RasterOps
+    from backend.app.dependencies.config import settings
+
+    if len(req.input_file_paths) < 1:
+        raise HTTPException(status_code=400, detail="Select at least 1 raster file to stack.")
+
+    processed_dir = settings.data_dir / "processed"
+    processed_dir.mkdir(parents=True, exist_ok=True)
+    out_name = req.output_filename or f"stacked_composite_{uuid.uuid4().hex[:6]}.tif"
+    if not out_name.lower().endswith((".tif", ".tiff")):
+        out_name += ".tif"
+    out_path = str((processed_dir / out_name).resolve())
+
+    try:
+        final_path = RasterOps.stack_bands(
+            input_paths=req.input_file_paths,
+            output_path=out_path,
+            band_names=req.band_names,
+            aoi_geometry=req.aoi_geometry,
+            target_crs=req.target_crs,
+            to_cog=req.to_cog,
+            resampling_method=req.resampling_method,
+        )
+        meta = RasterOps.validate_raster(final_path)
+        return {
+            "status": "completed",
+            "operation": "BAND_STACK",
+            "output_path": final_path,
+            "filename": Path(final_path).name,
+            "input_count": len(req.input_file_paths),
+            "crs": meta.get("crs"),
+            "width": meta.get("width"),
+            "height": meta.get("height"),
+            "band_count": meta.get("count"),
+            "metadata": meta,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Band stacking failed: {str(e)}")
+
+
+@router.post("/spectral-index")
+async def execute_spectral_index(req: SpectralIndexRequest):
+    """Computes spectral index (NDVI, NDWI, MNDWI, NDSI, NDBI, SAVI, EVI, NBR) or custom band math."""
+    from backend.core.processing.raster_ops import RasterOps
+    from backend.app.dependencies.config import settings
+
+    processed_dir = settings.data_dir / "processed"
+    processed_dir.mkdir(parents=True, exist_ok=True)
+    out_name = req.output_filename or f"{req.index_type.lower()}_{uuid.uuid4().hex[:6]}.tif"
+    if not out_name.lower().endswith((".tif", ".tiff")):
+        out_name += ".tif"
+    out_path = str((processed_dir / out_name).resolve())
+
+    try:
+        res = RasterOps.calc_spectral_index_advanced(
+            index_type=req.index_type,
+            output_path=out_path,
+            band1_path=req.band1_path,
+            band2_path=req.band2_path,
+            band3_path=req.band3_path,
+            band1_idx=req.band1_idx,
+            band2_idx=req.band2_idx,
+            band3_idx=req.band3_idx,
+            custom_formula=req.custom_formula,
+            to_cog=req.to_cog,
+        )
+        return {
+            "status": "completed",
+            "operation": f"INDEX_{req.index_type.upper()}",
+            "filename": Path(out_path).name,
+            "min_val": res.get("min"),
+            "max_val": res.get("max"),
+            "mean_val": res.get("mean"),
+            **res,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Spectral index calculation failed: {str(e)}")
+
+
+@router.post("/terrain")
+async def execute_terrain_analysis(req: TerrainAnalysisRequest):
+    """Computes Slope, Aspect, Hillshade, TRI, or TPI from a DEM raster."""
+    from backend.core.processing.raster_ops import RasterOps
+    from backend.app.dependencies.config import settings
+
+    processed_dir = settings.data_dir / "processed"
+    processed_dir.mkdir(parents=True, exist_ok=True)
+    out_name = req.output_filename or f"terrain_{req.operation.lower()}_{uuid.uuid4().hex[:6]}.tif"
+    if not out_name.lower().endswith((".tif", ".tiff")):
+        out_name += ".tif"
+    out_path = str((processed_dir / out_name).resolve())
+
+    try:
+        res = RasterOps.terrain_analysis(
+            dem_path=req.dem_path,
+            output_path=out_path,
+            operation=req.operation,
+            azimuth=req.azimuth,
+            altitude=req.altitude,
+            z_factor=req.z_factor,
+            to_cog=req.to_cog,
+        )
+        return {
+            "status": "completed",
+            "filename": Path(out_path).name,
+            "min_val": res.get("min"),
+            "max_val": res.get("max"),
+            "mean_val": res.get("mean"),
+            **res,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Terrain analysis failed: {str(e)}")
+
+
+@router.post("/reproject-resample")
+async def execute_reproject_resample(req: ReprojectResampleRequest):
+    """Reprojects raster to target CRS and optionally builds COG pyramids."""
+    from backend.core.processing.raster_ops import RasterOps
+    from backend.app.dependencies.config import settings
+
+    target_in = req.input_file_path or req.input_path
+    if not target_in:
+        raise HTTPException(status_code=400, detail="Provide input_path or input_file_path")
+    in_p = Path(target_in)
+    if not in_p.exists():
+        raise HTTPException(status_code=404, detail=f"Input raster not found: {target_in}")
+
+    processed_dir = settings.data_dir / "processed"
+    processed_dir.mkdir(parents=True, exist_ok=True)
+    out_name = req.output_filename or f"{in_p.stem}_reproj_{uuid.uuid4().hex[:6]}.tif"
+    if not out_name.lower().endswith((".tif", ".tiff")):
+        out_name += ".tif"
+    out_path = str((processed_dir / out_name).resolve())
+
+    try:
+        temp_reproj = out_path if not req.to_cog else str((processed_dir / f"_tmp_{out_name}").resolve())
+        RasterOps.reproject_raster(
+            input_path=str(in_p.resolve()),
+            target_crs=req.target_crs,
+            output_path=temp_reproj,
+            resampling_method=req.resampling_method,
+        )
+        if req.to_cog:
+            RasterOps.build_cog(temp_reproj, out_path)
+            Path(temp_reproj).unlink(missing_ok=True)
+        meta = RasterOps.validate_raster(out_path)
+        return {
+            "status": "completed",
+            "operation": "REPROJECT_COG",
+            "output_path": out_path,
+            "filename": Path(out_path).name,
+            "crs": meta.get("crs"),
+            "width": meta.get("width"),
+            "height": meta.get("height"),
+            "band_count": meta.get("count"),
+            "metadata": meta,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Reprojection failed: {str(e)}")
+
+
+@router.post("/raster-stats")
+async def execute_raster_stats(req: RasterStatsRequest):
+    """Computes raster metadata, per-band statistics, and histograms (optionally within AOI)."""
+    from backend.core.processing.raster_ops import RasterOps
+
+    target_in = req.input_file_path or req.input_path
+    if not target_in or not Path(target_in).exists():
+        raise HTTPException(status_code=404, detail=f"Input raster not found: {target_in}")
+
+    try:
+        return RasterOps.compute_raster_stats(target_in, req.aoi_geometry)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to compute raster stats: {str(e)}")
+

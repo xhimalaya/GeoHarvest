@@ -1,177 +1,496 @@
 <template>
   <div class="h-screen w-screen flex flex-col bg-slate-950 text-slate-100 select-none overflow-hidden">
-    <!-- Top Application Bar -->
-    <header class="h-14 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 z-20 shrink-0">
-      <div class="flex items-center space-x-6">
-        <!-- Logo -->
-        <div class="flex items-center space-x-2.5">
-          <div class="w-7 h-7 rounded-lg bg-gradient-to-tr from-sky-600 to-emerald-400 flex items-center justify-center text-slate-950 font-black text-xs shadow-md">
+    <!-- TIER 1: Primary Application Topbar -->
+    <header class="h-12 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 z-30 shrink-0">
+      <div class="flex items-center space-x-5">
+        <!-- Brand Logo -->
+        <router-link to="/" class="flex items-center space-x-2">
+          <div class="w-7 h-7 rounded-md bg-emerald-600 flex items-center justify-center text-white font-black text-xs shadow-sm bw-primary-btn">
             GH
           </div>
-          <span class="font-bold tracking-tight text-sm text-slate-100">GeoHarvest</span>
-          <span class="text-[10px] text-emerald-400 font-mono font-bold bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800/60">v0.2</span>
-        </div>
+          <span class="font-bold tracking-tight text-sm text-white">GeoHarvest</span>
+          <span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+            GIS Studio
+          </span>
+        </router-link>
 
-        <!-- Navigation Tabs -->
-        <nav class="flex items-center space-x-1.5 text-sm font-medium">
+        <!-- Primary Workspace Tabs (Clean 5-Pillar Navigation) -->
+        <nav class="flex items-center space-x-1 text-xs font-semibold">
           <router-link
             to="/"
             :class="[
-              'px-3 py-2 rounded-lg flex items-center space-x-2 transition-colors text-sm font-semibold cursor-pointer',
-              $route.name === 'harvest' ? 'bg-slate-800 text-sky-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
+              'px-3 py-1.5 rounded-md flex items-center space-x-1.5 transition-colors cursor-pointer',
+              $route.name === 'harvest'
+                ? 'bg-emerald-600 text-white shadow-sm bw-primary-btn'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800'
             ]"
           >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-            </svg>
-            <span>Harvest</span>
-          </router-link>
-
-          <router-link
-            to="/earthengine"
-            :class="[
-              'px-3 py-2 rounded-lg flex items-center space-x-2 transition-colors text-sm font-semibold cursor-pointer',
-              $route.name === 'earthengine' ? 'bg-slate-800 text-emerald-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
-            ]"
-          >
-            <span class="text-base leading-none">🌍</span>
-            <span>Earth Engine</span>
-          </router-link>
-
-          <router-link
-            to="/toposheets"
-            :class="[
-              'px-3 py-2 rounded-lg flex items-center space-x-2 transition-colors text-sm font-semibold cursor-pointer',
-              $route.name === 'toposheets' ? 'bg-slate-800 text-amber-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
-            ]"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5.5A2.5 2.5 0 016.5 3H20v16H6.5A2.5 2.5 0 014 16.5v-11zM4 16.5A2.5 2.5 0 016.5 14H20M8 7h8M8 10h5" />
-            </svg>
-            <span>Topo Sheets</span>
-          </router-link>
-
-          <router-link
-            to="/jobs"
-            :class="[
-              'px-3 py-2 rounded-lg flex items-center space-x-2 transition-colors text-sm font-semibold cursor-pointer',
-              $route.name === 'jobs' ? 'bg-slate-800 text-sky-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
-            ]"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-            </svg>
-            <span>Jobs</span>
-          </router-link>
-
-          <router-link
-            to="/catalog"
-            :class="[
-              'px-3 py-2 rounded-lg flex items-center space-x-2 transition-colors text-sm font-semibold cursor-pointer',
-              $route.name === 'catalog' ? 'bg-slate-800 text-sky-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
-            ]"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 1.5 3 3.5 3h9c2 0 3.5-1 3.5-3V7c0-2-1.5-3-3.5-3h-9C5.5 4 4 5 4 7z" />
-            </svg>
-            <span>STAC Catalog</span>
+            <span>🗺️</span>
+            <span>Map & Harvest</span>
           </router-link>
 
           <router-link
             to="/processing"
             :class="[
-              'px-3 py-2 rounded-lg flex items-center space-x-2 transition-colors text-sm font-semibold cursor-pointer',
-              $route.name === 'processing' ? 'bg-slate-800 text-emerald-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
+              'px-3 py-1.5 rounded-md flex items-center space-x-1.5 transition-colors cursor-pointer',
+              $route.name === 'processing'
+                ? 'bg-emerald-600 text-white shadow-sm bw-primary-btn'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800'
             ]"
           >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-            </svg>
-            <span>Processing</span>
+            <span>🧰</span>
+            <span>Geoprocessing</span>
           </router-link>
 
           <router-link
-            to="/files"
+            to="/earthengine"
             :class="[
-              'px-3 py-2 rounded-lg flex items-center space-x-2 transition-colors text-sm font-semibold cursor-pointer',
-              $route.name === 'files' ? 'bg-slate-800 text-sky-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
+              'px-3 py-1.5 rounded-md flex items-center space-x-1.5 transition-colors cursor-pointer',
+              $route.name === 'earthengine'
+                ? 'bg-emerald-600 text-white shadow-sm bw-primary-btn'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800'
             ]"
           >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-            </svg>
-            <span>Files</span>
+            <span>🌍</span>
+            <span>Earth Engine Python</span>
           </router-link>
 
           <router-link
-            to="/settings"
+            to="/jobs"
             :class="[
-              'px-3 py-2 rounded-lg flex items-center space-x-2 transition-colors text-sm font-semibold cursor-pointer',
-              $route.name === 'settings' ? 'bg-slate-800 text-sky-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
+              'px-3 py-1.5 rounded-md flex items-center space-x-1.5 transition-colors cursor-pointer',
+              $route.name === 'jobs' || $route.name === 'files'
+                ? 'bg-emerald-600 text-white shadow-sm bw-primary-btn'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800'
             ]"
           >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            <span>Telemetry</span>
+            <span>📥</span>
+            <span>Downloads & Files</span>
+          </router-link>
+
+          <router-link
+            to="/catalog"
+            :class="[
+              'px-3 py-1.5 rounded-md flex items-center space-x-1.5 transition-colors cursor-pointer',
+              $route.name === 'catalog' || $route.name === 'toposheets' || $route.name === 'settings'
+                ? 'bg-emerald-600 text-white shadow-sm bw-primary-btn'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800'
+            ]"
+          >
+            <span>🛰️</span>
+            <span>Satellites & Topo ({{ harvestStore.satellites.length || 43 }})</span>
           </router-link>
         </nav>
       </div>
 
-      <!-- App Status & Live System Telemetry -->
-      <div class="flex items-center space-x-3 text-xs">
-        <!-- Quick Credentials Button -->
+      <!-- Right Global Controls: WMS, Credentials, Theme Toggle -->
+      <div class="flex items-center space-x-2 text-xs">
+        <!-- WMS Endpoint Button -->
         <button
-          @click="isCredentialsModalOpen = true"
-          class="flex items-center space-x-2 px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700/80 text-sm font-semibold transition-colors shadow-sm cursor-pointer"
-          title="Configure Platform Access Keys & S3 Credentials"
+          @click="harvestStore.isWmsModalOpen = true"
+          class="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold transition-colors cursor-pointer"
+          title="Connect OGC WMS Endpoints & Layers"
         >
-          <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-          </svg>
-          <span>Credentials</span>
+          <span>🌐</span>
+          <span>WMS</span>
+          <span
+            v-if="harvestStore.activeWmsLayers.length > 0"
+            class="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-600 text-white font-bold"
+          >
+            {{ harvestStore.activeWmsLayers.length }}
+          </span>
         </button>
 
-        <div v-if="sysTelemetry" class="hidden md:flex items-center space-x-2 font-mono text-xs text-slate-400">
-          <span class="px-2.5 py-1 rounded-md bg-slate-800/80 border border-slate-700/60 text-slate-300 font-medium" title="Disk Free">
-            🖴 {{ formatBytes(sysTelemetry.disk_free_bytes) }} Free
-          </span>
-          <span class="px-2 py-1 rounded-md bg-slate-800/80 border border-slate-700/60 text-sky-300 font-medium" title="Active Download Concurrency">
-            ⚡ {{ sysTelemetry.active_workers }} Workers
-          </span>
+        <!-- Credentials Button -->
+        <button
+          @click="isCredentialsModalOpen = true"
+          class="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold transition-colors cursor-pointer"
+          title="Configure Platform API Keys & Credentials"
+        >
+          <span>🔑</span>
+          <span class="hidden sm:inline">Keys</span>
+        </button>
+
+        <!-- Black & White / Slate Theme Switcher -->
+        <div class="flex items-center bg-slate-950 p-0.5 rounded-md border border-slate-700" title="Switch UI Theme (Black & White Light, Black & White Dark, or Slate)">
+          <button
+            @click="harvestStore.setTheme('bw-light')"
+            :class="[
+              'px-2 py-1 rounded text-[11px] font-bold transition-colors cursor-pointer',
+              harvestStore.uiTheme === 'bw-light'
+                ? 'bg-emerald-600 text-white bw-primary-btn'
+                : 'text-slate-400 hover:text-white'
+            ]"
+          >
+            ☀️ B&W Light
+          </button>
+          <button
+            @click="harvestStore.setTheme('bw-dark')"
+            :class="[
+              'px-2 py-1 rounded text-[11px] font-bold transition-colors cursor-pointer',
+              harvestStore.uiTheme === 'bw-dark'
+                ? 'bg-emerald-600 text-white bw-primary-btn'
+                : 'text-slate-400 hover:text-white'
+            ]"
+          >
+            ◑ B&W Dark
+          </button>
+          <button
+            @click="harvestStore.setTheme('dark')"
+            :class="[
+              'px-2 py-1 rounded text-[11px] font-bold transition-colors cursor-pointer',
+              harvestStore.uiTheme === 'dark'
+                ? 'bg-emerald-600 text-white bw-primary-btn'
+                : 'text-slate-400 hover:text-white'
+            ]"
+          >
+            🌑 Slate
+          </button>
         </div>
 
-        <div class="flex items-center space-x-1 px-2.5 py-1 bg-slate-800/80 rounded-md border border-slate-700/60 font-mono text-xs text-slate-300">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span>localhost:9009</span>
+        <div v-if="sysTelemetry" class="hidden xl:flex items-center space-x-1.5 font-mono text-[11px] text-slate-400 pl-1">
+          <span class="px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-300" title="Free Disk Space">
+            🖴 {{ formatBytes(sysTelemetry.disk_free_bytes) }}
+          </span>
         </div>
       </div>
     </header>
+
+    <!-- TIER 2: Contextual Sub-Navbar (GIS Ribbon Toolbar) -->
+    <div class="h-10 bg-slate-950 border-b border-slate-800 px-4 flex items-center justify-between text-xs z-20 shrink-0 overflow-x-auto">
+      <!-- CONTEXT 1: MAP & HARVEST RIBBON -->
+      <template v-if="$route.name === 'harvest'">
+        <div class="flex items-center space-x-2">
+          <!-- Guided Step Switcher -->
+          <div class="flex items-center space-x-1 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">Steps:</span>
+            <button
+              @click="harvestStore.harvestShowAllSteps = false; harvestStore.activeHarvestStep = 1"
+              :class="[
+                'px-2 py-1 rounded text-[11px] font-semibold transition-colors cursor-pointer',
+                !harvestStore.harvestShowAllSteps && harvestStore.activeHarvestStep === 1
+                  ? 'bg-emerald-600 text-white bw-primary-btn'
+                  : 'text-slate-300 hover:bg-slate-800'
+              ]"
+            >
+              1. Area & Source
+            </button>
+            <button
+              @click="harvestStore.harvestShowAllSteps = false; harvestStore.activeHarvestStep = 2"
+              :class="[
+                'px-2 py-1 rounded text-[11px] font-semibold transition-colors cursor-pointer',
+                !harvestStore.harvestShowAllSteps && harvestStore.activeHarvestStep === 2
+                  ? 'bg-emerald-600 text-white bw-primary-btn'
+                  : 'text-slate-300 hover:bg-slate-800'
+              ]"
+            >
+              2. Satellite & Dates
+            </button>
+            <button
+              @click="harvestStore.harvestShowAllSteps = false; harvestStore.activeHarvestStep = 3"
+              :class="[
+                'px-2 py-1 rounded text-[11px] font-semibold transition-colors cursor-pointer',
+                !harvestStore.harvestShowAllSteps && harvestStore.activeHarvestStep === 3
+                  ? 'bg-emerald-600 text-white bw-primary-btn'
+                  : 'text-slate-300 hover:bg-slate-800'
+              ]"
+            >
+              3. Scenes & Download ({{ harvestStore.searchResults.length }})
+            </button>
+            <button
+              @click="harvestStore.harvestShowAllSteps = !harvestStore.harvestShowAllSteps"
+              :class="[
+                'px-2 py-1 rounded text-[10px] font-mono border transition-colors cursor-pointer',
+                harvestStore.harvestShowAllSteps
+                  ? 'bg-slate-800 text-white border-slate-600'
+                  : 'text-slate-400 border-transparent hover:text-white'
+              ]"
+              title="Toggle between step-by-step guided view and all panels open"
+            >
+              {{ harvestStore.harvestShowAllSteps ? 'Guided' : 'All' }}
+            </button>
+          </div>
+
+          <div class="h-4 w-px bg-slate-800"></div>
+
+          <!-- Map Drawing & Measurement Tools -->
+          <div class="flex items-center space-x-1">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1">AOI Tools:</span>
+            <button
+              @click="harvestStore.triggerMapCommand('Box')"
+              class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-[11px] font-medium cursor-pointer"
+              title="Draw Bounding Box on Map"
+            >
+              ⬛ Box
+            </button>
+            <button
+              @click="harvestStore.triggerMapCommand('Polygon')"
+              class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-[11px] font-medium cursor-pointer"
+              title="Draw Custom Polygon on Map"
+            >
+              ⬠ Polygon
+            </button>
+            <button
+              @click="harvestStore.triggerMapCommand('Measure')"
+              class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-[11px] font-medium cursor-pointer"
+              title="Measure Geodesic Distance & Bearing"
+            >
+              📏 Measure
+            </button>
+            <button
+              @click="harvestStore.triggerMapCommand('LadakhSample')"
+              class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-[11px] font-medium cursor-pointer"
+              title="Load Ladakh Study Area Preset"
+            >
+              🏔️ Ladakh AOI
+            </button>
+            <button
+              v-if="harvestStore.hasAoi"
+              @click="harvestStore.triggerMapCommand('FitAOI')"
+              class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-[11px] font-medium cursor-pointer"
+            >
+              🎯 Fit
+            </button>
+            <button
+              v-if="harvestStore.hasAoi"
+              @click="harvestStore.triggerMapCommand('ClearAOI')"
+              class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-red-400 border border-slate-800 text-[11px] font-medium cursor-pointer"
+            >
+              🗑️ Clear
+            </button>
+          </div>
+
+          <div class="h-4 w-px bg-slate-800"></div>
+
+          <!-- Map Layers & WMS -->
+          <div class="flex items-center space-x-1">
+            <button
+              @click="harvestStore.triggerMapCommand('ToggleLayers')"
+              class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-[11px] font-medium cursor-pointer"
+            >
+              🥞 Basemaps & Layers
+            </button>
+            <button
+              @click="harvestStore.isWmsModalOpen = true"
+              class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-[11px] font-medium cursor-pointer"
+            >
+              🌐 Add WMS Layer
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick Raster Toolbar Shortcuts on Right of Map Ribbon -->
+        <div class="hidden lg:flex items-center space-x-1">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1">Raster Tools:</span>
+          <button
+            @click="openTool('clip')"
+            class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-[11px] font-medium cursor-pointer"
+          >
+            ✂️ Clip
+          </button>
+          <button
+            @click="openTool('mosaic')"
+            class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-[11px] font-medium cursor-pointer"
+          >
+            🧩 Mosaic
+          </button>
+          <button
+            @click="openTool('stack')"
+            class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-[11px] font-medium cursor-pointer"
+          >
+            📚 Band Stack
+          </button>
+          <button
+            @click="openTool('index')"
+            class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-[11px] font-medium cursor-pointer"
+          >
+            🌿 NDVI / Indices
+          </button>
+          <button
+            @click="openTool('terrain')"
+            class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-[11px] font-medium cursor-pointer"
+          >
+            ⛰️ Terrain
+          </button>
+        </div>
+      </template>
+
+      <!-- CONTEXT 2: GEOPROCESSING STUDIO RIBBON -->
+      <template v-else-if="$route.name === 'processing'">
+        <div class="flex items-center space-x-1.5">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1">Raster Geoprocessing Toolbar:</span>
+          <button
+            v-for="tool in processingTools"
+            :key="tool.id"
+            @click="harvestStore.openProcessingTool(tool.id)"
+            :class="[
+              'px-2.5 py-1 rounded text-[11px] font-semibold border transition-colors cursor-pointer flex items-center space-x-1.5',
+              harvestStore.activeProcessingTool === tool.id
+                ? 'bg-emerald-600 text-white border-emerald-500 bw-primary-btn'
+                : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-800'
+            ]"
+          >
+            <span>{{ tool.icon }}</span>
+            <span>{{ tool.label }}</span>
+          </button>
+        </div>
+      </template>
+
+      <!-- CONTEXT 3: DOWNLOADS & FILES RIBBON -->
+      <template v-else-if="$route.name === 'jobs' || $route.name === 'files'">
+        <div class="flex items-center space-x-2">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1">Download & Storage Manager:</span>
+          <router-link
+            to="/jobs"
+            :class="[
+              'px-3 py-1 rounded text-[11px] font-semibold border transition-colors',
+              $route.name === 'jobs'
+                ? 'bg-emerald-600 text-white border-emerald-500 bw-primary-btn'
+                : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
+            ]"
+          >
+            📥 Download Queue & Active Jobs
+          </router-link>
+          <router-link
+            to="/files"
+            :class="[
+              'px-3 py-1 rounded text-[11px] font-semibold border transition-colors',
+              $route.name === 'files'
+                ? 'bg-emerald-600 text-white border-emerald-500 bw-primary-btn'
+                : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
+            ]"
+          >
+            📁 Local Files & Folder Browser
+          </router-link>
+          <router-link
+            to="/processing"
+            class="px-3 py-1 rounded text-[11px] font-semibold bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800"
+          >
+            🧰 Process Downloaded Files (Clip / Mosaic / Stack) →
+          </router-link>
+        </div>
+      </template>
+
+      <!-- CONTEXT 4: SATELLITES, TOPO SHEETS & TELEMETRY RIBBON -->
+      <template v-else-if="$route.name === 'catalog' || $route.name === 'toposheets' || $route.name === 'settings'">
+        <div class="flex items-center space-x-2">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1">Catalogs & Reference:</span>
+          <router-link
+            to="/catalog"
+            :class="[
+              'px-3 py-1 rounded text-[11px] font-semibold border transition-colors',
+              $route.name === 'catalog'
+                ? 'bg-emerald-600 text-white border-emerald-500 bw-primary-btn'
+                : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
+            ]"
+          >
+            🛰️ Master Satellite & STAC Catalog ({{ harvestStore.satellites.length || 43 }} Missions)
+          </router-link>
+          <router-link
+            to="/toposheets"
+            :class="[
+              'px-3 py-1 rounded text-[11px] font-semibold border transition-colors',
+              $route.name === 'toposheets'
+                ? 'bg-emerald-600 text-white border-emerald-500 bw-primary-btn'
+                : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
+            ]"
+          >
+            🗺️ Survey of India Topo Sheets (1:50k / 1:250k)
+          </router-link>
+          <router-link
+            to="/settings"
+            :class="[
+              'px-3 py-1 rounded text-[11px] font-semibold border transition-colors',
+              $route.name === 'settings'
+                ? 'bg-emerald-600 text-white border-emerald-500 bw-primary-btn'
+                : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
+            ]"
+          >
+            ⚙️ System Telemetry & Diagnostics
+          </router-link>
+          <button
+            @click="harvestStore.isWmsModalOpen = true"
+            class="px-3 py-1 rounded text-[11px] font-semibold bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800 cursor-pointer"
+          >
+            🌐 OGC WMS Endpoints
+          </button>
+        </div>
+      </template>
+
+      <!-- CONTEXT 5: EARTH ENGINE PYTHON STUDIO RIBBON -->
+      <template v-else-if="$route.name === 'earthengine'">
+        <div class="flex items-center justify-between w-full">
+          <div class="flex items-center space-x-2">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Earth Engine Python Studio:</span>
+            <span class="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[11px] text-slate-300">
+              🐍 Local Host Compute + Google Earth Engine Cloud API
+            </span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <router-link
+              to="/processing"
+              class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-[11px]"
+            >
+              🧰 Open Raster Geoprocessing Toolbar
+            </router-link>
+            <button
+              @click="harvestStore.isWmsModalOpen = true"
+              class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-[11px] cursor-pointer"
+            >
+              🌐 WMS Overlay
+            </button>
+          </div>
+        </div>
+      </template>
+    </div>
 
     <!-- Main View Content -->
     <main class="flex-1 overflow-hidden relative">
       <router-view />
     </main>
 
-    <!-- Global Platform Credentials Modal -->
+    <!-- Modals -->
     <CredentialsModal v-model="isCredentialsModalOpen" />
+    <WmsModal v-model="harvestStore.isWmsModalOpen" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useJobStore } from './stores/jobStore'
+import { useHarvestStore } from './stores/harvestStore'
 import { api } from './services/api'
 import CredentialsModal from './components/CredentialsModal.vue'
+import WmsModal from './components/WmsModal.vue'
 import type { SystemStatus } from './types'
 
+const router = useRouter()
 const jobStore = useJobStore()
+const harvestStore = useHarvestStore()
 const isCredentialsModalOpen = ref(false)
 const sysTelemetry = ref<SystemStatus | null>(null)
 let pollTimer: any = null
 
+const processingTools = [
+  { id: 'clip' as const, icon: '✂️', label: 'Clip Raster' },
+  { id: 'mosaic' as const, icon: '🧩', label: 'Mosaic' },
+  { id: 'stack' as const, icon: '📚', label: 'Band Stack' },
+  { id: 'index' as const, icon: '🌿', label: 'Spectral Indices' },
+  { id: 'terrain' as const, icon: '⛰️', label: 'Terrain (DEM)' },
+  { id: 'reproject' as const, icon: '🌐', label: 'Reproject & COG' },
+  { id: 'stats' as const, icon: '📊', label: 'Zonal Stats' },
+  { id: 'recipe' as const, icon: '⚙️', label: 'Recipes' },
+]
+
+function openTool(tool: 'clip' | 'mosaic' | 'stack' | 'index' | 'terrain' | 'reproject' | 'stats' | 'recipe') {
+  harvestStore.openProcessingTool(tool)
+  router.push('/processing')
+}
+
 onMounted(async () => {
+  harvestStore.initTheme()
+  harvestStore.initSatellites()
   jobStore.initWebSocket()
   await fetchTelemetry()
   pollTimer = setInterval(fetchTelemetry, 15000)

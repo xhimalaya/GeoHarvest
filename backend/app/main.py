@@ -28,6 +28,7 @@ from backend.app.api.credentials import router as credentials_router
 from backend.app.api.weather import router as weather_router
 from backend.app.api.toposheets import router as toposheets_router
 from backend.app.api.earthengine import router as earthengine_router
+from backend.app.api.wms import router as wms_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("geoharvest")
@@ -85,6 +86,7 @@ app.include_router(credentials_router)
 app.include_router(weather_router)
 app.include_router(toposheets_router)
 app.include_router(earthengine_router)
+app.include_router(wms_router)
 
 # Mount frontend/dist if built, otherwise serve status page
 frontend_dist = settings.base_dir / "frontend" / "dist"
