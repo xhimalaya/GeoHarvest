@@ -744,19 +744,57 @@ export const api = {
     return res.json()
   },
 
-  async fetchWmsCapabilities(url: string, version: string = '1.3.0'): Promise<{
+  async parseWmsUrl(url: string): Promise<{
+    raw_url: string
+    base_url: string
+    has_query_params: boolean
+    is_getmap: boolean
+    service: string
+    request: string
+    version: string
+    layers: string
+    styles: string
+    crs: string
+    format: string
+    transparent: boolean
+    width: number
+    height: number
+    detected_width?: number
+    detected_height?: number
+    bbox?: number[]
+    aoi_analysis?: AOIValidationResponse
+    vendor_params?: Record<string, string>
+  }> {
+    const res = await fetch(`${BASE_URL}/wms/parse-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    })
+    const body = await res.json()
+    if (!res.ok) throw new Error(body.detail || 'Failed to parse WMS URL')
+    return body
+  },
+
+  async fetchWmsCapabilities(url: string, version?: string): Promise<{
     service_url: string
     service_title: string
     service_abstract: string
     version: string
     layer_count: number
+    detected_config?: any
+    capabilities_warning?: string
     layers: Array<{
       name: string
       title: string
       abstract: string
+      styles?: string
       crs: string[]
       bbox?: number[]
-      queryable: boolean
+      format?: string
+      width?: number
+      height?: number
+      auto_detected?: boolean
+      queryable?: boolean
     }>
   }> {
     const res = await fetch(`${BASE_URL}/wms/capabilities`, {
@@ -772,10 +810,14 @@ export const api = {
   async exportWmsToGeoTiff(params: {
     url: string
     layers: string
+    styles?: string
     version?: string
     crs?: string
+    format?: string
+    transparent?: boolean
     bbox?: number[]
     aoi_geometry?: any
+    clip_to_aoi?: boolean
     width?: number
     height?: number
     output_filename?: string
@@ -786,6 +828,7 @@ export const api = {
     size_bytes: number
     crs: string
     bbox: number[]
+    clipped_to_aoi?: boolean
     width: number
     height: number
     download_url: string

@@ -290,21 +290,24 @@ class EarthEngineAuthManager:
             except Exception as e:
                 logger.warning(f"Failed to parse credentials file: {e}")
 
-        # Attempt ee.Initialize()
+        # Attempt ee.Initialize() only when credentials file actually exists
         init_success = False
         init_error = None
-        try:
-            if stored_project:
-                ee.Initialize(project=stored_project)
-                init_success = True
-                self._is_initialized = True
-            else:
-                # If credentials exist, try without project to see what error or if legacy
-                ee.Initialize()
-                init_success = True
-                self._is_initialized = True
-        except Exception as e:
-            init_error = str(e)
+        if credentials_exist:
+            try:
+                if stored_project:
+                    ee.Initialize(project=stored_project)
+                    init_success = True
+                    self._is_initialized = True
+                else:
+                    ee.Initialize()
+                    init_success = True
+                    self._is_initialized = True
+            except Exception as e:
+                init_error = str(e)
+                self._is_initialized = False
+        else:
+            init_error = "Not authenticated (use Local STAC Emulator or link Google Cloud Project)"
             self._is_initialized = False
 
         is_authenticated = credentials_exist and has_refresh_token

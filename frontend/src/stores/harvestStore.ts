@@ -19,7 +19,7 @@ export const useHarvestStore = defineStore('harvest', {
     savedAois: [] as any[],
     isSavingAoi: false,
     lastSavedAoiToast: null as { message: string; timestamp: number; downloadUrl?: string } | null,
-    providerId: 'copernicus-dataspace',
+    providerId: 'aws-earthsearch',
     providers: [] as any[],
     credentials: [] as any[],
 
@@ -139,6 +139,10 @@ export const useHarvestStore = defineStore('harvest', {
       title: string
       url: string
       version: string
+      styles?: string
+      format?: string
+      crs?: string
+      bbox?: number[]
       opacity: number
       visible: boolean
     }>,
@@ -1184,22 +1188,48 @@ export const useHarvestStore = defineStore('harvest', {
       this.activeProcessingTool = tool
     },
 
-    addWmsLayer(layer: { id?: string; name: string; title: string; url: string; version?: string; opacity?: number }) {
-      const id = layer.id || `${layer.url}__${layer.name}`
+    addWmsLayer(layer: {
+      id?: string
+      name: string
+      title: string
+      url: string
+      version?: string
+      styles?: string
+      format?: string
+      crs?: string
+      bbox?: number[]
+      opacity?: number
+      zoomToBbox?: boolean
+    }) {
+      const cleanUrl = layer.url.split('?')[0]
+      const id = layer.id || `${cleanUrl}__${layer.name}`
       const existing = this.activeWmsLayers.find((l) => l.id === id)
       if (existing) {
         existing.visible = true
+        if (layer.styles !== undefined) existing.styles = layer.styles
+        if (layer.format !== undefined) existing.format = layer.format
+        if (layer.version !== undefined) existing.version = layer.version
+        if (layer.bbox && layer.zoomToBbox) {
+          this.triggerMapCommand('ZoomToBBox', layer.bbox)
+        }
         return
       }
       this.activeWmsLayers.push({
         id,
         name: layer.name,
         title: layer.title || layer.name,
-        url: layer.url,
-        version: layer.version || '1.3.0',
+        url: cleanUrl,
+        version: layer.version || '1.1.1',
+        styles: layer.styles || '',
+        format: layer.format || 'image/png',
+        crs: layer.crs || 'EPSG:4326',
+        bbox: layer.bbox,
         opacity: layer.opacity ?? 0.85,
         visible: true,
       })
+      if (layer.bbox && layer.zoomToBbox) {
+        this.triggerMapCommand('ZoomToBBox', layer.bbox)
+      }
     },
 
     removeWmsLayer(id: string) {

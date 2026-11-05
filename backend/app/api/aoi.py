@@ -36,17 +36,55 @@ async def validate_aoi(request: AOIValidateRequest):
     return AOIValidateResponse(**result)
 
 
+def _parse_kml_to_geojson(kml_text: str) -> Dict[str, Any]:
+    import xml.etree.ElementTree as ET
+    root = ET.fromstring(kml_text)
+    polygons = []
+    for elem in root.iter():
+        tag = elem.tag.split("}", 1)[-1] if "}" in elem.tag else elem.tag
+        if tag == "coordinates" and elem.text:
+            pts = []
+            for token in elem.text.strip().split():
+                parts = token.split(",")
+                if len(parts) >= 2:
+                    lon, lat = float(parts[0]), float(parts[1])
+                    pts.append([lon, lat])
+            if len(pts) >= 3:
+                if pts[0] != pts[-1]:
+                    pts.append(pts[0])
+                polygons.append([pts])
+    if not polygons:
+        raise ValueError("No valid polygon coordinates found in KML file")
+    if len(polygons) == 1:
+        return {"type": "Polygon", "coordinates": polygons[0]}
+    return {"type": "MultiPolygon", "coordinates": polygons}
+
+
 @router.post("/upload", response_model=AOIValidateResponse)
 async def upload_aoi(file: UploadFile = File(...)):
     try:
         content = await file.read()
-        geojson_data = json.loads(content.decode("utf-8"))
+        filename = (file.filename or "").lower()
+        text_content = content.decode("utf-8", errors="ignore").strip()
+
+        if filename.endswith(".kml") or text_content.startswith("<?xml") or "<kml" in text_content[:300].lower():
+            geojson_data = _parse_kml_to_geojson(text_content)
+        elif filename.endswith(".wkt"):
+            import shapely.wkt
+            import shapely.geometry
+            geom = shapely.wkt.loads(text_content)
+            geojson_data = shapely.geometry.mapping(geom)
+        else:
+            geojson_data = json.loads(text_content)
+
         result = AOIEngine.validate_and_analyze(geojson_data=geojson_data)
         if not result["valid"]:
             raise HTTPException(status_code=400, detail=result["error"])
         return AOIValidateResponse(**result)
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to parse GeoJSON file: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Failed to parse AOI file: {str(e)}")
 
 
 @router.get("/samples/ladakh")

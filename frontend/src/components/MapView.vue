@@ -2057,16 +2057,20 @@ function updateWmsLayers() {
   for (const cfg of harvestStore.activeWmsLayers) {
     let layer = activeWmsTileLayers.get(cfg.id)
     if (!layer) {
+      const wmsParams: Record<string, any> = {
+        LAYERS: cfg.name,
+        TILED: true,
+        VERSION: cfg.version || '1.1.1',
+        FORMAT: cfg.format || 'image/png',
+        TRANSPARENT: true,
+      }
+      if (cfg.styles) {
+        wmsParams.STYLES = cfg.styles
+      }
       layer = new TileLayer({
         source: new TileWMS({
           url: cfg.url,
-          params: {
-            LAYERS: cfg.name,
-            TILED: true,
-            VERSION: cfg.version || '1.3.0',
-            FORMAT: 'image/png',
-            TRANSPARENT: true,
-          },
+          params: wmsParams,
           crossOrigin: 'anonymous',
         }),
         opacity: cfg.opacity,
@@ -2089,7 +2093,7 @@ watch(
   { deep: true }
 )
 
-// Watch mapCommand bus from Contextual Top Navbar (GIS Ribbon)
+// Watch mapCommand bus from Contextual Top Navbar (GIS Ribbon) & WMS Manager
 watch(
   () => harvestStore.mapCommand,
   (cmd) => {
@@ -2109,6 +2113,16 @@ watch(
         break
       case 'FitAOI':
         zoomToAoi()
+        break
+      case 'ZoomToBBox':
+        if (map && Array.isArray(cmd.payload) && cmd.payload.length === 4) {
+          try {
+            const ext3857 = transformExtent(cmd.payload, 'EPSG:4326', 'EPSG:3857')
+            map.getView().fit(ext3857, { padding: [50, 50, 50, 50], duration: 500, maxZoom: 14 })
+          } catch (e) {
+            console.warn('Could not fit bbox:', e)
+          }
+        }
         break
       case 'ClearAOI':
         clearAoi()

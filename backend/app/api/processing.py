@@ -377,24 +377,36 @@ async def execute_mosaic_clip(request: MosaicClipRequest, db: Session = Depends(
     db.add(task)
     db.commit()
 
-    asyncio.create_task(
-        pipeline_runner.run_mosaic_clip_task(
-            task_id=task_id,
-            input_file_paths=valid_paths,
-            output_path=out_path,
-            aoi_geometry=request.aoi_geometry,
-            target_crs=request.target_crs,
-            nodata=request.nodata,
-            to_cog=request.to_cog
-        )
+    await pipeline_runner.run_mosaic_clip_task(
+        task_id=task_id,
+        input_file_paths=valid_paths,
+        output_path=out_path,
+        aoi_geometry=request.aoi_geometry,
+        target_crs=request.target_crs,
+        nodata=request.nodata,
+        to_cog=request.to_cog
     )
 
+    from backend.core.processing.raster_ops import RasterOps
+    meta = {}
+    if Path(out_path).exists():
+        try:
+            meta = RasterOps.validate_raster(out_path)
+        except Exception:
+            pass
+
     return {
-        "status": "queued",
+        "status": "completed",
         "task_id": task_id,
         "processing_job_id": proc_job_id,
         "input_files_count": len(valid_paths),
-        "output_path": out_path
+        "output_path": out_path,
+        "filename": Path(out_path).name,
+        "crs": meta.get("crs"),
+        "width": meta.get("width"),
+        "height": meta.get("height"),
+        "band_count": meta.get("count"),
+        "metadata": meta,
     }
 
 

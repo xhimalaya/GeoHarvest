@@ -63,7 +63,7 @@ class NasaCmrDiscoveryAdapter(DiscoveryAdapter):
 
         features = []
         try:
-            async with httpx.AsyncClient(timeout=20.0) as client:
+            async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.post(f"{self.base_url}/search", json=payload, headers=headers)
                 if resp.status_code == 200:
                     data = resp.json()

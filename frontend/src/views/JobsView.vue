@@ -37,9 +37,14 @@
           ]"
         >
           <div class="flex justify-between items-start mb-1.5 gap-1">
-            <span class="font-mono text-xs font-bold text-slate-100 truncate max-w-[130px]" :title="job.id">
-              {{ job.id }}
-            </span>
+            <div class="min-w-0">
+              <div class="font-mono text-xs font-bold text-slate-100 truncate max-w-[160px]" :title="job.name || job.id">
+                {{ job.name || job.id }}
+              </div>
+              <div v-if="job.name && job.name !== job.id" class="font-mono text-[10px] text-slate-500 truncate">
+                {{ job.id }}
+              </div>
+            </div>
             <span :class="getStatusBadgeClass(job.status)" class="text-[10px] px-1.5 py-0.5 rounded font-mono font-semibold shrink-0">
               {{ job.status }}
             </span>
@@ -661,6 +666,8 @@ function getStatusBadgeClass(status: string) {
       return 'bg-amber-950 text-amber-400 border border-amber-800'
     case 'FAILED':
       return 'bg-rose-950 text-rose-400 border border-rose-800'
+    case 'CANCELLED':
+      return 'bg-slate-900 text-slate-400 border border-slate-700'
     case 'RETRYING':
       return 'bg-orange-950 text-orange-400 border border-orange-800'
     case 'VERIFYING':

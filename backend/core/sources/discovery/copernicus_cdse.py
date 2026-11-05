@@ -76,18 +76,25 @@ class CopernicusCdseDiscoveryAdapter(DiscoveryAdapter):
         }
 
         features = []
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                resp = await client.post(f"{self.base_url}/search", json=payload, headers=headers)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    features = data.get("features", [])
-                    logger.info(f"CDSE STAC returned {len(features)} scenes for {target_coll}")
-                else:
-                    logger.warning(f"CDSE search returned HTTP {resp.status_code}: {resp.text[:200]}")
-        except Exception as e:
-            logger.error(f"CDSE discovery request failed: {e}")
-            features = []
+        endpoints = [
+            f"{self.base_url}/search",
+            "https://catalogue.dataspace.copernicus.eu/stac/search",
+        ]
+        for ep in endpoints:
+            try:
+                async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
+                    resp = await client.post(ep, json=payload, headers=headers)
+                    if resp.status_code == 200 and resp.content.strip():
+                        data = resp.json()
+                        features = data.get("features", [])
+                        if features:
+                            logger.info(f"CDSE STAC ({ep}) returned {len(features)} scenes for {target_coll}")
+                            break
+                    else:
+                        logger.warning(f"CDSE search ({ep}) returned HTTP {resp.status_code}")
+            except Exception as e:
+                logger.warning(f"CDSE discovery endpoint {ep} failed: {e}")
+                continue
 
         # Secondary client-side cloud cover check
         if max_cloud is not None and max_cloud < 100:

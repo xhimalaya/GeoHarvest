@@ -149,7 +149,8 @@ class JobEngine:
                 db.flush()
 
             matched_assets = set()
-            for asset_key, asset in scene.assets.items():
+            scene_asset_items = list(scene.assets.items())
+            for asset_key, asset in scene_asset_items:
                 k_lower = asset_key.lower()
                 band_lower = asset.band.lower() if asset.band else ""
                 is_match = (
@@ -159,9 +160,19 @@ class JobEngine:
                     band_lower in normalized_requested or
                     any(alias in normalized_requested for alias in band_aliases.get(k_lower, []))
                 )
-
-                if is_match and asset_key not in matched_assets:
+                if is_match:
                     matched_assets.add(asset_key)
+
+            # Fallback: if no requested optical band matched (e.g. DEM, SAR, or Reanalysis scene), select primary raster assets
+            if not matched_assets and scene_asset_items:
+                primary = [
+                    k for k, _ in scene_asset_items
+                    if k.lower() not in ("thumbnail", "rendered_preview", "reduced_resolution_browse", "granule_metadata", "tileinfo_metadata")
+                ]
+                matched_assets.update(primary[:3] if primary else [scene_asset_items[0][0]])
+
+            for asset_key, asset in scene_asset_items:
+                if asset_key in matched_assets:
                     # Determine extension
                     if "jp2" in (asset.mime_type or "") or asset.url.lower().endswith(".jp2"):
                         ext = ".jp2"
@@ -439,7 +450,18 @@ class JobEngine:
 
             # Check status of all downloads
             db.expire_all()
+            job = db.query(Job).filter(Job.id == job_id).first()
+            if not job:
+                return
+            was_cancelled = (job.status == JobStatus.CANCELLED)
+
             all_dls = db.query(Download).filter(Download.job_id == job_id).all()
+            if was_cancelled:
+                for d in all_dls:
+                    if d.status != DownloadStatus.COMPLETED:
+                        d.status = DownloadStatus.CANCELLED
+                db.commit()
+
             completed = sum(1 for d in all_dls if d.status == DownloadStatus.COMPLETED)
             failed = sum(1 for d in all_dls if d.status == DownloadStatus.FAILED)
             paused = sum(1 for d in all_dls if d.status == DownloadStatus.PAUSED)
@@ -449,7 +471,9 @@ class JobEngine:
             dn_bytes = sum(d.downloaded_bytes for d in all_dls)
             job.progress = round((dn_bytes / tot_bytes * 100.0), 1) if tot_bytes > 0 else (100.0 if completed == total and total > 0 else 0.0)
 
-            if cancel_event and cancel_event.is_set():
+            if was_cancelled:
+                job.status = JobStatus.CANCELLED
+            elif cancel_event and cancel_event.is_set():
                 job.status = JobStatus.PAUSED
             elif completed == total:
                 job.status = JobStatus.COMPLETED

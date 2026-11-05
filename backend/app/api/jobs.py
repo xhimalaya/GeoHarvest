@@ -24,8 +24,10 @@ async def create_harvest_job(request: JobCreateRequest, db: Session = Depends(ge
     )
     
     downloads_count = db.query(Download).filter(Download.job_id == job.id).count()
+    meta = job.job_metadata or {}
     return JobResponse(
         id=job.id,
+        name=meta.get("name") or job.id,
         type=job.type,
         status=job.status,
         progress=job.progress,
@@ -34,7 +36,8 @@ async def create_harvest_job(request: JobCreateRequest, db: Session = Depends(ge
         completed_at=job.completed_at,
         error=job.error,
         total_downloads=downloads_count,
-        completed_downloads=0
+        completed_downloads=0,
+        job_metadata=meta,
     )
 
 
@@ -46,9 +49,11 @@ async def list_jobs(db: Session = Depends(get_db)):
         dls = db.query(Download).filter(Download.job_id == j.id).all()
         total_dls = len(dls)
         completed_dls = sum(1 for d in dls if d.status == DownloadStatus.COMPLETED)
+        meta = j.job_metadata or {}
         results.append(
             JobResponse(
                 id=j.id,
+                name=meta.get("name") or j.id,
                 type=j.type,
                 status=j.status,
                 progress=j.progress,
@@ -57,7 +62,8 @@ async def list_jobs(db: Session = Depends(get_db)):
                 completed_at=j.completed_at,
                 error=j.error,
                 total_downloads=total_dls,
-                completed_downloads=completed_dls
+                completed_downloads=completed_dls,
+                job_metadata=meta,
             )
         )
     return results
@@ -90,8 +96,10 @@ async def get_job_detail(job_id: str, db: Session = Depends(get_db)):
             )
         )
 
+    meta = job.job_metadata or {}
     return JobDetailResponse(
         id=job.id,
+        name=meta.get("name") or job.id,
         type=job.type,
         status=job.status,
         progress=job.progress,
@@ -102,7 +110,7 @@ async def get_job_detail(job_id: str, db: Session = Depends(get_db)):
         total_downloads=total_dls,
         completed_downloads=completed_dls,
         downloads=progress_items,
-        job_metadata=job.job_metadata or {}
+        job_metadata=meta
     )
 
 

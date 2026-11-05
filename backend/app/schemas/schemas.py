@@ -118,6 +118,7 @@ class DownloadProgress(BaseModel):
 
 class JobResponse(BaseModel):
     id: str
+    name: Optional[str] = None
     type: str
     status: JobStatus
     progress: float
@@ -127,6 +128,7 @@ class JobResponse(BaseModel):
     error: Optional[str] = None
     total_downloads: int = 0
     completed_downloads: int = 0
+    job_metadata: Dict[str, Any] = {}
 
 
 class JobDetailResponse(JobResponse):

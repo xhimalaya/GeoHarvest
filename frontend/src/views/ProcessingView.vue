@@ -77,19 +77,50 @@
               />
             </div>
 
-            <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between">
-              <div>
-                <div class="text-xs font-bold text-slate-200">Clipping Geometry (AOI Mask)</div>
-                <div v-if="harvestStore.hasAoi" class="text-[11px] text-emerald-400 mt-0.5">
-                  ✓ Using Active Map AOI: {{ harvestStore.aoiName }} ({{ harvestStore.aoiAnalysis?.area_km2?.toLocaleString() }} km²)
+            <div class="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-2.5">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <div class="text-xs font-bold text-slate-200">Clipping Geometry (AOI Mask)</div>
+                  <div v-if="harvestStore.hasAoi" class="text-[11px] text-emerald-400 mt-0.5">
+                    ✓ Active AOI: {{ harvestStore.aoiName }} ({{ harvestStore.aoiAnalysis?.area_km2?.toLocaleString() }} km²)
+                  </div>
+                  <div v-else class="text-[11px] text-amber-400 mt-0.5">
+                    ℹ️ No custom AOI selected — select from AOI Library, upload a GeoJSON/KML file, or draw on map.
+                  </div>
                 </div>
-                <div v-else class="text-[11px] text-amber-400 mt-0.5">
-                  ℹ️ No custom AOI drawn on map — will use default Ladakh Study Area polygon (or draw one in Map & Harvest).
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <label class="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-xs text-white font-semibold cursor-pointer bw-primary-btn">
+                    <span>📤 Upload AOI (.geojson/.kml)</span>
+                    <input type="file" accept=".geojson,.json,.kml,.wkt" class="hidden" @change="handleStudioAoiUpload" />
+                  </label>
+                  <router-link to="/" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 border border-slate-700">
+                    🗺️ Draw on Map
+                  </router-link>
                 </div>
               </div>
-              <router-link to="/" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 border border-slate-700">
-                🗺️ Edit AOI on Map
-              </router-link>
+
+              <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center pt-1 border-t border-slate-800/80">
+                <div class="sm:col-span-8">
+                  <select
+                    v-model="selectedStudioAoiId"
+                    @change="onSelectStudioAoi"
+                    class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
+                  >
+                    <option value="">-- Or select existing AOI from AOI Library ({{ harvestStore.savedAois.length }} saved) --</option>
+                    <option v-for="item in harvestStore.savedAois" :key="item.id" :value="item.id">
+                      {{ item.name }} ({{ Math.round(item.area_km2 || 0).toLocaleString() }} km² • {{ item.crs || 'EPSG:4326' }})
+                    </option>
+                  </select>
+                </div>
+                <div class="sm:col-span-4 flex justify-end gap-1.5">
+                  <button
+                    @click="harvestStore.loadLadakhSample()"
+                    class="px-2.5 py-1.5 rounded bg-slate-900 hover:bg-slate-800 text-xs text-slate-300 border border-slate-700 cursor-pointer"
+                  >
+                    🏔️ Ladakh Sample
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1021,7 +1052,35 @@ function formatBytes(bytes?: number) {
   return `${b.toFixed(1)} ${units[i]}`
 }
 
+const selectedStudioAoiId = ref('')
+
+function onSelectStudioAoi() {
+  if (!selectedStudioAoiId.value) return
+  const found = harvestStore.savedAois.find((a) => a.id === selectedStudioAoiId.value)
+  if (found) {
+    harvestStore.restoreSavedAoi(found)
+  }
+}
+
+async function handleStudioAoiUpload(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  try {
+    const analysis = await api.uploadAOI(file)
+    if (analysis.valid) {
+      const cleanName = file.name.replace(/\.(geojson|json|kml|wkt)$/i, '')
+      await harvestStore.setAoi(analysis.normalized_geometry, analysis, cleanName, true)
+    }
+  } catch (e: any) {
+    toolError.value = e.message || 'Failed to upload AOI file'
+  } finally {
+    input.value = ''
+  }
+}
+
 onMounted(() => {
   refreshWorkspace()
+  harvestStore.loadSavedAois()
 })
 </script>
