@@ -68,9 +68,11 @@ class ConstellationRegistry:
         self._constellations: Dict[str, SatelliteConstellation] = {
             m.id: mission_to_constellation(m) for m in master_catalog.list_missions()
         }
-        self._by_collection: Dict[str, SatelliteConstellation] = {
-            m.collection_id: mission_to_constellation(m) for m in master_catalog.list_missions()
-        }
+        self._by_collection: Dict[str, SatelliteConstellation] = {}
+        for m in master_catalog.list_missions():
+            cid = m.collection_id
+            if cid not in self._by_collection or m.id in ["landsat-8-9", "sentinel-2", "sentinel-1-sar", "cop-dem-30"]:
+                self._by_collection[cid] = mission_to_constellation(m)
 
     def list_constellations(self) -> List[SatelliteConstellation]:
         return list(self._constellations.values())

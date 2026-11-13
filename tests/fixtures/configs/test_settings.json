@@ -1,0 +1,10 @@
+{
+  "environment": "test",
+  "enable_external_network": false,
+  "database": "sqlite:///:memory:",
+  "mock_providers": [
+    "aws-earthsearch",
+    "planetary-computer",
+    "copernicus-dataspace"
+  ]
+}

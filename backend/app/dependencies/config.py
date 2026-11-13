@@ -44,8 +44,18 @@ class Settings(BaseSettings):
     
     # Worker and engine limits
     max_download_workers: int = 6
+    max_processing_workers: int = 4
     chunk_size: int = 1024 * 1024  # 1 MB chunk size for streaming downloads
     default_retry_attempts: int = 5
+
+    # Optional AI / External Keys
+    gemini_api_key: Optional[str] = None
+    gemini_default_model: str = "gemini-2.5-pro"
+    anthropic_api_key: Optional[str] = None
+    claude_default_model: str = "claude-3-5-sonnet-20241022"
+    qdrant_host: str = "localhost"
+    qdrant_port: int = 6333
+    qdrant_api_key: Optional[str] = None
 
     # Copernicus Data Space Ecosystem (CDSE) Credentials
     cdse_s3_access_key: Optional[str] = None

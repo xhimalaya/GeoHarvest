@@ -63,6 +63,7 @@ class OpenTopoGlacierDiscoveryAdapter(DiscoveryAdapter):
                 "assets": {
                     "visual": {"href": "https://portal.opentopography.org/data/RGI_V7_Ladakh.tif", "title": "Glacier Mask GeoTIFF (30m)", "type": "image/tiff", "file:size": 4*1024*1024},
                     "dem": {"href": "https://portal.opentopography.org/data/RGI_V7_Elevation_Ladakh.tif", "title": "Glacier Elevation DEM (30m)", "type": "image/tiff", "file:size": 6*1024*1024},
+                    "glacier_polygons": {"href": "https://portal.opentopography.org/data/RGI_V7_Polygons.geojson", "title": "Glacier Outlines GeoJSON", "type": "application/geo+json", "file:size": 2*1024*1024},
                 }
             })
         elif "glims" in collection:

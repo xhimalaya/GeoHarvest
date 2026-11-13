@@ -1,0 +1,39 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              77.02,
+              34.02
+            ],
+            [
+              77.08,
+              34.02
+            ],
+            [
+              77.08,
+              34.08
+            ],
+            [
+              77.02,
+              34.08
+            ],
+            [
+              77.02,
+              34.02
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "name": "Sample Central Valley AOI",
+        "zone": "Ladakh"
+      }
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [
+            [
+              [
+                77.01,
+                34.01
+              ],
+              [
+                77.04,
+                34.01
+              ],
+              [
+                77.04,
+                34.04
+              ],
+              [
+                77.01,
+                34.04
+              ],
+              [
+                77.01,
+                34.01
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                77.06,
+                34.06
+              ],
+              [
+                77.09,
+                34.06
+              ],
+              [
+                77.09,
+                34.09
+              ],
+              [
+                77.06,
+                34.09
+              ],
+              [
+                77.06,
+                34.06
+              ]
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "name": "Disjoint Valleys MultiPolygon",
+        "count": 2
+      }
+    }
+  ]
+}

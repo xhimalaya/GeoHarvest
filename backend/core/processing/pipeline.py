@@ -9,6 +9,7 @@ from backend.app.dependencies.database import SessionLocal
 from backend.app.models.models import ProcessingTask, Asset, AssetLineage
 from backend.core.processing.recipes import recipe_registry, ProcessingRecipe
 from backend.core.processing.raster_ops import RasterOps
+from backend.core.processing.executor import GeoProcessExecutor
 from backend.core.crs.engine import crs_engine
 
 
@@ -61,16 +62,17 @@ class ProcessingPipelineRunner:
                 task.progress = round((idx / total_steps) * 100.0, 1)
                 db.commit()
 
-                # Execute step
+                # Execute step in decoupled CPU process pool
                 if step_name == "validate":
-                    val_res = RasterOps.validate_raster(current_file)
+                    val_res = await GeoProcessExecutor.run_cpu_bound(RasterOps.validate_raster, current_file)
                     if not val_res.get("valid"):
                         raise ValueError(f"Raster validation failed: {val_res.get('error')}")
                     intermediate_files[step_name] = current_file
 
                 elif step_name == "clip":
                     out_path = str((proc_dir / "clipped.tif").resolve())
-                    current_file = RasterOps.clip_raster(
+                    current_file = await GeoProcessExecutor.run_cpu_bound(
+                        RasterOps.clip_raster,
                         input_path=current_file,
                         aoi_geometry=aoi_geometry,
                         output_path=out_path,
@@ -80,7 +82,8 @@ class ProcessingPipelineRunner:
 
                 elif step_name == "reproject":
                     out_path = str((proc_dir / f"reprojected_{target_crs.replace(':', '_')}.tif").resolve())
-                    current_file = RasterOps.reproject_raster(
+                    current_file = await GeoProcessExecutor.run_cpu_bound(
+                        RasterOps.reproject_raster,
                         input_path=current_file,
                         target_crs=target_crs,
                         output_path=out_path,
@@ -90,7 +93,8 @@ class ProcessingPipelineRunner:
 
                 elif step_name == "cog":
                     out_path = str((proc_dir / "output_cog.tif").resolve())
-                    current_file = RasterOps.build_cog(
+                    current_file = await GeoProcessExecutor.run_cpu_bound(
+                        RasterOps.build_cog,
                         input_path=current_file,
                         output_path=out_path,
                         tile_size=step.parameters.get("tile_size", 512),
@@ -185,8 +189,8 @@ class ProcessingPipelineRunner:
             task.progress = 10.0
             db.commit()
 
-            # Execute mosaic & clip in a threadpool so it doesn't block the async event loop
-            final_path = await asyncio.to_thread(
+            # Execute mosaic & clip in a dedicated process pool so it doesn't block the async event loop
+            final_path = await GeoProcessExecutor.run_cpu_bound(
                 RasterOps.mosaic_rasters,
                 input_paths=input_file_paths,
                 output_path=output_path,

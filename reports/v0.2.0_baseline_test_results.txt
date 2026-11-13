@@ -1,0 +1,292 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.1.1, pluggy-1.6.0 -- /home/himalaya/Projects/GeoHarvest/.venv-test/bin/python
+cachedir: .pytest_cache
+rootdir: /home/himalaya/Projects/GeoHarvest
+configfile: pytest.ini
+testpaths: tests
+plugins: asyncio-1.4.0, anyio-4.15.1
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 114 items
+
+tests/test_advanced_algorithms.py::test_algorithm_registry_loading PASSED [  0%]
+tests/test_advanced_algorithms.py::test_kmeans_clustering PASSED         [  1%]
+tests/test_advanced_algorithms.py::test_polygonize_raster PASSED         [  2%]
+tests/test_advanced_algorithms.py::test_change_detection PASSED          [  3%]
+tests/test_advanced_algorithms.py::test_scientific_validation PASSED     [  4%]
+tests/test_aoi_engine.py::test_validate_ladakh_sample PASSED             [  5%]
+tests/test_aoi_engine.py::test_validate_bbox PASSED                      [  6%]
+tests/test_aoi_engine.py::test_validate_invalid_data PASSED              [  7%]
+tests/test_api_endpoints.py::test_api_health PASSED                      [  7%]
+tests/test_api_endpoints.py::test_api_ladakh_sample PASSED               [  8%]
+tests/test_api_endpoints.py::test_api_providers_list PASSED              [  9%]
+tests/test_api_endpoints.py::test_api_system_status PASSED               [ 10%]
+tests/test_api_endpoints.py::test_api_sources PASSED                     [ 11%]
+tests/test_api_endpoints.py::test_api_crs_recommend_endpoint PASSED      [ 12%]
+tests/test_api_endpoints.py::test_api_processing_recipes PASSED          [ 13%]
+tests/test_api_endpoints.py::test_spa_index_served PASSED                [ 14%]
+tests/test_credentials_manager.py::test_list_platform_specs PASSED       [ 14%]
+tests/test_credentials_manager.py::test_save_mask_and_clear_credentials PASSED [ 15%]
+tests/test_credentials_manager.py::test_api_credentials_endpoints PASSED [ 16%]
+tests/test_crs_engine.py::test_utm_zone_calculation PASSED               [ 17%]
+tests/test_crs_engine.py::test_ladakh_multi_zone_detection PASSED        [ 18%]
+tests/test_crs_engine.py::test_single_zone_detection PASSED              [ 19%]
+tests/test_database.py::test_database_connection PASSED                  [ 20%]
+tests/test_database.py::test_create_and_query_job PASSED                 [ 21%]
+tests/test_docker_ai_mcp.py::test_qdrant_service_initialization PASSED   [ 21%]
+tests/test_docker_ai_mcp.py::test_gemini_connector_initialization PASSED [ 22%]
+tests/test_docker_ai_mcp.py::test_claude_connector_initialization PASSED [ 23%]
+tests/test_docker_ai_mcp.py::test_llm_gateway_status PASSED              [ 24%]
+tests/test_docker_ai_mcp.py::test_mcp_server_registered_tools PASSED     [ 25%]
+tests/test_docker_ai_mcp.py::test_api_ai_status FAILED                   [ 26%]
+tests/test_docker_ai_mcp.py::test_api_ai_models FAILED                   [ 27%]
+tests/test_docker_ai_mcp.py::test_api_ai_chat FAILED                     [ 28%]
+tests/test_docker_ai_mcp.py::test_api_mcp_info FAILED                    [ 28%]
+tests/test_docker_ai_mcp.py::test_api_vector_status FAILED               [ 29%]
+tests/test_download_and_recovery.py::test_full_download PASSED           [ 30%]
+tests/test_download_and_recovery.py::test_resume_download PASSED         [ 31%]
+tests/test_download_and_recovery.py::test_crash_recovery PASSED          [ 32%]
+tests/test_download_and_recovery.py::test_s3_download_fallback PASSED    [ 33%]
+tests/test_e2e_acceptance.py::test_full_acceptance_workflow PASSED       [ 34%]
+tests/test_earthengine.py::test_ee_status_endpoint PASSED                [ 35%]
+tests/test_earthengine.py::test_ee_catalog_datasets_endpoint PASSED      [ 35%]
+tests/test_earthengine.py::test_ee_catalog_category_filtering PASSED     [ 36%]
+tests/test_earthengine.py::test_ee_catalog_search_query PASSED           [ 37%]
+tests/test_earthengine.py::test_ee_generate_auth_url PASSED              [ 38%]
+tests/test_earthengine.py::test_ee_auth_exchange_empty_code PASSED       [ 39%]
+tests/test_earthengine.py::test_ee_auth_set_project_empty PASSED         [ 40%]
+tests/test_earthengine.py::test_ee_service_account_invalid_json PASSED   [ 41%]
+tests/test_earthengine.py::test_ee_catalog_direct_methods PASSED         [ 42%]
+tests/test_earthengine_emulator.py::test_emulator_local_mode_basic_execution PASSED [ 42%]
+tests/test_earthengine_emulator.py::test_emulator_local_mode_with_aoi PASSED [ 43%]
+tests/test_earthengine_emulator.py::test_emulator_error_traceback_capture PASSED [ 44%]
+tests/test_earthengine_emulator.py::test_api_emulator_run_endpoint PASSED [ 45%]
+tests/test_earthengine_emulator.py::test_api_emulator_snippets PASSED    [ 46%]
+tests/test_earthengine_emulator.py::test_api_emulator_template PASSED    [ 47%]
+tests/test_earthengine_emulator.py::test_api_emulator_local_files PASSED [ 48%]
+tests/test_earthengine_emulator.py::test_jupyter_session_variable_persistence_and_restart PASSED [ 49%]
+tests/test_fixtures_infrastructure.py::test_synthetic_raster_fixtures_integrity PASSED [ 50%]
+tests/test_fixtures_infrastructure.py::test_synthetic_vector_fixtures_integrity PASSED [ 50%]
+tests/test_fixtures_infrastructure.py::test_physical_ndvi_on_synthetic_satellite_fixture PASSED [ 51%]
+tests/test_isro_bhuvan_download.py::test_bhuvan_wcs_discovery_and_url_generation PASSED [ 52%]
+tests/test_isro_bhuvan_download.py::test_bhoonidhi_stac_discovery PASSED [ 53%]
+tests/test_isro_bhuvan_download.py::test_isro_vedas_unified_routing PASSED [ 54%]
+tests/test_isro_bhuvan_download.py::test_credential_manager_bhoonidhi_token PASSED [ 55%]
+tests/test_isro_bhuvan_download.py::test_download_engine_accepts_custom_headers PASSED [ 56%]
+tests/test_isro_bhuvan_download.py::test_job_engine_preserves_isro_provider_id PASSED [ 57%]
+tests/test_isro_bhuvan_download.py::test_full_bhuvan_harvest_job_workflow PASSED [ 57%]
+tests/test_master_catalog.py::test_master_catalog_domains PASSED         [ 58%]
+tests/test_master_catalog.py::test_master_catalog_missions_count PASSED  [ 59%]
+tests/test_master_catalog.py::test_master_catalog_filtering PASSED       [ 60%]
+tests/test_master_catalog.py::test_api_domains_endpoint PASSED           [ 61%]
+tests/test_master_catalog.py::test_api_ecosystems_endpoint PASSED        [ 62%]
+tests/test_master_catalog.py::test_api_satellite_detail_endpoint PASSED  [ 63%]
+tests/test_master_catalog.py::test_ecosystem_discovery_adapters PASSED   [ 64%]
+tests/test_mosaic_clip.py::test_mosaic_rasters_basic PASSED              [ 64%]
+tests/test_mosaic_clip.py::test_mosaic_and_clip_to_geojson PASSED        [ 65%]
+tests/test_mosaic_clip.py::test_mosaic_options_and_execute_job_api PASSED [ 66%]
+tests/test_mosaic_clip.py::test_toposheet_strictly_excluded_from_mosaic PASSED [ 67%]
+tests/test_mosaic_clip.py::test_mosaic_clip_rejects_pdf_and_non_rasters PASSED [ 68%]
+tests/test_processing_engine.py::test_raster_validate PASSED             [ 69%]
+tests/test_processing_engine.py::test_raster_clip PASSED                 [ 70%]
+tests/test_processing_engine.py::test_raster_reproject PASSED            [ 71%]
+tests/test_processing_engine.py::test_raster_cog PASSED                  [ 71%]
+tests/test_processing_engine.py::test_processing_pipeline_and_lineage PASSED [ 72%]
+tests/test_satellites.py::test_constellation_registry PASSED             [ 73%]
+tests/test_satellites.py::test_api_satellites_endpoint PASSED            [ 74%]
+tests/test_satellites.py::test_multi_satellite_recipes PASSED            [ 75%]
+tests/test_satellites.py::test_multi_satellite_storage_estimator PASSED  [ 76%]
+tests/test_satellites.py::test_aws_earthsearch_item_parsing PASSED       [ 77%]
+tests/test_satellites.py::test_discovery_manager_multi_satellite_search PASSED [ 78%]
+tests/test_source_ecosystems.py::test_source_ecosystem_registration PASSED [ 78%]
+tests/test_source_ecosystems.py::test_discovery_manager_ecosystem_providers PASSED [ 79%]
+tests/test_source_ecosystems.py::test_ecosystem_search_routing PASSED    [ 80%]
+tests/test_source_ecosystems.py::test_copernicus_sentinel_priority PASSED [ 81%]
+tests/test_source_ecosystems.py::test_copernicus_cdse_raster_adaptation PASSED [ 82%]
+tests/test_source_framework.py::test_list_sources PASSED                 [ 83%]
+tests/test_source_framework.py::test_local_connector_health PASSED       [ 84%]
+tests/test_source_framework.py::test_aws_connector_health PASSED         [ 85%]
+tests/test_stac_provider.py::test_stac_search_integration PASSED         [ 85%]
+tests/test_storage_estimator.py::test_format_bytes PASSED                [ 86%]
+tests/test_storage_estimator.py::test_storage_estimator_calculation PASSED [ 87%]
+tests/test_storage_file_manager.py::test_storage_destination_endpoints PASSED [ 88%]
+tests/test_storage_file_manager.py::test_hierarchical_directory_structure PASSED [ 89%]
+tests/test_storage_file_manager.py::test_file_explorer_and_security PASSED [ 90%]
+tests/test_storage_file_manager.py::test_directory_picker_endpoints PASSED [ 91%]
+tests/test_toposheets.py::test_toposheet_status_has_official_sources PASSED [ 92%]
+tests/test_toposheets.py::test_index_upload_and_aoi_search PASSED        [ 92%]
+tests/test_toposheets.py::test_standard_soi_grid_generation_ladakh PASSED [ 93%]
+tests/test_toposheets.py::test_dynamic_fallback_grid_when_no_index PASSED [ 94%]
+tests/test_toposheets.py::test_toposheet_harvest_endpoint PASSED         [ 95%]
+tests/test_toposheets.py::test_toposheet_harvest_portal_only_fails_gracefully PASSED [ 96%]
+tests/test_toposheets.py::test_catalog_lookup_accuracy PASSED            [ 97%]
+tests/test_weather_api.py::test_get_live_weather_endpoint PASSED         [ 98%]
+tests/test_weather_api.py::test_get_radar_frames_endpoint PASSED         [ 99%]
+tests/test_weather_api.py::test_get_nasa_gibs_info_endpoint PASSED       [100%]
+
+=================================== FAILURES ===================================
+______________________________ test_api_ai_status ______________________________
+tests/test_docker_ai_mcp.py:73: in test_api_ai_status
+    data = r.json()
+           ^^^^^^^^
+.venv-test/lib/python3.12/site-packages/httpx2/_models.py:831: in json
+    return jsonlib.loads(self.content, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/json/__init__.py:346: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/json/decoder.py:338: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/json/decoder.py:356: in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+E   json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+----------------------------- Captured stderr call -----------------------------
+2026-11-11 00:39:01,379 [INFO] httpx2: HTTP Request: GET http://testserver/api/ai/status "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx2:_client.py:1084 HTTP Request: GET http://testserver/api/ai/status "HTTP/1.1 200 OK"
+______________________________ test_api_ai_models ______________________________
+tests/test_docker_ai_mcp.py:82: in test_api_ai_models
+    data = r.json()
+           ^^^^^^^^
+.venv-test/lib/python3.12/site-packages/httpx2/_models.py:831: in json
+    return jsonlib.loads(self.content, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/json/__init__.py:346: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/json/decoder.py:338: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/json/decoder.py:356: in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+E   json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+----------------------------- Captured stderr call -----------------------------
+2026-11-11 00:39:01,562 [INFO] httpx2: HTTP Request: GET http://testserver/api/ai/models "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx2:_client.py:1084 HTTP Request: GET http://testserver/api/ai/models "HTTP/1.1 200 OK"
+_______________________________ test_api_ai_chat _______________________________
+tests/test_docker_ai_mcp.py:89: in test_api_ai_chat
+    assert r.status_code == 200
+E   assert 405 == 200
+E    +  where 405 = <Response [405 Method Not Allowed]>.status_code
+----------------------------- Captured stderr call -----------------------------
+2026-11-11 00:39:01,582 [INFO] httpx2: HTTP Request: POST http://testserver/api/ai/chat "HTTP/1.1 405 Method Not Allowed"
+------------------------------ Captured log call -------------------------------
+INFO     httpx2:_client.py:1084 HTTP Request: POST http://testserver/api/ai/chat "HTTP/1.1 405 Method Not Allowed"
+______________________________ test_api_mcp_info _______________________________
+tests/test_docker_ai_mcp.py:98: in test_api_mcp_info
+    data = r.json()
+           ^^^^^^^^
+.venv-test/lib/python3.12/site-packages/httpx2/_models.py:831: in json
+    return jsonlib.loads(self.content, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/json/__init__.py:346: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/json/decoder.py:338: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/json/decoder.py:356: in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+E   json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+----------------------------- Captured stderr call -----------------------------
+2026-11-11 00:39:01,587 [INFO] httpx2: HTTP Request: GET http://testserver/api/ai/mcp/info "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx2:_client.py:1084 HTTP Request: GET http://testserver/api/ai/mcp/info "HTTP/1.1 200 OK"
+____________________________ test_api_vector_status ____________________________
+tests/test_docker_ai_mcp.py:109: in test_api_vector_status
+    data = r.json()
+           ^^^^^^^^
+.venv-test/lib/python3.12/site-packages/httpx2/_models.py:831: in json
+    return jsonlib.loads(self.content, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/json/__init__.py:346: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/json/decoder.py:338: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/json/decoder.py:356: in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+E   json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+----------------------------- Captured stderr call -----------------------------
+2026-11-11 00:39:01,608 [INFO] httpx2: HTTP Request: GET http://testserver/api/ai/vector/status "HTTP/1.1 200 OK"
+------------------------------ Captured log call -------------------------------
+INFO     httpx2:_client.py:1084 HTTP Request: GET http://testserver/api/ai/vector/status "HTTP/1.1 200 OK"
+=============================== warnings summary ===============================
+backend/core/ai/connectors/gemini.py:15
+  /home/himalaya/Projects/GeoHarvest/backend/core/ai/connectors/gemini.py:15: FutureWarning: 
+  
+  All support for the `google.generativeai` package has ended. It will no longer be receiving 
+  updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+  See README for more details:
+  
+  https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+  
+    import google.generativeai as genai
+
+tests/test_database.py: 1 warning
+tests/test_download_and_recovery.py: 7 warnings
+tests/test_isro_bhuvan_download.py: 1 warning
+tests/test_mosaic_clip.py: 9 warnings
+tests/test_processing_engine.py: 2 warnings
+  /home/himalaya/Projects/GeoHarvest/.venv-test/lib/python3.12/site-packages/sqlalchemy/sql/schema.py:4296: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    return util.wrap_callable(lambda ctx: fn(), fn)  # type: ignore[call-arg, no-any-return, no-untyped-call]  # noqa: E501
+
+tests/test_docker_ai_mcp.py::test_api_ai_status
+  /home/himalaya/Projects/GeoHarvest/.venv-test/lib/python3.12/site-packages/qdrant_client/qdrant_remote.py:295: UserWarning: Failed to obtain server version. Unable to check client-server compatibility. Set check_compatibility=False to skip version check.
+    show_warning(
+
+tests/test_e2e_acceptance.py::test_full_acceptance_workflow
+tests/test_isro_bhuvan_download.py::test_job_engine_preserves_isro_provider_id
+tests/test_isro_bhuvan_download.py::test_full_bhuvan_harvest_job_workflow
+tests/test_storage_file_manager.py::test_hierarchical_directory_structure
+tests/test_toposheets.py::test_toposheet_harvest_endpoint
+  /home/himalaya/Projects/GeoHarvest/backend/core/jobs/engine.py:45: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.datetime.utcnow()
+
+tests/test_e2e_acceptance.py::test_full_acceptance_workflow
+tests/test_e2e_acceptance.py::test_full_acceptance_workflow
+tests/test_isro_bhuvan_download.py::test_full_bhuvan_harvest_job_workflow
+tests/test_toposheets.py::test_toposheet_harvest_endpoint
+  /home/himalaya/Projects/GeoHarvest/backend/core/jobs/engine.py:247: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    job.started_at = datetime.datetime.utcnow()
+
+tests/test_e2e_acceptance.py::test_full_acceptance_workflow
+tests/test_e2e_acceptance.py::test_full_acceptance_workflow
+tests/test_toposheets.py::test_toposheet_harvest_endpoint
+tests/test_toposheets.py::test_toposheet_harvest_endpoint
+  /home/himalaya/Projects/GeoHarvest/backend/core/jobs/engine.py:342: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    d_rec.updated_at = datetime.datetime.utcnow()
+
+tests/test_fixtures_infrastructure.py: 8 warnings
+tests/test_mosaic_clip.py: 4 warnings
+tests/test_processing_engine.py: 4 warnings
+  /home/himalaya/Projects/GeoHarvest/backend/core/processing/raster_ops.py:55: PendingDeprecationWarning: is_tiled will be removed in a future version. Please consider copying the body of this function into your program or module.
+    "is_tiled": src.is_tiled,
+
+tests/test_isro_bhuvan_download.py::test_full_bhuvan_harvest_job_workflow
+  /home/himalaya/Projects/GeoHarvest/backend/core/jobs/engine.py:480: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    job.completed_at = datetime.datetime.utcnow()
+
+tests/test_mosaic_clip.py::test_mosaic_and_clip_to_geojson
+tests/test_mosaic_clip.py::test_mosaic_and_clip_to_geojson
+  /home/himalaya/Projects/GeoHarvest/backend/core/crs/engine.py:111: DeprecationWarning: The 'shapely.ops.transform()' function is deprecated. Use 'shapely.transform()' or 'shapely.transform_coordseq()' instead. See https://shapely.readthedocs.io/en/latest/manual.html#shapely.ops.transform for more details.
+    transformed = transform(trans.transform, geom)
+
+tests/test_processing_engine.py::test_processing_pipeline_and_lineage
+  /home/himalaya/Projects/GeoHarvest/backend/core/processing/pipeline.py:35: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    task.started_at = datetime.datetime.utcnow()
+
+tests/test_processing_engine.py::test_processing_pipeline_and_lineage
+  /home/himalaya/Projects/GeoHarvest/backend/core/processing/pipeline.py:116: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    task.completed_at = datetime.datetime.utcnow()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_docker_ai_mcp.py::test_api_ai_status - json.decoder.JSONDec...
+FAILED tests/test_docker_ai_mcp.py::test_api_ai_models - json.decoder.JSONDec...
+FAILED tests/test_docker_ai_mcp.py::test_api_ai_chat - assert 405 == 200
+FAILED tests/test_docker_ai_mcp.py::test_api_mcp_info - json.decoder.JSONDeco...
+FAILED tests/test_docker_ai_mcp.py::test_api_vector_status - json.decoder.JSO...
+================= 5 failed, 109 passed, 56 warnings in 26.21s ==================

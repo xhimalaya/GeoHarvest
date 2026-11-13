@@ -11,6 +11,8 @@ from backend.app.dependencies.database import get_db
 from backend.app.models.models import ProcessingTask, Asset, AssetLineage
 from backend.core.processing.recipes import recipe_registry
 from backend.core.processing.pipeline import pipeline_runner
+from backend.core.processing.raster_ops import RasterOps
+from backend.core.processing.executor import GeoProcessExecutor
 
 router = APIRouter(prefix="/api/processing", tags=["processing"])
 
@@ -551,11 +553,13 @@ async def execute_direct_clip(req: DirectClipRequest):
 
     try:
         temp_clip = out_path if not req.to_cog else str((processed_dir / f"_tmp_{out_name}").resolve())
-        RasterOps.clip_raster(str(in_p.resolve()), aoi_geom, temp_clip, nodata=req.nodata)
+        await GeoProcessExecutor.run_cpu_bound(
+            RasterOps.clip_raster, str(in_p.resolve()), aoi_geom, temp_clip, nodata=req.nodata
+        )
         if req.to_cog:
-            RasterOps.build_cog(temp_clip, out_path)
+            await GeoProcessExecutor.run_cpu_bound(RasterOps.build_cog, temp_clip, out_path)
             Path(temp_clip).unlink(missing_ok=True)
-        meta = RasterOps.validate_raster(out_path)
+        meta = await GeoProcessExecutor.run_cpu_bound(RasterOps.validate_raster, out_path)
         return {
             "status": "completed",
             "operation": "CLIP",
@@ -574,7 +578,6 @@ async def execute_direct_clip(req: DirectClipRequest):
 @router.post("/stack-bands")
 async def execute_band_stack(req: BandStackRequest):
     """Stacks multiple single-band or multi-band rasters into a composite multi-band GeoTIFF/COG."""
-    from backend.core.processing.raster_ops import RasterOps
     from backend.app.dependencies.config import settings
 
     if len(req.input_file_paths) < 1:
@@ -588,7 +591,8 @@ async def execute_band_stack(req: BandStackRequest):
     out_path = str((processed_dir / out_name).resolve())
 
     try:
-        final_path = RasterOps.stack_bands(
+        final_path = await GeoProcessExecutor.run_cpu_bound(
+            RasterOps.stack_bands,
             input_paths=req.input_file_paths,
             output_path=out_path,
             band_names=req.band_names,
@@ -597,7 +601,7 @@ async def execute_band_stack(req: BandStackRequest):
             to_cog=req.to_cog,
             resampling_method=req.resampling_method,
         )
-        meta = RasterOps.validate_raster(final_path)
+        meta = await GeoProcessExecutor.run_cpu_bound(RasterOps.validate_raster, final_path)
         return {
             "status": "completed",
             "operation": "BAND_STACK",
@@ -628,7 +632,8 @@ async def execute_spectral_index(req: SpectralIndexRequest):
     out_path = str((processed_dir / out_name).resolve())
 
     try:
-        res = RasterOps.calc_spectral_index_advanced(
+        res = await GeoProcessExecutor.run_cpu_bound(
+            RasterOps.calc_spectral_index_advanced,
             index_type=req.index_type,
             output_path=out_path,
             band1_path=req.band1_path,
@@ -656,7 +661,6 @@ async def execute_spectral_index(req: SpectralIndexRequest):
 @router.post("/terrain")
 async def execute_terrain_analysis(req: TerrainAnalysisRequest):
     """Computes Slope, Aspect, Hillshade, TRI, or TPI from a DEM raster."""
-    from backend.core.processing.raster_ops import RasterOps
     from backend.app.dependencies.config import settings
 
     processed_dir = settings.data_dir / "processed"
@@ -667,7 +671,8 @@ async def execute_terrain_analysis(req: TerrainAnalysisRequest):
     out_path = str((processed_dir / out_name).resolve())
 
     try:
-        res = RasterOps.terrain_analysis(
+        res = await GeoProcessExecutor.run_cpu_bound(
+            RasterOps.terrain_analysis,
             dem_path=req.dem_path,
             output_path=out_path,
             operation=req.operation,
@@ -691,7 +696,6 @@ async def execute_terrain_analysis(req: TerrainAnalysisRequest):
 @router.post("/reproject-resample")
 async def execute_reproject_resample(req: ReprojectResampleRequest):
     """Reprojects raster to target CRS and optionally builds COG pyramids."""
-    from backend.core.processing.raster_ops import RasterOps
     from backend.app.dependencies.config import settings
 
     target_in = req.input_file_path or req.input_path
@@ -710,16 +714,17 @@ async def execute_reproject_resample(req: ReprojectResampleRequest):
 
     try:
         temp_reproj = out_path if not req.to_cog else str((processed_dir / f"_tmp_{out_name}").resolve())
-        RasterOps.reproject_raster(
+        await GeoProcessExecutor.run_cpu_bound(
+            RasterOps.reproject_raster,
             input_path=str(in_p.resolve()),
             target_crs=req.target_crs,
             output_path=temp_reproj,
             resampling_method=req.resampling_method,
         )
         if req.to_cog:
-            RasterOps.build_cog(temp_reproj, out_path)
+            await GeoProcessExecutor.run_cpu_bound(RasterOps.build_cog, temp_reproj, out_path)
             Path(temp_reproj).unlink(missing_ok=True)
-        meta = RasterOps.validate_raster(out_path)
+        meta = await GeoProcessExecutor.run_cpu_bound(RasterOps.validate_raster, out_path)
         return {
             "status": "completed",
             "operation": "REPROJECT_COG",
@@ -738,14 +743,12 @@ async def execute_reproject_resample(req: ReprojectResampleRequest):
 @router.post("/raster-stats")
 async def execute_raster_stats(req: RasterStatsRequest):
     """Computes raster metadata, per-band statistics, and histograms (optionally within AOI)."""
-    from backend.core.processing.raster_ops import RasterOps
-
     target_in = req.input_file_path or req.input_path
     if not target_in or not Path(target_in).exists():
         raise HTTPException(status_code=404, detail=f"Input raster not found: {target_in}")
 
     try:
-        return RasterOps.compute_raster_stats(target_in, req.aoi_geometry)
+        return await GeoProcessExecutor.run_cpu_bound(RasterOps.compute_raster_stats, target_in, req.aoi_geometry)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to compute raster stats: {str(e)}")
 

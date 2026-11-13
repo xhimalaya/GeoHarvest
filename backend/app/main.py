@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from backend.app.dependencies.config import settings
 from backend.app.dependencies.database import init_db
 from backend.core.recovery.manager import crash_recovery_manager
+from backend.core.processing.executor import GeoProcessExecutor
 
 from backend.app.api.health import router as health_router
 from backend.app.api.aoi import router as aoi_router
@@ -50,6 +51,7 @@ async def lifespan(app: FastAPI):
 
     yield
     logger.info("Shutting down GeoHarvest backend.")
+    GeoProcessExecutor.shutdown(wait=False)
 
 
 app = FastAPI(

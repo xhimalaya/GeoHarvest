@@ -1,0 +1,27 @@
+{
+  "sample_singleband_wgs84": {
+    "width": 50,
+    "height": 50,
+    "count": 1,
+    "crs": "EPSG:4326",
+    "min": 100.0,
+    "max": 500.0,
+    "nodata": -9999.0
+  },
+  "sample_dem_elevation": {
+    "min_approx": 3200.0,
+    "max_approx": 5400.0,
+    "crs": "EPSG:4326"
+  },
+  "sample_multispectral_3band": {
+    "bands": 3,
+    "expected_ndvi": 0.6
+  },
+  "sample_raster_utm43n": {
+    "crs": "EPSG:32643",
+    "resolution": [
+      10.0,
+      10.0
+    ]
+  }
+}
