@@ -244,22 +244,34 @@ export const api = {
 
   async executeProcessing(params: {
     recipe_id: string
-    input_asset_ids: string[]
+    input_file_path?: string
+    input_file_paths?: string[]
+    input_asset_ids?: string[]
+    directory?: string
+    recursive?: boolean
     target_crs?: string
     aoi_geometry?: any
     clip_to_aoi?: boolean
-  }): Promise<ProcessingTaskResult> {
+  }): Promise<ProcessingTaskResult & { input_count?: number; input_files?: string[]; progress?: number }> {
     const res = await fetch(`${BASE_URL}/processing/execute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
     })
-    return res.json()
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(body.detail || `Failed to execute recipe (${res.status})`)
+    return body
   },
 
-  async getProcessingTask(taskId: string): Promise<ProcessingTaskResult> {
+  async getProcessingTask(taskId: string): Promise<ProcessingTaskResult & {
+    progress?: number
+    task_type?: string
+    input_assets?: string[]
+  }> {
     const res = await fetch(`${BASE_URL}/processing/tasks/${encodeURIComponent(taskId)}`)
-    return res.json()
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(body.detail || `Failed to read task status (${res.status})`)
+    return body
   },
 
   async getAssetLineage(assetId: string): Promise<{ asset_id: string; lineage: LineageItem[] }> {
@@ -844,16 +856,94 @@ export const api = {
   },
 
   // Raster Geoprocessing Studio Tools
-  async getLocalRasters(): Promise<Array<{
+  async getLocalRasters(params?: { directory?: string; recursive?: boolean }): Promise<Array<{
     name: string
+    path?: string
     relative_path: string
     absolute_path: string
+    parent_folder?: string
+    subfolder?: string
+    folder?: string
     root: string
+    storage_root?: string | null
+    storage_rel_path?: string | null
     size_bytes: number
-    modified_at: number
+    modified_at: string | number
+    bands?: number
+    crs?: string
+    dimensions?: number[]
+    dtype?: string
   }>> {
-    const res = await fetch(`${BASE_URL}/processing/local-rasters`)
-    if (!res.ok) return []
+    const query = new URLSearchParams()
+    if (params?.directory) query.set('directory', params.directory)
+    if (params?.recursive !== undefined) query.set('recursive', String(params.recursive))
+    const qs = query.toString()
+    const res = await fetch(`${BASE_URL}/processing/local-rasters${qs ? `?${qs}` : ''}`)
+    if (!res.ok) {
+      if (params?.directory) {
+        const err = await res.json().catch(() => ({ detail: `Folder unavailable (${res.status})` }))
+        throw new Error(err.detail || `Failed to read folder (${res.status})`)
+      }
+      return []
+    }
+    return res.json()
+  },
+
+  async getLocalRasterFolders(): Promise<{
+    active_download_dir: string
+    processed_dir: string
+    custom_dir: string
+    folders: Array<{
+      id: string
+      name: string
+      label: string
+      path: string
+      relative_path: string
+      root: string
+      depth: number
+      file_count: number
+      direct_file_count: number
+      total_size_bytes: number
+    }>
+  }> {
+    const res = await fetch(`${BASE_URL}/processing/local-folders`)
+    if (!res.ok) {
+      return { active_download_dir: '', processed_dir: '', custom_dir: '', folders: [] }
+    }
+    return res.json()
+  },
+
+  async uploadCustomRaster(file: File): Promise<{
+    status: string
+    raster: {
+      name: string
+      relative_path: string
+      absolute_path: string
+      parent_folder?: string
+      subfolder?: string
+      folder?: string
+      root: string
+      storage_root?: string | null
+      storage_rel_path?: string | null
+      size_bytes: number
+      modified_at: string | number
+      bands?: number
+      crs?: string
+      dimensions?: number[]
+      dtype?: string
+    }
+    absolute_path: string
+  }> {
+    const formData = new FormData()
+    formData.append('file', file)
+    const res = await fetch(`${BASE_URL}/processing/upload-raster`, {
+      method: 'POST',
+      body: formData,
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: `Upload failed (${res.status})` }))
+      throw new Error(err.detail || 'Failed to upload custom raster')
+    }
     return res.json()
   },
 

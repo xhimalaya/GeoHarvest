@@ -18,10 +18,10 @@
           </div>
           <div>
             <h2 class="text-sm font-bold text-slate-100 flex items-center space-x-2">
-              <span>Choose Download Destination</span>
+              <span>{{ title || 'Choose Download Destination' }}</span>
             </h2>
             <p class="text-[11px] text-slate-400">
-              Browse filesystem, create folders, or select target directory for harvested data
+              {{ subtitle || 'Browse filesystem, create folders, or select target directory for harvested data' }}
             </p>
           </div>
         </div>
@@ -248,7 +248,10 @@
         </div>
 
         <!-- 5. Target Structure Preview -->
-        <div class="p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-[11px] font-mono space-y-1">
+        <div
+          v-if="!hideDestinationPreview"
+          class="p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-[11px] font-mono space-y-1"
+        >
           <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center justify-between">
             <span>Storage Hierarchy Preview</span>
             <span class="text-teal-400 font-semibold">Active Destination</span>
@@ -270,13 +273,13 @@
 
         <button
           @click="selectCurrentFolder"
-          :disabled="!browseData?.is_writable"
+          :disabled="!browseData?.current_path || (!allowReadOnly && !browseData?.is_writable)"
           class="px-4 py-2 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-all shadow-md shadow-teal-950/60 flex items-center space-x-1.5 cursor-pointer disabled:cursor-not-allowed"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
           </svg>
-          <span>Select This Destination</span>
+          <span>{{ confirmLabel || 'Select This Destination' }}</span>
         </button>
       </div>
     </div>
@@ -292,6 +295,11 @@ const props = defineProps<{
   modelValue: boolean
   initialPath?: string
   taskName?: string
+  title?: string
+  subtitle?: string
+  confirmLabel?: string
+  hideDestinationPreview?: boolean
+  allowReadOnly?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -387,7 +395,7 @@ async function handleCreateFolder() {
 
 function selectCurrentFolder() {
   if (!browseData.value?.current_path) return
-  if (!browseData.value.is_writable) {
+  if (!props.allowReadOnly && !browseData.value.is_writable) {
     errorMessage.value = 'Selected folder is not writable. Please choose a writable directory.'
     return
   }

@@ -1,9 +1,12 @@
 import asyncio
+import re
+import shutil
 import uuid
 import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, List
-from fastapi import APIRouter, Depends, HTTPException
+import anyio
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
@@ -18,11 +21,72 @@ router = APIRouter(prefix="/api/processing", tags=["processing"])
 
 
 class ExecuteProcessingRequest(BaseModel):
-    input_file_path: str
+    input_file_path: Optional[str] = None
+    input_file_paths: Optional[List[str]] = None
+    input_asset_ids: Optional[List[str]] = None
+    directory: Optional[str] = None
+    recursive: bool = True
     recipe_id: str = "s2-aoi-cog"
-    aoi_geometry: Dict[str, Any]
+    aoi_geometry: Optional[Dict[str, Any]] = None
+    clip_to_aoi: bool = True
     target_crs: Optional[str] = "auto_utm"
     job_id: Optional[str] = None
+
+
+async def _resolve_execute_inputs(request: ExecuteProcessingRequest, db: Session) -> List[str]:
+    """Resolve input raster file paths from explicit files, a folder, or catalog asset IDs."""
+    candidates: List[str] = []
+
+    if request.input_file_paths:
+        for p_str in request.input_file_paths:
+            p = Path(p_str).expanduser().resolve()
+            if not p.exists() or not p.is_file():
+                raise HTTPException(status_code=404, detail=f"Input raster not found: {p_str}")
+            if p.suffix.lower() not in _VALID_RASTER_EXTS:
+                raise HTTPException(status_code=400, detail=f"Unsupported raster extension: {p.name}")
+            candidates.append(str(p))
+
+    if request.input_file_path:
+        p = Path(request.input_file_path).expanduser().resolve()
+        if not p.exists() or not p.is_file():
+            raise HTTPException(status_code=404, detail=f"Input raster not found: {request.input_file_path}")
+        if p.suffix.lower() not in _VALID_RASTER_EXTS:
+            raise HTTPException(status_code=400, detail=f"Unsupported raster extension: {p.name}")
+        candidates.append(str(p))
+
+    if request.directory and not request.input_file_paths:
+        try:
+            scanned = await anyio.to_thread.run_sync(_scan_rasters_sync, request.directory, request.recursive)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+        except NotADirectoryError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        candidates.extend(item["absolute_path"] for item in scanned)
+
+    if request.input_asset_ids:
+        assets = db.query(Asset).filter(Asset.id.in_(request.input_asset_ids)).all()
+        for asset in assets:
+            path_candidate = asset.local_path or asset.url
+            if not path_candidate:
+                continue
+            p = Path(path_candidate).expanduser()
+            if p.exists() and p.is_file() and p.suffix.lower() in _VALID_RASTER_EXTS:
+                candidates.append(str(p.resolve()))
+
+    # Deduplicate preserving discovery order
+    unique_paths: List[str] = []
+    seen: set[str] = set()
+    for p_str in candidates:
+        if p_str not in seen:
+            seen.add(p_str)
+            unique_paths.append(p_str)
+
+    if not unique_paths:
+        raise HTTPException(
+            status_code=400,
+            detail="No valid raster files (.tif/.tiff/.jp2/.img/.vrt) found in the selected folder, files, or catalog assets.",
+        )
+    return unique_paths
 
 
 @router.get("/recipes")
@@ -32,6 +96,8 @@ async def list_recipes():
 
 @router.post("/execute")
 async def execute_recipe(request: ExecuteProcessingRequest, db: Session = Depends(get_db)):
+    resolved_files = await _resolve_execute_inputs(request, db)
+
     task_id = f"proc_{uuid.uuid4().hex[:12]}"
     job_id = request.job_id or f"job_proc_{uuid.uuid4().hex[:8]}"
 
@@ -46,26 +112,35 @@ async def execute_recipe(request: ExecuteProcessingRequest, db: Session = Depend
         id=task_id,
         job_id=job_id,
         task_type=request.recipe_id,
-        input_assets=[request.input_file_path],
+        input_assets=resolved_files,
         parameters={
             "recipe_id": request.recipe_id,
             "target_crs": request.target_crs,
+            "directory": request.directory,
+            "clip_to_aoi": request.clip_to_aoi,
+            "input_count": len(resolved_files),
         },
         status="queued",
         progress=0.0,
-        checkpoint={"completed_steps": [], "intermediate_files": {}}
+        checkpoint={
+            "completed_steps": [],
+            "intermediate_files": {},
+            "total_items": len(resolved_files),
+            "completed_items": 0,
+        },
     )
     db.add(task)
     db.commit()
 
-    # Launch in asyncio background task
     asyncio.create_task(
         pipeline_runner.run_task(
             task_id=task_id,
-            input_file_path=request.input_file_path,
+            input_file_path=resolved_files[0],
+            input_file_paths=resolved_files,
             recipe_id=request.recipe_id,
             aoi_geometry=request.aoi_geometry,
-            target_crs=request.target_crs
+            target_crs=request.target_crs,
+            clip_to_aoi=request.clip_to_aoi,
         )
     )
 
@@ -73,7 +148,9 @@ async def execute_recipe(request: ExecuteProcessingRequest, db: Session = Depend
         "status": "queued",
         "task_id": task_id,
         "job_id": job_id,
-        "recipe_id": request.recipe_id
+        "recipe_id": request.recipe_id,
+        "input_count": len(resolved_files),
+        "input_files": resolved_files,
     }
 
 
@@ -476,51 +553,320 @@ class RasterStatsRequest(BaseModel):
     aoi_geometry: Optional[Dict[str, Any]] = None
 
 
-@router.get("/local-rasters")
-async def list_local_rasters():
-    """Scans downloads and processed directories for all available raster files."""
+_VALID_RASTER_EXTS = {".tif", ".tiff", ".jp2", ".img", ".vrt"}
+
+
+def _get_workspace_scan_roots() -> List[tuple[str, str, Path]]:
+    """Return deduplicated workspace roots (key, display_name, resolved_path)."""
+    from backend.app.dependencies.config import settings
+    from backend.app.api.storage import get_active_download_dir
+
+    candidates = [
+        ("downloads", "Active Downloads", get_active_download_dir().resolve()),
+        ("default_downloads", "Default Downloads", settings.downloads_dir.resolve()),
+        ("processed", "Processed Outputs", (settings.data_dir / "processed").resolve()),
+        ("custom", "Custom Uploaded Data", (settings.data_dir / "custom").resolve()),
+    ]
+    roots: List[tuple[str, str, Path]] = []
+    seen: set[Path] = set()
+    for key, title, path in candidates:
+        if path in seen:
+            continue
+        seen.add(path)
+        roots.append((key, title, path))
+    return roots
+
+
+def _resolve_storage_location(file_path: Path) -> tuple[Optional[str], Optional[str]]:
+    """Map an absolute file path onto an allowed storage root and relative path, if any."""
+    from backend.app.api.storage import get_allowed_roots
+
+    resolved_file = file_path.resolve()
+    roots = get_allowed_roots()
+    # Check deepest/most-specific roots first; keep generic 'data' as lowest priority tie-breaker.
+    ordered_roots = sorted(
+        roots.items(),
+        key=lambda item: (len(item[1].resolve().parts), 0 if item[0] == "data" else 1),
+        reverse=True,
+    )
+    for root_name, root_dir in ordered_roots:
+        resolved_root = root_dir.resolve()
+        if resolved_file.is_relative_to(resolved_root):
+            return root_name, str(resolved_file.relative_to(resolved_root))
+    return None, None
+
+
+def _is_valid_raster_file(path: Path) -> bool:
+    """Return True if path is a non-empty, non-hidden file with a supported raster extension."""
+    try:
+        return (
+            path.is_file()
+            and path.suffix.lower() in _VALID_RASTER_EXTS
+            and not path.name.startswith(".")
+            and path.stat().st_size > 0
+        )
+    except OSError:
+        return False
+
+
+def _build_raster_info(path: Path, base_folder: Path, folder_label: str) -> Dict[str, Any]:
+    """Construct serialized raster metadata dictionary for a discovered raster file."""
+    import rasterio
+
+    abs_path = path.resolve()
+    abs_str = str(abs_path)
+    try:
+        rel_str = str(abs_path.relative_to(base_folder.resolve()))
+    except ValueError:
+        rel_str = abs_path.name
+
+    parent_rel = ""
+    try:
+        rel_parent = abs_path.parent.relative_to(base_folder.resolve())
+        parent_rel = "" if str(rel_parent) == "." else str(rel_parent)
+    except ValueError:
+        parent_rel = ""
+
+    storage_root, storage_rel_path = _resolve_storage_location(abs_path)
+    stat = abs_path.stat()
+
+    info: Dict[str, Any] = {
+        "name": abs_path.name,
+        "path": abs_str,
+        "absolute_path": abs_str,
+        "relative_path": rel_str,
+        "parent_folder": str(abs_path.parent),
+        "subfolder": parent_rel,
+        "folder": folder_label,
+        "root": folder_label,
+        "storage_root": storage_root,
+        "storage_rel_path": storage_rel_path,
+        "size_bytes": stat.st_size,
+        "modified_at": datetime.datetime.fromtimestamp(stat.st_mtime).isoformat(),
+        "bands": 1,
+        "crs": "EPSG:4326",
+        "dimensions": [0, 0],
+    }
+    try:
+        with rasterio.open(abs_str) as src:
+            info["bands"] = src.count
+            info["crs"] = src.crs.to_string() if src.crs else "EPSG:4326"
+            info["dimensions"] = [src.width, src.height]
+            info["dtype"] = str(src.dtypes[0])
+    except Exception:
+        pass
+    return info
+
+
+def _scan_rasters_sync(directory: Optional[str] = None, recursive: bool = True) -> List[Dict[str, Any]]:
+    """Scan either a requested directory or all workspace raster roots synchronously."""
+    candidates: List[tuple[float, Path, Path, str]] = []
+    seen_paths: set[str] = set()
+
+    if directory:
+        target_dir = Path(directory).expanduser().resolve()
+        if not target_dir.exists():
+            raise FileNotFoundError(f"Directory not found: {directory}")
+        if not target_dir.is_dir():
+            raise NotADirectoryError(f"Path is not a directory: {directory}")
+
+        folder_label = target_dir.name or "custom"
+        for root_key, _title, root_path in _get_workspace_scan_roots():
+            if target_dir == root_path or target_dir.is_relative_to(root_path):
+                folder_label = root_key
+                break
+        scan_targets = [(folder_label, target_dir)]
+    else:
+        scan_targets = [(key, root_path) for key, _title, root_path in _get_workspace_scan_roots()]
+
+    for folder_label, folder_path in scan_targets:
+        if not folder_path.exists() or not folder_path.is_dir():
+            continue
+        iterator = folder_path.rglob("*") if recursive else folder_path.iterdir()
+        for entry in iterator:
+            if not _is_valid_raster_file(entry):
+                continue
+            resolved_str = str(entry.resolve())
+            if resolved_str in seen_paths:
+                continue
+            seen_paths.add(resolved_str)
+            try:
+                mtime = entry.stat().st_mtime
+            except OSError:
+                mtime = 0.0
+            candidates.append((mtime, entry, folder_path, folder_label))
+
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    return [_build_raster_info(entry, base_folder, label) for _mtime, entry, base_folder, label in candidates]
+
+
+def _discover_local_folders_sync() -> Dict[str, Any]:
+    """Build a structured inventory of downloaded, processed, and custom raster folders."""
+    scan_roots = _get_workspace_scan_roots()
+    root_map = {key: str(path) for key, _title, path in scan_roots}
+    folders: List[Dict[str, Any]] = []
+
+    for root_key, title, root_path in scan_roots:
+        if not root_path.exists() or not root_path.is_dir():
+            continue
+
+        dir_stats: Dict[Path, Dict[str, Any]] = {}
+        for p in root_path.rglob("*"):
+            if not _is_valid_raster_file(p):
+                continue
+            stat = p.stat()
+            parent = p.parent.resolve()
+            # Ensure root and all ancestors up to root_path are tracked
+            cur = parent
+            direct = True
+            while cur == root_path or cur.is_relative_to(root_path):
+                entry = dir_stats.setdefault(
+                    cur,
+                    {
+                        "file_count": 0,
+                        "direct_file_count": 0,
+                        "total_size_bytes": 0,
+                        "child_dirs": set(),
+                    },
+                )
+                entry["file_count"] += 1
+                if direct:
+                    entry["direct_file_count"] += 1
+                entry["total_size_bytes"] += stat.st_size
+                if cur == root_path:
+                    break
+                parent_dir = cur.parent.resolve()
+                parent_entry = dir_stats.setdefault(
+                    parent_dir,
+                    {
+                        "file_count": 0,
+                        "direct_file_count": 0,
+                        "total_size_bytes": 0,
+                        "child_dirs": set(),
+                    },
+                )
+                parent_entry["child_dirs"].add(cur)
+                cur = parent_dir
+                direct = False
+
+        # Always expose primary roots if they contain rasters or are downloads/processed
+        if root_path not in dir_stats and root_key in {"downloads", "processed"}:
+            dir_stats[root_path] = {
+                "file_count": 0,
+                "direct_file_count": 0,
+                "total_size_bytes": 0,
+                "child_dirs": set(),
+            }
+
+        sorted_dirs = sorted(
+            dir_stats.keys(),
+            key=lambda d: (0 if d == root_path else len(d.relative_to(root_path).parts), str(d)),
+        )
+        for dir_path in sorted_dirs:
+            meta = dir_stats[dir_path]
+            rel_path = "." if dir_path == root_path else str(dir_path.relative_to(root_path))
+            depth = 0 if dir_path == root_path else len(dir_path.relative_to(root_path).parts)
+
+            include_dir = (
+                depth <= 1
+                or meta["direct_file_count"] > 0
+                or len(meta["child_dirs"]) > 1
+            )
+            if not include_dir:
+                continue
+
+            display_name = title if depth == 0 else rel_path
+            folders.append(
+                {
+                    "id": f"{root_key}:{rel_path}",
+                    "name": dir_path.name if depth > 0 else title,
+                    "label": display_name,
+                    "path": str(dir_path),
+                    "relative_path": rel_path,
+                    "root": root_key,
+                    "depth": depth,
+                    "file_count": meta["file_count"],
+                    "direct_file_count": meta["direct_file_count"],
+                    "total_size_bytes": meta["total_size_bytes"],
+                }
+            )
+
+    return {
+        "active_download_dir": root_map.get("downloads", ""),
+        "processed_dir": root_map.get("processed", ""),
+        "custom_dir": root_map.get("custom", ""),
+        "folders": folders,
+    }
+
+
+def _save_uploaded_raster_sync(file_obj: Any, original_filename: str) -> Dict[str, Any]:
+    """Validate and persist an uploaded custom raster into data/custom."""
     import rasterio
     from backend.app.dependencies.config import settings
 
-    valid_exts = {".tif", ".tiff", ".jp2", ".img", ".vrt"}
-    rasters = []
-    scan_dirs = [
-        ("downloads", settings.downloads_dir),
-        ("processed", settings.data_dir / "processed"),
-    ]
-    for folder_label, folder_path in scan_dirs:
-        if not folder_path.exists():
-            continue
-        for p in sorted(folder_path.rglob("*"), key=lambda x: x.stat().st_mtime if x.exists() else 0, reverse=True):
-            if p.is_file() and p.suffix.lower() in valid_exts and not p.name.startswith(".") and p.stat().st_size > 0:
-                abs_str = str(p.resolve())
-                try:
-                    rel_str = str(p.relative_to(folder_path))
-                except Exception:
-                    rel_str = p.name
-                info: Dict[str, Any] = {
-                    "name": p.name,
-                    "path": abs_str,
-                    "absolute_path": abs_str,
-                    "relative_path": rel_str,
-                    "folder": folder_label,
-                    "root": folder_label,
-                    "size_bytes": p.stat().st_size,
-                    "modified_at": datetime.datetime.fromtimestamp(p.stat().st_mtime).isoformat(),
-                    "bands": 1,
-                    "crs": "EPSG:4326",
-                    "dimensions": [0, 0],
-                }
-                try:
-                    with rasterio.open(str(p)) as src:
-                        info["bands"] = src.count
-                        info["crs"] = src.crs.to_string() if src.crs else "EPSG:4326"
-                        info["dimensions"] = [src.width, src.height]
-                        info["dtype"] = str(src.dtypes[0])
-                except Exception:
-                    pass
-                rasters.append(info)
-    return rasters
+    raw_name = Path(original_filename or "custom_raster.tif").name
+    ext = Path(raw_name).suffix.lower()
+    if ext not in _VALID_RASTER_EXTS:
+        raise ValueError(f"Unsupported raster extension '{ext}'. Allowed: {', '.join(sorted(_VALID_RASTER_EXTS))}")
+
+    stem = re.sub(r"[^A-Za-z0-9._-]", "_", Path(raw_name).stem).strip("._") or "custom_raster"
+    custom_dir = (settings.data_dir / "custom").resolve()
+    custom_dir.mkdir(parents=True, exist_ok=True)
+
+    target_path = custom_dir / f"{stem}{ext}"
+    if target_path.exists():
+        target_path = custom_dir / f"{stem}_{uuid.uuid4().hex[:6]}{ext}"
+
+    try:
+        file_obj.seek(0)
+        with open(target_path, "wb") as out_f:
+            shutil.copyfileobj(file_obj, out_f)
+        if target_path.stat().st_size == 0:
+            raise ValueError("Uploaded file is empty")
+        with rasterio.open(str(target_path)) as src:
+            _ = src.width, src.height, src.count
+    except Exception as exc:
+        if target_path.exists():
+            target_path.unlink(missing_ok=True)
+        raise ValueError(f"Uploaded file is not a valid readable raster: {exc}") from exc
+
+    return _build_raster_info(target_path, custom_dir, "custom")
+
+
+@router.get("/local-rasters")
+async def list_local_rasters(
+    directory: Optional[str] = Query(None, description="Optional folder path to filter raster discovery"),
+    recursive: bool = Query(True, description="Include rasters in nested subdirectories"),
+):
+    """Scan workspace roots or a selected folder for available local raster files."""
+    try:
+        return await anyio.to_thread.run_sync(_scan_rasters_sync, directory, recursive)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except NotADirectoryError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/local-folders")
+async def list_local_folders():
+    """List downloaded, processed, and custom folders containing local rasters."""
+    return await anyio.to_thread.run_sync(_discover_local_folders_sync)
+
+
+@router.post("/upload-raster")
+async def upload_custom_raster(file: UploadFile = File(...)):
+    """Upload a custom local GeoTIFF/raster file into data/custom for geoprocessing."""
+    try:
+        info = await anyio.to_thread.run_sync(
+            _save_uploaded_raster_sync,
+            file.file,
+            file.filename or "custom_raster.tif",
+        )
+        return {"status": "uploaded", "raster": info, **info}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    finally:
+        await file.close()
 
 
 @router.post("/clip")

@@ -535,19 +535,166 @@
             </div>
           </div>
 
-          <div v-if="datasets.length > 0" class="space-y-2">
-            <label class="block text-xs font-bold text-slate-300">Select Catalog Dataset</label>
-            <select v-model="selectedDatasetId" @change="selectAllDatasetAssets" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono">
-              <option v-for="ds in datasets" :key="ds.id" :value="ds.id">{{ ds.dataset_id }} ({{ ds.collection }})</option>
-            </select>
+          <!-- Input Mode Switch: Workspace Scene Folder vs DB Harvest Catalog -->
+          <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <span class="text-xs font-bold text-slate-300">Input Data Source</span>
+              <div class="inline-flex rounded-lg bg-slate-900 p-0.5 border border-slate-800 text-[11px]">
+                <button
+                  type="button"
+                  @click="recipeInputMode = 'folder'"
+                  :class="[
+                    'px-2.5 py-1 rounded-md font-semibold cursor-pointer transition-colors',
+                    recipeInputMode === 'folder' ? 'bg-teal-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                  ]"
+                >
+                  📁 Selected Folder TIFFs ({{ selectedRecipeFilePaths.length }})
+                </button>
+                <button
+                  type="button"
+                  @click="recipeInputMode = 'catalog'"
+                  :class="[
+                    'px-2.5 py-1 rounded-md font-semibold cursor-pointer transition-colors',
+                    recipeInputMode === 'catalog' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-200'
+                  ]"
+                >
+                  🗄️ Catalog Dataset ({{ datasets.length }})
+                </button>
+              </div>
+            </div>
+
+            <!-- Mode 1: Workspace Folder / All Scene TIFFs -->
+            <div v-if="recipeInputMode === 'folder'" class="space-y-2.5">
+              <div class="flex items-center gap-2">
+                <select
+                  v-model="selectedDirectory"
+                  @change="onFolderSelectionChange"
+                  class="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono"
+                >
+                  <option value="">All Workspace Folders ({{ totalIndexedFiles }} indexed)</option>
+                  <optgroup v-if="downloadedFolderOptions.length > 0" label="📥 Downloaded Folders">
+                    <option v-for="folder in downloadedFolderOptions" :key="folder.id" :value="folder.path">
+                      {{ folder.depth === 0 ? '📁 ' : '  ↳ ' }}{{ folder.label }} ({{ folder.file_count }})
+                    </option>
+                  </optgroup>
+                  <optgroup v-if="otherFolderOptions.length > 0" label="⚙️ Processed &amp; Custom">
+                    <option v-for="folder in otherFolderOptions" :key="folder.id" :value="folder.path">
+                      {{ folder.depth === 0 ? '📁 ' : '  ↳ ' }}{{ folder.label }} ({{ folder.file_count }})
+                    </option>
+                  </optgroup>
+                  <optgroup v-if="isCustomExternalDirectory" label="📂 Custom Selected Folder">
+                    <option :value="selectedDirectory">{{ selectedDirectory }}</option>
+                  </optgroup>
+                </select>
+                <button
+                  type="button"
+                  @click="showFolderPickerModal = true"
+                  class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-teal-300 shrink-0 cursor-pointer"
+                >
+                  📂 Browse
+                </button>
+              </div>
+
+              <div v-if="!selectedDirectory && localRasters.length > 0" class="text-[11px] text-amber-300/90 bg-amber-950/30 border border-amber-800/50 rounded px-2.5 py-1.5">
+                Tip: Pick a downloaded scene subfolder (or browse a custom folder) so the recipe processes only that scene's `.tif` files.
+              </div>
+
+              <div class="flex items-center justify-between text-[11px] text-slate-400">
+                <span>
+                  <strong class="text-slate-200">{{ selectedRecipeFilePaths.length }}</strong> of {{ localRasters.length }} raster file(s) queued in this scene/folder
+                </span>
+                <div class="space-x-2">
+                  <button
+                    type="button"
+                    @click="selectedRecipeFilePaths = localRasters.map(r => r.absolute_path)"
+                    class="text-emerald-400 hover:underline cursor-pointer"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    @click="selectedRecipeFilePaths = []"
+                    class="text-slate-400 hover:underline cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="localRasters.length === 0" class="text-xs text-slate-500 p-3 text-center border border-dashed border-slate-800 rounded-lg">
+                No `.tif` files found in the selected folder.
+              </div>
+              <div v-else class="max-h-36 overflow-y-auto space-y-1 pr-1">
+                <label
+                  v-for="r in localRasters"
+                  :key="r.absolute_path"
+                  class="flex items-center space-x-2 p-1.5 rounded hover:bg-slate-900 cursor-pointer text-[11px]"
+                >
+                  <input
+                    type="checkbox"
+                    :value="r.absolute_path"
+                    v-model="selectedRecipeFilePaths"
+                    class="rounded border-slate-700 bg-slate-900 text-emerald-500"
+                  />
+                  <span class="font-mono text-slate-200 truncate flex-1">{{ r.name }}</span>
+                  <span class="text-[10px] text-slate-500 font-mono shrink-0">{{ r.crs || 'EPSG:4326' }}</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Mode 2: Database Catalog Dataset -->
+            <div v-else class="space-y-2">
+              <p class="text-[11px] text-slate-400">
+                Selects scenes recorded in GeoHarvest's catalog database from completed harvest jobs. Use <strong>Selected Folder TIFFs</strong> for downloaded subfolders or custom local data.
+              </p>
+              <div v-if="datasets.length > 0" class="space-y-1.5">
+                <label class="block text-xs font-bold text-slate-300">Select Catalog Dataset</label>
+                <select v-model="selectedDatasetId" @change="selectAllDatasetAssets" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono">
+                  <option v-for="ds in datasets" :key="ds.id" :value="ds.id">{{ ds.dataset_id }} ({{ ds.collection }})</option>
+                </select>
+                <div class="text-[11px] text-slate-400 font-mono">
+                  {{ selectedAssetIds.length }} dataset asset(s) selected
+                </div>
+              </div>
+              <div v-else class="text-xs text-slate-500 p-3 text-center border border-dashed border-slate-800 rounded-lg">
+                No datasets registered in the catalog database yet. Switch to <strong>Selected Folder TIFFs</strong> above to run on downloaded or custom folders.
+              </div>
+            </div>
+          </div>
+
+          <!-- Pipeline Execution Options -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            <label class="flex items-center space-x-2 p-2.5 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer">
+              <input v-model="clipToAOI" type="checkbox" class="rounded border-slate-700 bg-slate-900 text-emerald-500" />
+              <span class="text-slate-300">Clip to active Study Area (AOI)</span>
+            </label>
+            <div class="flex items-center space-x-2 p-2 rounded-lg bg-slate-950 border border-slate-800">
+              <span class="text-slate-400 shrink-0 font-semibold">Target CRS:</span>
+              <input
+                v-model="targetCRS"
+                type="text"
+                placeholder="auto_utm or EPSG:32643"
+                class="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white font-mono"
+              />
+            </div>
+          </div>
+
+          <div v-if="runningPipeline && activeTask" class="p-2.5 rounded-lg bg-slate-950 border border-emerald-800/60 space-y-1.5 text-xs">
+            <div class="flex items-center justify-between text-emerald-300 font-mono text-[11px]">
+              <span>{{ activeTask.checkpoint?.current_step || 'Processing...' }}</span>
+              <span>{{ activeTask.progress ?? 0 }}%</span>
+            </div>
+            <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <div class="h-full bg-emerald-500 transition-all duration-300" :style="{ width: `${activeTask.progress ?? 5}%` }"></div>
+            </div>
           </div>
 
           <button
             @click="runPipeline"
-            :disabled="runningPipeline || selectedAssetIds.length === 0"
+            :disabled="runningPipeline || (recipeInputMode === 'folder' ? selectedRecipeFilePaths.length === 0 : selectedAssetIds.length === 0)"
             class="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs cursor-pointer bw-primary-btn"
           >
-            {{ runningPipeline ? '⏳ Running Recipe Pipeline...' : '⚙️ Execute Automated Recipe' }}
+            {{ runningPipeline ? '⏳ Running Recipe Pipeline...' : `⚙️ Execute Recipe on ${recipeInputMode === 'folder' ? selectedRecipeFilePaths.length + ' File(s)' : 'Catalog Dataset'}` }}
           </button>
         </div>
       </div>
@@ -581,7 +728,7 @@
               </div>
             </div>
 
-            <!-- Action Buttons on Output File -->
+            <!-- Action Buttons on Single Output File -->
             <div v-if="toolResult.output_path" class="flex items-center space-x-2">
               <a
                 :href="getDownloadUrlForOutput(toolResult.output_path)"
@@ -597,6 +744,45 @@
               >
                 ↪ Use as Next Input
               </button>
+            </div>
+
+            <!-- Batch Recipe Output Assets List -->
+            <div v-if="toolResult.output_assets && toolResult.output_assets.length > 0" class="space-y-2">
+              <div class="text-[11px] font-bold text-slate-300">
+                Generated Recipe Outputs ({{ toolResult.output_assets.length }} file(s))
+              </div>
+              <div
+                v-if="toolResult.checkpoint?.skipped_files?.length"
+                class="p-2 rounded bg-amber-950/30 border border-amber-800/50 text-[11px] text-amber-300"
+              >
+                Skipped {{ toolResult.checkpoint.skipped_files.length }} non-overlapping tile(s) outside AOI.
+              </div>
+              <div class="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                <div
+                  v-for="outFile in toolResult.output_assets"
+                  :key="outFile"
+                  class="p-2 rounded bg-slate-950 border border-slate-800 flex items-center justify-between gap-2 text-[11px]"
+                >
+                  <span class="font-mono text-slate-200 truncate flex-1" :title="outFile">{{ outFile.split('/').pop() }}</span>
+                  <div class="flex items-center space-x-1 shrink-0">
+                    <button
+                      type="button"
+                      @click="useOutputAsInput(outFile)"
+                      class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer"
+                    >
+                      Use
+                    </button>
+                    <a
+                      :href="getDownloadUrlForOutput(outFile)"
+                      target="_blank"
+                      class="px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold bw-primary-btn"
+                      title="Download Processed GeoTIFF"
+                    >
+                      ⬇
+                    </a>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <!-- Zonal Statistics Per-Band Table -->
@@ -654,27 +840,166 @@
           <div class="flex items-center justify-between border-b border-slate-800 pb-2">
             <div>
               <h3 class="text-xs font-bold uppercase tracking-wider text-slate-200">📁 Local Raster Workspace</h3>
-              <p class="text-[11px] text-slate-400">Click any file to load it into the active tool or download it.</p>
+              <p class="text-[11px] text-slate-400">Select a downloaded folder, browse custom folders, or upload custom raster data.</p>
             </div>
-            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">
-              {{ localRasters.length }} files
+            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 shrink-0">
+              {{ displayedWorkspaceRasters.length }}<template v-if="workspaceSearch.trim()"> / {{ localRasters.length }}</template> files
             </span>
           </div>
 
-          <div v-if="localRasters.length === 0" class="p-6 text-center text-xs text-slate-500 border border-dashed border-slate-800 rounded-lg">
-            No `.tif` rasters in `data/downloads` or `data/processed` yet. Export a WMS GeoTIFF or run a satellite download job first.
+          <!-- Folder Selector & Custom Data Controls -->
+          <div class="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 space-y-2">
+            <div class="space-y-1">
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Source Folder (Downloaded / Processed / Custom)
+              </label>
+              <select
+                v-model="selectedDirectory"
+                @change="onFolderSelectionChange"
+                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-mono focus:outline-none focus:border-teal-500"
+              >
+                <option value="">All Workspace Folders ({{ totalIndexedFiles }} indexed)</option>
+                <optgroup v-if="downloadedFolderOptions.length > 0" label="📥 Downloaded Folders">
+                  <option
+                    v-for="folder in downloadedFolderOptions"
+                    :key="folder.id"
+                    :value="folder.path"
+                  >
+                    {{ folder.depth === 0 ? '📁 ' : '  ↳ ' }}{{ folder.label }} ({{ folder.file_count }})
+                  </option>
+                </optgroup>
+                <optgroup v-if="otherFolderOptions.length > 0" label="⚙️ Processed &amp; Custom">
+                  <option
+                    v-for="folder in otherFolderOptions"
+                    :key="folder.id"
+                    :value="folder.path"
+                  >
+                    {{ folder.depth === 0 ? '📁 ' : '  ↳ ' }}{{ folder.label }} ({{ folder.file_count }})
+                  </option>
+                </optgroup>
+                <optgroup v-if="isCustomExternalDirectory" label="📂 Custom Selected Folder">
+                  <option :value="selectedDirectory">{{ selectedDirectory }}</option>
+                </optgroup>
+              </select>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                @click="showFolderPickerModal = true"
+                class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] font-semibold text-teal-300 cursor-pointer flex items-center space-x-1"
+                title="Browse filesystem to pick a custom raster folder"
+              >
+                <span>📂</span>
+                <span>Browse Custom Folder</span>
+              </button>
+
+              <input
+                ref="customRasterInputRef"
+                type="file"
+                accept=".tif,.tiff,.jp2,.img,.vrt"
+                class="hidden"
+                @change="handleCustomRasterUpload"
+              />
+              <button
+                type="button"
+                @click="triggerCustomRasterUpload"
+                :disabled="isUploadingCustomRaster"
+                class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-50 border border-slate-700 text-[11px] font-semibold text-emerald-300 cursor-pointer flex items-center space-x-1"
+                title="Upload a custom GeoTIFF / JP2 / IMG / VRT file into custom workspace"
+              >
+                <span>{{ isUploadingCustomRaster ? '⏳' : '📤' }}</span>
+                <span>{{ isUploadingCustomRaster ? 'Uploading...' : 'Select Custom Data' }}</span>
+              </button>
+
+              <button
+                v-if="selectedDirectory || workspaceSearch"
+                type="button"
+                @click="resetWorkspaceFilter"
+                class="px-2 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] text-slate-300 cursor-pointer"
+                title="Reset folder & search filters"
+              >
+                ✕ All
+              </button>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <input
+                v-model="workspaceSearch"
+                type="text"
+                placeholder="Filter rasters by filename or subfolder..."
+                class="flex-1 min-w-0 bg-slate-900 border border-slate-800 rounded-md px-2.5 py-1 text-[11px] text-slate-200 placeholder-slate-500 focus:outline-none focus:border-slate-600"
+              />
+              <label
+                v-if="selectedDirectory"
+                class="flex items-center space-x-1 text-[11px] text-slate-400 shrink-0 cursor-pointer select-none"
+                title="Include rasters inside nested subdirectories"
+              >
+                <input
+                  v-model="recursiveScan"
+                  type="checkbox"
+                  @change="loadWorkspaceRasters()"
+                  class="rounded border-slate-700 bg-slate-900 text-teal-500"
+                />
+                <span>Subfolders</span>
+              </label>
+            </div>
+
+            <div
+              v-if="selectedDirectory"
+              class="text-[10px] font-mono text-teal-300/90 truncate"
+              :title="selectedDirectory"
+            >
+              Active folder: {{ selectedDirectory }}
+            </div>
+
+            <div
+              v-if="workspaceError"
+              class="p-2 rounded bg-red-950/50 border border-red-800 text-[11px] text-red-300"
+            >
+              {{ workspaceError }}
+            </div>
+          </div>
+
+          <div
+            v-if="workspaceLoading"
+            class="p-6 text-center text-xs text-slate-400 border border-dashed border-slate-800 rounded-lg"
+          >
+            ⏳ Scanning folder for rasters...
+          </div>
+
+          <div
+            v-else-if="displayedWorkspaceRasters.length === 0"
+            class="p-6 text-center text-xs text-slate-500 border border-dashed border-slate-800 rounded-lg space-y-2"
+          >
+            <div v-if="selectedDirectory || workspaceSearch">
+              No raster files found matching the current folder or filter.
+            </div>
+            <div v-else>
+              No rasters in `data/downloads`, `data/processed`, or custom folder yet. Download a scene, browse a custom folder, or select custom data.
+            </div>
+            <div v-if="selectedDirectory && !recursiveScan" class="pt-1">
+              <button
+                type="button"
+                @click="recursiveScan = true; loadWorkspaceRasters()"
+                class="text-[11px] text-teal-400 underline cursor-pointer"
+              >
+                Include nested subfolders
+              </button>
+            </div>
           </div>
 
           <div v-else class="max-h-96 overflow-y-auto space-y-1.5 pr-1">
             <div
-              v-for="r in localRasters"
+              v-for="r in displayedWorkspaceRasters"
               :key="r.absolute_path"
               class="p-2.5 rounded-lg bg-slate-950 border border-slate-800 hover:border-slate-700 flex items-center justify-between gap-2 text-xs"
             >
               <div class="min-w-0 flex-1 cursor-pointer" @click="selectRasterFromBrowser(r.absolute_path)">
-                <div class="font-mono font-semibold text-slate-200 truncate" :title="r.name">{{ r.name }}</div>
-                <div class="text-[10px] text-slate-400 font-mono">
-                  [{{ r.root }}] • {{ formatBytes(r.size_bytes) }}
+                <div class="font-mono font-semibold text-slate-200 truncate" :title="r.absolute_path">{{ r.name }}</div>
+                <div class="text-[10px] text-slate-400 font-mono truncate" :title="r.relative_path">
+                  [{{ r.subfolder || r.folder || r.root }}] • {{ formatBytes(r.size_bytes) }}
+                  <span v-if="r.crs"> • {{ r.crs }} ({{ r.bands || 1 }}b)</span>
                 </div>
               </div>
               <div class="flex items-center space-x-1 shrink-0">
@@ -685,7 +1010,8 @@
                   Use
                 </button>
                 <a
-                  :href="api.getStorageDownloadUrl(r.relative_path, r.root)"
+                  v-if="r.storage_root && r.storage_rel_path"
+                  :href="api.getStorageDownloadUrl(r.storage_rel_path, r.storage_root)"
                   target="_blank"
                   class="px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold bw-primary-btn"
                   title="Download GeoTIFF"
@@ -698,6 +1024,17 @@
         </div>
       </div>
     </div>
+
+    <DirectoryPickerModal
+      v-model="showFolderPickerModal"
+      :initial-path="selectedDirectory || activeDownloadDir || undefined"
+      title="Select Custom Raster Folder"
+      subtitle="Browse downloaded folders or pick any custom directory containing GeoTIFF, JP2, IMG, or VRT rasters"
+      confirm-label="Select Folder"
+      :hide-destination-preview="true"
+      :allow-read-only="true"
+      @select="onCustomFolderSelected"
+    />
   </div>
 </template>
 
@@ -705,6 +1042,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { api } from '../services/api'
 import { useHarvestStore } from '../stores/harvestStore'
+import DirectoryPickerModal from '../components/DirectoryPickerModal.vue'
 import type { CatalogDataset, ProcessingRecipe, ProcessingTaskResult } from '../types'
 
 const harvestStore = useHarvestStore()
@@ -722,15 +1060,71 @@ const tools = [
 
 const activeTool = computed(() => harvestStore.activeProcessingTool)
 
-// Local rasters list
+// Local rasters list & folder filter state
 const localRasters = ref<Array<{
   name: string
+  path?: string
   relative_path: string
   absolute_path: string
+  parent_folder?: string
+  subfolder?: string
+  folder?: string
   root: string
+  storage_root?: string | null
+  storage_rel_path?: string | null
   size_bytes: number
-  modified_at: number
+  modified_at: string | number
+  bands?: number
+  crs?: string
+  dimensions?: number[]
+  dtype?: string
 }>>([])
+
+const localFolders = ref<Array<{
+  id: string
+  name: string
+  label: string
+  path: string
+  relative_path: string
+  root: string
+  depth: number
+  file_count: number
+  direct_file_count: number
+  total_size_bytes: number
+}>>([])
+
+const activeDownloadDir = ref('')
+const selectedDirectory = ref('')
+const recursiveScan = ref(true)
+const workspaceSearch = ref('')
+const workspaceLoading = ref(false)
+const workspaceError = ref<string | null>(null)
+const showFolderPickerModal = ref(false)
+const customRasterInputRef = ref<HTMLInputElement | null>(null)
+const isUploadingCustomRaster = ref(false)
+
+const downloadedFolderOptions = computed(() =>
+  localFolders.value.filter((f) => f.root === 'downloads' || f.root === 'default_downloads')
+)
+const otherFolderOptions = computed(() =>
+  localFolders.value.filter((f) => f.root !== 'downloads' && f.root !== 'default_downloads')
+)
+const isCustomExternalDirectory = computed(() =>
+  Boolean(selectedDirectory.value && !localFolders.value.some((f) => f.path === selectedDirectory.value))
+)
+const totalIndexedFiles = computed(() =>
+  localFolders.value.filter((f) => f.depth === 0).reduce((acc, f) => acc + f.file_count, 0)
+)
+const displayedWorkspaceRasters = computed(() => {
+  const q = workspaceSearch.value.trim().toLowerCase()
+  if (!q) return localRasters.value
+  return localRasters.value.filter(
+    (r) =>
+      r.name.toLowerCase().includes(q) ||
+      (r.subfolder || '').toLowerCase().includes(q) ||
+      (r.relative_path || '').toLowerCase().includes(q)
+  )
+})
 
 // Shared tool inputs
 const singleInputPath = ref('')
@@ -794,43 +1188,142 @@ const isExecuting = ref(false)
 const toolResult = ref<any | null>(null)
 const toolError = ref<string | null>(null)
 
-// Legacy Recipe state
+// Recipe state
+const recipeInputMode = ref<'folder' | 'catalog'>('folder')
+const selectedRecipeFilePaths = ref<string[]>([])
 const datasets = ref<CatalogDataset[]>([])
 const selectedDatasetId = ref('')
 const selectedAssetIds = ref<string[]>([])
 const recipes = ref<ProcessingRecipe[]>([])
 const selectedRecipeId = ref('s2-aoi-cog')
 const runningPipeline = ref(false)
-const activeTask = ref<ProcessingTaskResult | null>(null)
+const activeTask = ref<(ProcessingTaskResult & { progress?: number }) | null>(null)
 
 const defaultLadakhPolygon = {
   type: 'Polygon',
   coordinates: [[[77.1, 33.8], [78.2, 33.8], [78.2, 34.6], [77.1, 34.6], [77.1, 33.8]]],
 }
 
-async function refreshWorkspace() {
+function syncToolInputsFromRasters(resetRecipeFiles: boolean = false) {
+  const availablePaths = localRasters.value.map((r) => r.absolute_path)
+  if (resetRecipeFiles || selectedRecipeFilePaths.value.length === 0) {
+    selectedRecipeFilePaths.value = availablePaths
+  } else {
+    const availableSet = new Set(availablePaths)
+    const kept = selectedRecipeFilePaths.value.filter((p) => availableSet.has(p))
+    selectedRecipeFilePaths.value = kept.length > 0 ? kept : availablePaths
+  }
+
+  const firstRaster = localRasters.value[0]
+  if (!firstRaster) return
+
+  const available = new Set(availablePaths)
+  if (!singleInputPath.value || !available.has(singleInputPath.value)) {
+    singleInputPath.value = firstRaster.absolute_path
+  }
+  if (!band1Path.value || !available.has(band1Path.value)) {
+    band1Path.value = firstRaster.absolute_path
+  }
+  if (!band2Path.value || !available.has(band2Path.value)) {
+    band2Path.value = localRasters.value[1]?.absolute_path || firstRaster.absolute_path
+  }
+}
+
+async function loadWorkspaceRasters(resetRecipeSelection: boolean = true) {
+  workspaceLoading.value = true
+  workspaceError.value = null
   try {
-    const [rasters, dsList, recipeList] = await Promise.all([
-      api.getLocalRasters(),
+    const rasters = await api.getLocalRasters({
+      directory: selectedDirectory.value || undefined,
+      recursive: recursiveScan.value,
+    })
+    localRasters.value = rasters || []
+    syncToolInputsFromRasters(resetRecipeSelection)
+  } catch (e: any) {
+    workspaceError.value = e.message || 'Failed to load rasters from selected folder'
+    localRasters.value = []
+    selectedRecipeFilePaths.value = []
+  } finally {
+    workspaceLoading.value = false
+  }
+}
+
+function onFolderSelectionChange() {
+  loadWorkspaceRasters()
+}
+
+function onCustomFolderSelected(folderPath: string) {
+  selectedDirectory.value = folderPath
+  recursiveScan.value = true
+  loadWorkspaceRasters()
+}
+
+function resetWorkspaceFilter() {
+  selectedDirectory.value = ''
+  workspaceSearch.value = ''
+  loadWorkspaceRasters()
+}
+
+function triggerCustomRasterUpload() {
+  customRasterInputRef.value?.click()
+}
+
+async function handleCustomRasterUpload(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  isUploadingCustomRaster.value = true
+  workspaceError.value = null
+  try {
+    const res = await api.uploadCustomRaster(file)
+    const uploaded = res.raster
+    if (uploaded?.parent_folder) {
+      selectedDirectory.value = uploaded.parent_folder
+    }
+    await refreshWorkspace()
+    if (uploaded?.absolute_path) {
+      selectRasterFromBrowser(uploaded.absolute_path)
+    }
+  } catch (e: any) {
+    workspaceError.value = e.message || 'Failed to upload custom raster'
+  } finally {
+    isUploadingCustomRaster.value = false
+    input.value = ''
+  }
+}
+
+async function refreshWorkspace() {
+  workspaceError.value = null
+  try {
+    const [rasters, folderData, dsList, recipeList] = await Promise.all([
+      api.getLocalRasters({
+        directory: selectedDirectory.value || undefined,
+        recursive: recursiveScan.value,
+      }),
+      api.getLocalRasterFolders().catch(() => ({
+        active_download_dir: '',
+        processed_dir: '',
+        custom_dir: '',
+        folders: [],
+      })),
       api.getCatalogDatasets().catch(() => []),
       api.getProcessingRecipes().catch(() => []),
     ])
     localRasters.value = rasters || []
+    localFolders.value = folderData.folders || []
+    activeDownloadDir.value = folderData.active_download_dir || ''
     datasets.value = dsList || []
     recipes.value = recipeList || []
 
-    const firstRaster = localRasters.value[0]
-    if (firstRaster && !singleInputPath.value) {
-      singleInputPath.value = firstRaster.absolute_path
-      band1Path.value = firstRaster.absolute_path
-      band2Path.value = localRasters.value[1]?.absolute_path || firstRaster.absolute_path
-    }
+    syncToolInputsFromRasters()
     const firstDataset = datasets.value[0]
     if (firstDataset && !selectedDatasetId.value) {
       selectedDatasetId.value = firstDataset.id
       selectAllDatasetAssets()
     }
-  } catch (e) {
+  } catch (e: any) {
+    workspaceError.value = e.message || 'Failed to refresh workspace'
     console.warn('Failed to refresh workspace:', e)
   }
 }
@@ -861,8 +1354,11 @@ function useOutputAsInput(outputPath: string) {
 }
 
 function getDownloadUrlForOutput(outputPath: string): string {
-  const fileName = outputPath.split('/').pop() || ''
-  return api.getStorageDownloadUrl(fileName, 'processed')
+  const normalized = outputPath.replace(/\\/g, '/')
+  const processedMarker = '/processed/'
+  const idx = normalized.lastIndexOf(processedMarker)
+  const relPath = idx >= 0 ? normalized.slice(idx + processedMarker.length) : (normalized.split('/').pop() || '')
+  return api.getStorageDownloadUrl(relPath, 'processed')
 }
 
 async function executeClip() {
@@ -1020,21 +1516,57 @@ async function recommendCRSForLadakh() {
 }
 
 async function runPipeline() {
-  if (selectedAssetIds.value.length === 0) return
+  if (recipeInputMode.value === 'folder' && selectedRecipeFilePaths.value.length === 0) return
+  if (recipeInputMode.value === 'catalog' && selectedAssetIds.value.length === 0) return
+
   runningPipeline.value = true
   toolError.value = null
+  toolResult.value = null
+  activeTask.value = null
   try {
-    const res = await api.executeProcessing({
+    const geom = clipToAOI.value ? (harvestStore.currentAoiGeometry || defaultLadakhPolygon) : undefined
+    const queued = await api.executeProcessing({
       recipe_id: selectedRecipeId.value,
-      input_asset_ids: selectedAssetIds.value,
-      target_crs: targetCRS.value,
+      ...(recipeInputMode.value === 'folder'
+        ? {
+            input_file_paths: selectedRecipeFilePaths.value,
+            directory: selectedDirectory.value || undefined,
+            recursive: recursiveScan.value,
+          }
+        : {
+            input_asset_ids: selectedAssetIds.value,
+          }),
+      target_crs: targetCRS.value.trim() || 'auto_utm',
+      aoi_geometry: geom,
       clip_to_aoi: clipToAOI.value,
     })
-    activeTask.value = res
-    toolResult.value = res
+
+    activeTask.value = { ...queued, progress: 0 }
+
+    // Poll processing task until completion or failure
+    let finalTask: any = queued
+    for (let attempt = 0; attempt < 240; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 750))
+      const statusRes = await api.getProcessingTask(queued.task_id)
+      activeTask.value = statusRes
+      finalTask = statusRes
+      const st = String(statusRes.status || '').toLowerCase()
+      if (st === 'completed' || st === 'failed') {
+        break
+      }
+    }
+
+    if (String(finalTask.status || '').toLowerCase() === 'failed') {
+      throw new Error(finalTask.error || 'Recipe pipeline failed')
+    }
+
+    toolResult.value = {
+      ...finalTask,
+      output_assets: finalTask.output_assets || [],
+    }
     await refreshWorkspace()
   } catch (e: any) {
-    toolError.value = e.message
+    toolError.value = e.message || 'Failed to run recipe pipeline'
   } finally {
     runningPipeline.value = false
   }
