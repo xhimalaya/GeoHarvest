@@ -12,6 +12,7 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Tuple
 
 from sqlalchemy import func
@@ -319,6 +320,8 @@ class ChatService:
             or cfg.get("default_model")
             or ((cfg.get("available_models") or [""])[0])
         )
+        if pid == "gemini":
+            default_model = GeminiProvider.resolve_model(default_model, cfg)
         title = (req.title.strip() if req and req.title else "") or "New Conversation"
         now = _utcnow()
 
@@ -358,6 +361,11 @@ class ChatService:
                 conv.provider = pid
             if req.model is not None and req.model.strip():
                 conv.model = req.model.strip()
+            if conv.provider == "gemini":
+                conv.model = GeminiProvider.resolve_model(
+                    conv.model,
+                    ai_config.get_provider_config("gemini"),
+                )
             conv.updated_at = _utcnow()
             db.commit()
             db.refresh(conv)
@@ -388,7 +396,13 @@ class ChatService:
         system_instruction = (req.system_instruction or "").strip() or DEFAULT_SYSTEM_PROMPT
 
         with self._session_factory() as db:
-            project_context = build_project_context(db, settings.aois_dir)
+            project_context = build_project_context(
+                db,
+                settings.aois_dir,
+                prompt=prompt_text,
+                host_home_path=settings.host_home_path,
+                host_home_mount=Path("/host_home"),
+            )
             system_instruction = f"{system_instruction.rstrip()}\n\n{project_context}"
             conv: Optional[AIConversation] = None
             if req.conversation_id:
@@ -400,9 +414,12 @@ class ChatService:
             pid = ai_config.validate_provider_id(raw_pid)
             cfg = ai_config.get_provider_config(pid)
 
+            explicit_model = (req.model or "").strip()
             same_provider_model = conv.model if (conv and conv.provider == pid and conv.model) else ""
+            if pid == "gemini" and not explicit_model and same_provider_model:
+                same_provider_model = GeminiProvider.resolve_model(same_provider_model, cfg)
             target_model = (
-                (req.model or "").strip()
+                explicit_model
                 or same_provider_model
                 or cfg.get("default_model")
                 or ((cfg.get("available_models") or [""])[0])

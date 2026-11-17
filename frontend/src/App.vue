@@ -415,7 +415,11 @@
 
       <!-- Main View Content -->
       <main class="flex-1 overflow-hidden relative">
-        <router-view />
+        <router-view v-slot="{ Component }">
+          <keep-alive include="AskView">
+            <component :is="Component" />
+          </keep-alive>
+        </router-view>
       </main>
     </div>
 

@@ -762,6 +762,8 @@ import {
   type OllamaPullProgress,
 } from '../utils/ollamaPull'
 
+defineOptions({ name: 'AskView' })
+
 type ProviderId = 'gemini' | 'claude' | 'ollama' | 'antigravity'
 
 interface ProviderSpec {
@@ -808,10 +810,10 @@ const V1_PROVIDERS: ProviderSpec[] = [
     supportsBaseUrl: false,
     allowManualModel: true,
     defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-    defaultModel: 'gemini-2.5-pro',
+    defaultModel: '',
     keyPlaceholder: 'AIzaSy...',
-    description: 'Google Gemini API with API key authentication and SSE streaming.',
-    presetModels: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'],
+    description: 'Google Gemini Interactions API with API key authentication and SSE streaming.',
+    presetModels: [],
   },
   {
     id: 'claude',
@@ -855,7 +857,7 @@ const V1_PROVIDERS: ProviderSpec[] = [
     defaultModel: 'gemini-3.8-flash',
     keyPlaceholder: 'API key (or Vertex ADC below)',
     description: 'Google Antigravity Python SDK (LocalAgentConfig chat runtime).',
-    presetModels: ['gemini-3.8-flash', 'gemini-2.5-pro', 'gemini-2.5-flash'],
+    presetModels: ['gemini-3.8-flash', 'gemini-3.1-pro-preview', 'gemini-3.1-flash-lite'],
   },
 ]
 
@@ -886,7 +888,7 @@ const messages = ref<ChatMessage[]>([])
 
 const aiStatus = ref<any>(null)
 const selectedProvider = ref<ProviderId>('gemini')
-const selectedModel = ref<string>('gemini-2.5-pro')
+const selectedModel = ref<string>('')
 const manualModelMode = ref(false)
 const isRefreshingOllama = ref(false)
 const ollamaPullTag = ref('qwen2.5-coder:3b')
@@ -1009,7 +1011,9 @@ async function fetchStatus(refreshOllama = true) {
       selectedModel.value = defaultModelFor(selectedProvider.value)
     }
   } catch {
-    // Non-fatal UI fallback
+    if (!selectedModel.value) {
+      selectedModel.value = defaultModelFor(selectedProvider.value)
+    }
   }
 }
 
@@ -1301,6 +1305,9 @@ async function sendMessage() {
         }
         if (payload.model) {
           assistantMsg.model = payload.model
+          if (payload.provider === 'gemini' && selectedProvider.value === 'gemini') {
+            selectedModel.value = payload.model
+          }
         }
       } else if (evName === 'delta') {
         assistantMsg.content += payload.delta || ''

@@ -28,6 +28,8 @@ from backend.core.processing.scene_stacker import (
     scene_stacking_service,
     run_scene_stack_task,
     run_single_raster_publish_task,
+    reproject_file_to_crs_task,
+    normalize_target_crs,
 )
 from backend.core.satellites.bands import (
     resolve_scene_band_selection,
@@ -164,8 +166,14 @@ class JobEngine:
         target_resolution: Union[str, float] = "finest",
         resampling_method: str = "bilinear",
         allow_reproject: bool = False,
+        target_crs: Optional[str] = "EPSG:4326",
         order_by: Optional[str] = None,
     ) -> Job:
+        try:
+            resolved_target_crs = normalize_target_crs(target_crs)
+        except Exception as exc:
+            raise ValueError(f"Invalid target_crs '{target_crs}': {exc}") from exc
+
         job_id = f"job_{uuid.uuid4().hex[:12]}"
         now = datetime.datetime.utcnow()
 
@@ -421,6 +429,7 @@ class JobEngine:
                 "target_resolution": target_resolution,
                 "resampling_method": resampling_method,
                 "allow_reproject": allow_reproject,
+                "target_crs": resolved_target_crs,
                 "order_by": order_by,
             },
             "scene_order": scene_order,
@@ -472,6 +481,10 @@ class JobEngine:
             )
             dl_to_scene: Dict[str, str] = dict(meta_snapshot.get("dl_to_scene") or {})
             stacking_cfg: Dict[str, Any] = dict(meta_snapshot.get("stacking_config") or {})
+            try:
+                job_target_crs = normalize_target_crs(stacking_cfg.get("target_crs"))
+            except Exception:
+                job_target_crs = None
 
             # Map asset url lookup
             asset_urls: Dict[str, str] = {}
@@ -564,14 +577,47 @@ class JobEngine:
                     }
 
                     if not plan.get("stack_enabled"):
+                        direct_raster_exts = {".tif", ".tiff", ".jp2", ".img", ".vrt"}
+                        direct_crs: Optional[str] = None
                         cat_db = SessionLocal()
                         try:
                             downloaded_assets: Dict[str, Path] = {}
                             for bs in plan.get("bands") or []:
-                                dl_obj = dl_by_id.get(bs.get("download_id"))
+                                did = bs.get("download_id")
+                                dl_obj = dl_by_id.get(did)
                                 dest_str = dl_obj.destination if dl_obj else bs.get("path")
-                                if dest_str:
-                                    downloaded_assets[bs["key"]] = Path(dest_str)
+                                if not dest_str:
+                                    continue
+                                dest_p = Path(dest_str)
+                                if (
+                                    job_target_crs
+                                    and dest_p.exists()
+                                    and dest_p.is_file()
+                                    and dest_p.suffix.lower() in direct_raster_exts
+                                ):
+                                    reproj_res = await GeoProcessExecutor.run_cpu_bound(
+                                        reproject_file_to_crs_task,
+                                        str(dest_p),
+                                        job_target_crs,
+                                        stacking_cfg.get("resampling_method", "bilinear"),
+                                    )
+                                    out_p = Path(reproj_res.get("output_path") or dest_p)
+                                    if reproj_res.get("crs"):
+                                        direct_crs = reproj_res["crs"]
+                                    if out_p != dest_p or reproj_res.get("reprojected"):
+                                        dest_p = out_p
+                                        bs["path"] = str(out_p)
+                                        if did:
+                                            db_dl = cat_db.query(Download).filter(Download.id == did).first()
+                                            if db_dl:
+                                                db_dl.destination = str(out_p)
+                                                if out_p.exists():
+                                                    sz = out_p.stat().st_size
+                                                    db_dl.total_bytes = sz
+                                                    db_dl.downloaded_bytes = sz
+                                downloaded_assets[bs["key"]] = dest_p
+                            cat_db.commit()
+                            direct_meta = {"crs": direct_crs} if direct_crs else None
                             try:
                                 catalog_engine.add_scene_to_catalog(
                                     collection_id=plan.get("collection") or "sentinel-2-l2a",
@@ -581,6 +627,7 @@ class JobEngine:
                                     acquisition_time=plan.get("datetime", ""),
                                     downloaded_assets=downloaded_assets,
                                     db=cat_db,
+                                    stacked_metadata=direct_meta,
                                 )
                             except TypeError:
                                 catalog_engine.add_scene_to_catalog(
@@ -662,6 +709,7 @@ class JobEngine:
                             existing_val = scene_stacking_service.validate_stacked_output(
                                 output_path=final_path,
                                 expected_bands=expected_val_target,
+                                expected_crs=job_target_crs,
                                 check_data_readable=True,
                             )
                             if existing_val.get("valid"):
@@ -707,6 +755,7 @@ class JobEngine:
                                     target_resolution=stacking_cfg.get("target_resolution", "finest"),
                                     resampling_method=stacking_cfg.get("resampling_method", "bilinear"),
                                     allow_reproject=bool(stacking_cfg.get("allow_reproject", False)),
+                                    target_crs=job_target_crs,
                                     order_by=order_by,
                                     compression="deflate",
                                     tiled=True,
@@ -720,6 +769,8 @@ class JobEngine:
                                     first_band["key"],
                                     first_band["path"],
                                     str(final_path),
+                                    target_crs=job_target_crs,
+                                    resampling_method=stacking_cfg.get("resampling_method", "bilinear"),
                                     compression="deflate",
                                     tiled=True,
                                 )
@@ -728,6 +779,7 @@ class JobEngine:
                             post_val = scene_stacking_service.validate_stacked_output(
                                 output_path=final_path,
                                 expected_bands=expected_val_target,
+                                expected_crs=job_target_crs,
                                 check_data_readable=True,
                             )
                             if not post_val.get("valid"):
@@ -1096,6 +1148,7 @@ class JobEngine:
                 existing_val = scene_stacking_service.validate_stacked_output(
                     output_path=final_path,
                     expected_bands=expected_val_target,
+                    expected_crs=job_target_crs,
                     check_data_readable=True,
                 )
                 if not existing_val.get("valid"):
@@ -1134,10 +1187,10 @@ class JobEngine:
                 return True
 
             if has_scene_plans and scene_order:
-                # Group downloads by scene so each scene completes all its selected bands and
-                # immediately stacks into its final multiband GeoTIFF before workers spread across all scenes.
-                max_bands = max((len((scene_plans_snapshot or {}).get(s_id, {}).get("download_ids") or []) for s_id in scene_order), default=1)
-                concurrent_scenes = max(1, self.max_workers // max(1, max_bands))
+                # Keep four scene pipelines active independently of how many bands each scene needs.
+                # Limit bands within each scene so the global download pool is shared fairly.
+                concurrent_scenes = min(4, len(scene_order), max(1, self.max_workers))
+                per_scene_band_workers = max(1, self.max_workers // concurrent_scenes)
                 scene_dl_sem = asyncio.Semaphore(concurrent_scenes)
                 assigned_dl_ids = {
                     did
@@ -1157,8 +1210,15 @@ class JobEngine:
                         skipped = await try_skip_existing_scene_output(s_id)
                         if not skipped and s_dl_ids:
                             await update_scene_plan_metadata(s_id, status="downloading", error=None)
+
+                            scene_band_sem = asyncio.Semaphore(per_scene_band_workers)
+
+                            async def process_scene_download(did: str):
+                                async with scene_band_sem:
+                                    await process_download(did, auto_finalize=False)
+
                             scene_tasks = [
-                                asyncio.create_task(process_download(did, auto_finalize=False))
+                                asyncio.create_task(process_scene_download(did))
                                 for did in s_dl_ids
                             ]
                             await asyncio.gather(*scene_tasks, return_exceptions=True)

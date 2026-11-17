@@ -415,6 +415,93 @@ def _match_band_value(arr: np.ndarray, target_val: float) -> np.ndarray:
     return arr == target_val
 
 
+def normalize_target_crs(target_crs: Optional[str]) -> Optional[str]:
+    """Normalize an optional target CRS string; treat empty/'native'/'source'/'none' as None (native CRS)."""
+    if target_crs is None:
+        return None
+    cleaned = str(target_crs).strip()
+    if not cleaned or cleaned.lower() in {"native", "source", "none"}:
+        return None
+    return CRS.from_user_input(cleaned).to_string()
+
+
+def _build_gtiff_profile(
+    *,
+    width: int,
+    height: int,
+    count: int,
+    dtype: str,
+    crs: CRS,
+    transform: Affine,
+    nodata: Optional[float] = None,
+    interleave: str = "band",
+    tiled: bool = True,
+    block_size: int = 256,
+    compression: Optional[str] = "deflate",
+) -> Dict[str, Any]:
+    """Construct a GeoTIFF creation profile with consistent tiling, compression, and predictor."""
+    profile: Dict[str, Any] = {
+        "driver": "GTiff",
+        "width": int(width),
+        "height": int(height),
+        "count": int(count),
+        "dtype": dtype,
+        "crs": crs,
+        "transform": transform,
+        "interleave": interleave,
+        "bigtiff": "IF_SAFER",
+    }
+    if nodata is not None:
+        profile["nodata"] = nodata
+    block_dim = max(16, (int(block_size) // 16) * 16)
+    if tiled:
+        profile.update(tiled=True, blockxsize=block_dim, blockysize=block_dim)
+    if compression and str(compression).lower() != "none":
+        comp_norm = str(compression).lower()
+        profile["compress"] = comp_norm
+        if comp_norm in {"deflate", "lzw", "zstd"}:
+            profile["predictor"] = 3 if np.issubdtype(np.dtype(dtype), np.floating) else 2
+        profile["num_threads"] = "ALL_CPUS"
+    return profile
+
+
+def _stream_warped_vrt(
+    src: Any,
+    dst: Any,
+    *,
+    dst_crs: CRS,
+    dst_transform: Affine,
+    dst_width: int,
+    dst_height: int,
+    resampling: Resampling,
+    out_dtype: str,
+    src_nodata: Optional[float] = None,
+    dst_nodata: Optional[float] = None,
+    dst_band_idx: Optional[int] = None,
+    chunk_size: int = 1024,
+) -> None:
+    """Warp a rasterio source through WarpedVRT in bounded chunk windows into an open GTiff writer."""
+    vrt_kwargs: Dict[str, Any] = {
+        "crs": dst_crs,
+        "transform": dst_transform,
+        "width": int(dst_width),
+        "height": int(dst_height),
+        "resampling": resampling,
+        "dtype": out_dtype,
+    }
+    if src_nodata is not None:
+        vrt_kwargs["src_nodata"] = src_nodata
+    if dst_nodata is not None:
+        vrt_kwargs["nodata"] = dst_nodata
+
+    with WarpedVRT(src, **vrt_kwargs) as vrt:
+        for win in _iter_chunk_windows(int(dst_width), int(dst_height), chunk_size):
+            if dst_band_idx is not None:
+                dst.write(vrt.read(1, window=win, out_dtype=out_dtype), dst_band_idx, window=win)
+            else:
+                dst.write(vrt.read(window=win, out_dtype=out_dtype), window=win)
+
+
 class SceneStackingService:
     """Validates, harmonizes, and stacks single-scene spectral bands into a multiband GeoTIFF."""
 
@@ -516,34 +603,19 @@ class SceneStackingService:
                     f"Target nodata {plan.target_nodata} cannot be represented in {out_dtype}"
                 )
 
-        profile: Dict[str, Any] = {
-            "driver": "GTiff",
-            "width": plan.target_width,
-            "height": plan.target_height,
-            "count": len(plan.bands),
-            "dtype": out_dtype,
-            "crs": plan.target_crs,
-            "transform": plan.target_transform,
-            "interleave": "band",
-            "bigtiff": "IF_SAFER",
-        }
-        if plan.target_nodata is not None:
-            profile["nodata"] = plan.target_nodata
-
-        block_dim = max(16, (int(block_size) // 16) * 16)
-        if tiled:
-            profile.update(
-                tiled=True,
-                blockxsize=block_dim,
-                blockysize=block_dim,
-            )
-
-        if compression and str(compression).lower() != "none":
-            comp_norm = str(compression).lower()
-            profile["compress"] = comp_norm
-            if comp_norm in {"deflate", "lzw", "zstd"}:
-                profile["predictor"] = 3 if np.issubdtype(np.dtype(out_dtype), np.floating) else 2
-            profile["num_threads"] = "ALL_CPUS"
+        profile = _build_gtiff_profile(
+            width=plan.target_width,
+            height=plan.target_height,
+            count=len(plan.bands),
+            dtype=out_dtype,
+            crs=plan.target_crs,
+            transform=plan.target_transform,
+            nodata=plan.target_nodata,
+            interleave="band",
+            tiled=tiled,
+            block_size=block_size,
+            compression=compression,
+        )
 
         try:
             self._write_stacked_geotiff(
@@ -870,22 +942,25 @@ class SceneStackingService:
 
         # CRS compatibility check
         ref_crs = inspected[0].crs
-        if target_crs:
-            try:
-                resolved_target_crs = CRS.from_user_input(target_crs)
-            except Exception as exc:
-                raise SceneValidationError(f"Invalid target_crs '{target_crs}': {exc}") from exc
-        else:
-            resolved_target_crs = ref_crs
+        try:
+            norm_target_crs = normalize_target_crs(target_crs)
+            resolved_target_crs = CRS.from_user_input(norm_target_crs) if norm_target_crs else ref_crs
+        except Exception as exc:
+            raise SceneValidationError(f"Invalid target_crs '{target_crs}': {exc}") from exc
 
-        mismatched_crs = [b for b in inspected if b.crs != resolved_target_crs]
-        if mismatched_crs and not allow_reproject:
+        distinct_input_crs: List[CRS] = []
+        for b in inspected:
+            if b.crs not in distinct_input_crs:
+                distinct_input_crs.append(b.crs)
+
+        if len(distinct_input_crs) > 1 and not allow_reproject:
             crs_summary = ", ".join(f"{b.spec.key}={b.crs.to_string()}" for b in inspected)
             raise SceneValidationError(
                 f"CRS mismatch across scene bands ({crs_summary}); expected {resolved_target_crs.to_string()}"
             )
 
-        if mismatched_crs and allow_reproject:
+        mismatched_crs = [b for b in inspected if b.crs != resolved_target_crs]
+        if mismatched_crs:
             for b in mismatched_crs:
                 try:
                     pyproj.Transformer.from_crs(b.crs.to_wkt(), resolved_target_crs.to_wkt(), always_xy=True)
@@ -938,9 +1013,15 @@ class SceneStackingService:
 
         if any(band_needs_warp):
             res_list = ", ".join(f"{b.spec.key}({b.res[0]:.6g})" for b in inspected)
-            warnings.append(
-                f"Harmonized heterogeneous band resolutions [{res_list}] to ({target_res[0]:.6g}, {target_res[1]:.6g})"
-            )
+            if mismatched_crs:
+                warnings.append(
+                    f"Reprojected and harmonized bands [{res_list}] to {resolved_target_crs.to_string()} "
+                    f"({target_res[0]:.6g}, {target_res[1]:.6g})"
+                )
+            else:
+                warnings.append(
+                    f"Harmonized heterogeneous band resolutions [{res_list}] to ({target_res[0]:.6g}, {target_res[1]:.6g})"
+                )
 
         # Dtype promotion
         input_dtypes = [b.dtype for b in inspected]
@@ -1298,23 +1379,20 @@ class SceneStackingService:
 
                 with rasterio.open(str(band.spec.path)) as src:
                     if needs_warp:
-                        vrt_kwargs: Dict[str, Any] = {
-                            "crs": plan.target_crs,
-                            "transform": plan.target_transform,
-                            "width": plan.target_width,
-                            "height": plan.target_height,
-                            "resampling": resamp_enum,
-                            "dtype": out_dtype,
-                        }
-                        if band.nodata is not None:
-                            vrt_kwargs["src_nodata"] = band.nodata
-                        if plan.target_nodata is not None:
-                            vrt_kwargs["nodata"] = plan.target_nodata
-
-                        with WarpedVRT(src, **vrt_kwargs) as vrt:
-                            for win in _iter_chunk_windows(plan.target_width, plan.target_height, chunk_size):
-                                data = vrt.read(1, window=win, out_dtype=out_dtype)
-                                dst.write(data, idx, window=win)
+                        _stream_warped_vrt(
+                            src,
+                            dst,
+                            dst_crs=plan.target_crs,
+                            dst_transform=plan.target_transform,
+                            dst_width=plan.target_width,
+                            dst_height=plan.target_height,
+                            resampling=resamp_enum,
+                            out_dtype=out_dtype,
+                            src_nodata=band.nodata,
+                            dst_nodata=plan.target_nodata,
+                            dst_band_idx=idx,
+                            chunk_size=chunk_size,
+                        )
                     else:
                         remap_nodata = (
                             band.nodata is not None
@@ -1412,6 +1490,8 @@ class SceneStackingService:
         input_path: Union[str, Path],
         output_path: Union[str, Path],
         *,
+        target_crs: Optional[str] = None,
+        resampling_method: str = "bilinear",
         compression: Optional[str] = "deflate",
         tiled: bool = True,
         block_size: int = 256,
@@ -1419,7 +1499,7 @@ class SceneStackingService:
         atomic: bool = True,
         cleanup_partial_on_error: bool = True,
     ) -> Dict[str, Any]:
-        """Validate and atomically publish a single (possibly multi-band, e.g. TCI RGB) raster as one GeoTIFF."""
+        """Validate, optionally reproject, and atomically publish a single raster as one GeoTIFF."""
         src_path = Path(input_path)
         if not src_path.exists() or not src_path.is_file() or src_path.stat().st_size == 0:
             raise SceneValidationError(f"Missing or empty raster file for '{asset_key}': {src_path}")
@@ -1427,6 +1507,11 @@ class SceneStackingService:
             raise SceneValidationError(
                 f"Non-raster ancillary asset '{asset_key}' ({src_path.name}) cannot be published as GeoTIFF"
             )
+
+        resampling_key = str(resampling_method or "bilinear").strip().lower()
+        if resampling_key not in _RESAMPLING_MAP:
+            raise SceneValidationError(f"Unsupported resampling_method '{resampling_method}'")
+        resamp_enum = _RESAMPLING_MAP[resampling_key]
 
         scene_ctx = _extract_scene_context(scene)
         final_path = Path(output_path).resolve()
@@ -1439,6 +1524,7 @@ class SceneStackingService:
         if write_path.exists():
             write_path.unlink()
 
+        warnings: List[str] = []
         try:
             with rasterio.open(str(src_path)) as src:
                 if src.width <= 0 or src.height <= 0 or src.count < 1:
@@ -1451,31 +1537,46 @@ class SceneStackingService:
                 if t is None or abs(t.a) <= 0 or abs(t.e) <= 0:
                     raise SceneValidationError(f"Asset '{asset_key}' has invalid geotransform: {t}")
 
+                try:
+                    norm_target_crs = normalize_target_crs(target_crs)
+                    resolved_target_crs = CRS.from_user_input(norm_target_crs) if norm_target_crs else src.crs
+                except Exception as exc:
+                    raise SceneValidationError(f"Invalid target_crs '{target_crs}': {exc}") from exc
+
+                needs_reproject = src.crs != resolved_target_crs
+                if needs_reproject:
+                    try:
+                        pyproj.Transformer.from_crs(src.crs.to_wkt(), resolved_target_crs.to_wkt(), always_xy=True)
+                    except Exception as exc:
+                        raise SceneValidationError(
+                            f"Incompatible CRS transform for '{asset_key}': {exc}"
+                        ) from exc
+                    dst_transform, dst_width_raw, dst_height_raw = calculate_default_transform(
+                        src.crs, resolved_target_crs, int(src.width), int(src.height), *src.bounds
+                    )
+                    dst_width, dst_height = int(dst_width_raw), int(dst_height_raw)
+                    warnings.append(
+                        f"Reprojected raster from {src.crs.to_string()} to {resolved_target_crs.to_string()}"
+                    )
+                else:
+                    dst_transform = src.transform
+                    dst_width, dst_height = int(src.width), int(src.height)
+
                 out_dtype = str(src.dtypes[0])
                 band_count = int(src.count)
-                profile: Dict[str, Any] = {
-                    "driver": "GTiff",
-                    "width": int(src.width),
-                    "height": int(src.height),
-                    "count": band_count,
-                    "dtype": out_dtype,
-                    "crs": src.crs,
-                    "transform": src.transform,
-                    "interleave": "pixel" if band_count == 3 else "band",
-                    "bigtiff": "IF_SAFER",
-                }
-                if src.nodata is not None:
-                    profile["nodata"] = src.nodata
-
-                block_dim = max(16, (int(block_size) // 16) * 16)
-                if tiled:
-                    profile.update(tiled=True, blockxsize=block_dim, blockysize=block_dim)
-                if compression and str(compression).lower() != "none":
-                    comp_norm = str(compression).lower()
-                    profile["compress"] = comp_norm
-                    if comp_norm in {"deflate", "lzw", "zstd"}:
-                        profile["predictor"] = 3 if np.issubdtype(np.dtype(out_dtype), np.floating) else 2
-                    profile["num_threads"] = "ALL_CPUS"
+                profile = _build_gtiff_profile(
+                    width=dst_width,
+                    height=dst_height,
+                    count=band_count,
+                    dtype=out_dtype,
+                    crs=resolved_target_crs,
+                    transform=dst_transform,
+                    nodata=src.nodata,
+                    interleave="pixel" if band_count == 3 else "band",
+                    tiled=tiled,
+                    block_size=block_size,
+                    compression=compression,
+                )
 
                 band_names: List[str] = []
                 for idx in range(1, band_count + 1):
@@ -1493,11 +1594,41 @@ class SceneStackingService:
                     elif src.colorinterp:
                         dst.colorinterp = list(src.colorinterp)
 
-                    for idx in range(1, band_count + 1):
-                        for win in _iter_chunk_windows(int(src.width), int(src.height), chunk_size):
-                            dst.write(src.read(idx, window=win), idx, window=win)
-                        dst.set_band_description(idx, band_names[idx - 1])
-                        dst.update_tags(idx, BAND_KEY=asset_key, BAND_NAME=band_names[idx - 1], SOURCE_FILENAME=src_path.name)
+                    if needs_reproject:
+                        _stream_warped_vrt(
+                            src,
+                            dst,
+                            dst_crs=resolved_target_crs,
+                            dst_transform=dst_transform,
+                            dst_width=dst_width,
+                            dst_height=dst_height,
+                            resampling=resamp_enum,
+                            out_dtype=out_dtype,
+                            src_nodata=src.nodata,
+                            dst_nodata=src.nodata,
+                            chunk_size=chunk_size,
+                        )
+                        for idx in range(1, band_count + 1):
+                            dst.set_band_description(idx, band_names[idx - 1])
+                            dst.update_tags(
+                                idx,
+                                BAND_KEY=asset_key,
+                                BAND_NAME=band_names[idx - 1],
+                                SOURCE_FILENAME=src_path.name,
+                                RESAMPLING=resampling_key,
+                            )
+                    else:
+                        for idx in range(1, band_count + 1):
+                            for win in _iter_chunk_windows(dst_width, dst_height, chunk_size):
+                                dst.write(src.read(idx, window=win), idx, window=win)
+                            dst.set_band_description(idx, band_names[idx - 1])
+                            dst.update_tags(
+                                idx,
+                                BAND_KEY=asset_key,
+                                BAND_NAME=band_names[idx - 1],
+                                SOURCE_FILENAME=src_path.name,
+                                RESAMPLING="native",
+                            )
 
                     ds_tags: Dict[str, str] = {
                         "BAND_COUNT": str(band_count),
@@ -1522,8 +1653,8 @@ class SceneStackingService:
                 val_result = self.validate_stacked_output(
                     output_path=write_path,
                     expected_bands=band_names,
-                    expected_crs=src.crs.to_string(),
-                    expected_shape=(int(src.height), int(src.width)),
+                    expected_crs=resolved_target_crs.to_string(),
+                    expected_shape=(dst_height, dst_width),
                     expected_dtype=out_dtype,
                     check_data_readable=True,
                 )
@@ -1557,7 +1688,7 @@ class SceneStackingService:
             "nodata": metadata["nodata"],
             "tiled": metadata["tiled"],
             "compression": metadata["compression"],
-            "warnings": [],
+            "warnings": warnings,
             "metadata": metadata,
         }
 
@@ -1572,6 +1703,7 @@ def run_scene_stack_task(
     target_resolution: Union[str, float, Tuple[float, float]] = "finest",
     resampling_method: str = "bilinear",
     allow_reproject: bool = False,
+    target_crs: Optional[str] = None,
     order_by: str = "explicit",
     compression: Optional[str] = "deflate",
     tiled: bool = True,
@@ -1585,6 +1717,7 @@ def run_scene_stack_task(
         target_resolution=target_resolution,
         resampling_method=resampling_method,
         allow_reproject=allow_reproject,
+        target_crs=target_crs,
         order_by=order_by,
         compression=compression,
         tiled=tiled,
@@ -1597,6 +1730,8 @@ def run_single_raster_publish_task(
     asset_key: str,
     input_path: str,
     output_path: str,
+    target_crs: Optional[str] = None,
+    resampling_method: str = "bilinear",
     compression: Optional[str] = "deflate",
     tiled: bool = True,
 ) -> Dict[str, Any]:
@@ -1606,6 +1741,91 @@ def run_single_raster_publish_task(
         asset_key=asset_key,
         input_path=input_path,
         output_path=output_path,
+        target_crs=target_crs,
+        resampling_method=resampling_method,
         compression=compression,
         tiled=tiled,
     )
+
+
+def reproject_file_to_crs_task(
+    input_path: str,
+    target_crs: Optional[str],
+    resampling_method: str = "bilinear",
+    chunk_size: int = 1024,
+) -> Dict[str, Any]:
+    """Reproject a direct-downloaded raster in-place to target_crs when its CRS differs."""
+    src_path = Path(input_path).resolve()
+    norm_target = normalize_target_crs(target_crs)
+    if not norm_target or not src_path.exists() or not src_path.is_file():
+        return {"reprojected": False, "output_path": str(src_path), "crs": None}
+
+    resampling_key = str(resampling_method or "bilinear").strip().lower()
+    resamp_enum = _RESAMPLING_MAP.get(resampling_key, Resampling.bilinear)
+    dst_crs = CRS.from_user_input(norm_target)
+
+    with rasterio.open(str(src_path)) as src:
+        if src.crs is None:
+            return {"reprojected": False, "output_path": str(src_path), "crs": None}
+        if src.crs == dst_crs:
+            return {"reprojected": False, "output_path": str(src_path), "crs": src.crs.to_string()}
+
+        pyproj.Transformer.from_crs(src.crs.to_wkt(), dst_crs.to_wkt(), always_xy=True)
+        dst_transform, dst_width_raw, dst_height_raw = calculate_default_transform(
+            src.crs, dst_crs, int(src.width), int(src.height), *src.bounds
+        )
+        dst_width, dst_height = int(dst_width_raw), int(dst_height_raw)
+        out_dtype = str(src.dtypes[0])
+        band_count = int(src.count)
+
+        final_path = src_path if src_path.suffix.lower() in {".tif", ".tiff"} else src_path.with_suffix(".tif")
+        tmp_path = final_path.with_name(f"{final_path.stem}.reproj.partial.tif")
+        if tmp_path.exists():
+            tmp_path.unlink()
+
+        profile = _build_gtiff_profile(
+            width=dst_width,
+            height=dst_height,
+            count=band_count,
+            dtype=out_dtype,
+            crs=dst_crs,
+            transform=dst_transform,
+            nodata=src.nodata,
+            interleave="pixel" if band_count == 3 else "band",
+        )
+
+        try:
+            with rasterio.open(str(tmp_path), "w", **profile) as dst:
+                if src.colorinterp:
+                    dst.colorinterp = list(src.colorinterp)
+                _stream_warped_vrt(
+                    src,
+                    dst,
+                    dst_crs=dst_crs,
+                    dst_transform=dst_transform,
+                    dst_width=dst_width,
+                    dst_height=dst_height,
+                    resampling=resamp_enum,
+                    out_dtype=out_dtype,
+                    src_nodata=src.nodata,
+                    dst_nodata=src.nodata,
+                    chunk_size=chunk_size,
+                )
+                for idx in range(1, band_count + 1):
+                    if src.descriptions[idx - 1]:
+                        dst.set_band_description(idx, src.descriptions[idx - 1])
+                    b_tags = dict(src.tags(idx))
+                    if b_tags:
+                        dst.update_tags(idx, **b_tags)
+                ds_tags = dict(src.tags())
+                if ds_tags:
+                    dst.update_tags(**ds_tags)
+        except Exception:
+            if tmp_path.exists():
+                tmp_path.unlink(missing_ok=True)
+            raise
+
+    os.replace(str(tmp_path), str(final_path))
+    if final_path != src_path and src_path.exists():
+        src_path.unlink(missing_ok=True)
+    return {"reprojected": True, "output_path": str(final_path), "crs": dst_crs.to_string()}

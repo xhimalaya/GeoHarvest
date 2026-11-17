@@ -26,6 +26,7 @@ export const useHarvestStore = defineStore('harvest', {
     // Harvest Task and Manual Destination settings
     harvestTaskName: 'Ladakh_Cryo_S2',
     customDestinationDir: '',
+    outputCrs: 'EPSG:4326',
     destinationInfo: null as StorageDestinationInfo | null,
 
     // Multi-domain master catalog
@@ -854,6 +855,18 @@ export const useHarvestStore = defineStore('harvest', {
       this.calculateStorage()
     },
 
+    selectAllBands() {
+      this.selectedBands = this.availableBands.map((band) => band.id)
+      this.calculateStorage()
+    },
+
+    selectDefaultBands() {
+      this.selectedBands = (this.currentSatellite?.bands || [])
+        .filter((band) => band.is_default)
+        .map((band) => band.id)
+      this.calculateStorage()
+    },
+
     async search() {
       if (!this.aoi && !this.aoiAnalysis?.bbox) {
         this.errorMessage = 'Please draw or upload an Area of Interest (AOI) first.'
@@ -933,6 +946,7 @@ export const useHarvestStore = defineStore('harvest', {
           bands: this.selectedBands,
           aoi: this.aoi,
           destination_dir: finalDest,
+          target_crs: this.outputCrs || 'EPSG:4326',
         })
         return job
       } catch (e: any) {
@@ -1117,6 +1131,7 @@ export const useHarvestStore = defineStore('harvest', {
             geometry: item.geometry,
           }],
           destination_dir: dest,
+          target_crs: this.outputCrs || 'EPSG:4326',
         })
         this.toposheetHarvestMessage = `Harvest job started (${res.id}) for sheet ${item.sheet_number}! Saving to ${dest}`
         return res
@@ -1156,6 +1171,7 @@ export const useHarvestStore = defineStore('harvest', {
           name: `Batch_TopoSheet_Harvest_${sheets.length}`,
           sheets,
           destination_dir: dest,
+          target_crs: this.outputCrs || 'EPSG:4326',
         })
         let msg = `Batch harvest job started (${res.id}) for ${sheets.length} sheet(s)! Saving to ${dest}`
         if (portalOnlySheets.length > 0) {

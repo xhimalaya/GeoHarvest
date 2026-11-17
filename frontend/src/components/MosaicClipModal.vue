@@ -225,8 +225,8 @@
             <div>
               <span class="gh-text-secondary block mb-1">Target CRS</span>
               <select v-model="targetCrs" class="w-full gh-input px-2.5 py-1.5 text-[12.5px]">
-                <option value="auto_utm">Auto UTM (Optimal for AOI)</option>
                 <option value="EPSG:4326">EPSG:4326 (WGS 84 Geographic)</option>
+                <option value="auto_utm">Auto UTM (Optimal for AOI)</option>
                 <option value="EPSG:3857">EPSG:3857 (Web Mercator)</option>
                 <option value="">Keep Native Projection</option>
               </select>
@@ -321,7 +321,7 @@ const selectedAssetIds = ref<string[]>([])
 const selectedBand = ref<string>('all')
 const clipMode = ref<'aoi' | 'custom' | 'none'>('aoi')
 const customGeoJsonText = ref('')
-const targetCrs = ref('auto_utm')
+const targetCrs = ref('EPSG:4326')
 const nodata = ref(0)
 const toCog = ref(true)
 const outputPath = ref('')
@@ -455,7 +455,7 @@ async function runMosaicClip() {
       selected_download_ids: selectedAssetIds.value,
       band: selectedBand.value !== 'all' ? selectedBand.value : undefined,
       aoi_geometry: clipGeometry,
-      target_crs: targetCrs.value || undefined,
+      target_crs: targetCrs.value || 'native',
       nodata: nodata.value,
       to_cog: toCog.value,
       output_path: outputPath.value || undefined,

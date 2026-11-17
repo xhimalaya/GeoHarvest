@@ -578,3 +578,64 @@ def test_single_band_scene_produces_valid_geotiff(tmp_path):
         assert src.descriptions == ("Elevation (m)",)
         assert float(src.read(1)[0, 0]) == pytest.approx(3850.5)
 
+
+@pytest.mark.unit
+@pytest.mark.geospatial
+def test_stack_and_publish_utm_scene_reprojected_to_epsg4326(tmp_path):
+    """Consistent-CRS UTM bands and single RGB rasters reproject cleanly to EPSG:4326."""
+    from backend.core.processing.scene_stacker import reproject_file_to_crs_task
+
+    ox, oy = 684000.0, 3764500.0
+    b_red = _create_band_tif(tmp_path / "red.tif", width=40, height=40, pixel_size=10.0, origin_x=ox, origin_y=oy, crs="EPSG:32643", value=450)
+    b_nir = _create_band_tif(tmp_path / "nir.tif", width=20, height=20, pixel_size=20.0, origin_x=ox, origin_y=oy, crs="EPSG:32643", value=2200)
+    out_stack = tmp_path / "stack_4326.tif"
+
+    res_stack = scene_stacking_service.stack_scene_bands(
+        {"id": "S2_UTM_TO_WGS"},
+        [("red", b_red), ("nir", b_nir)],
+        out_stack,
+        allow_reproject=False,
+        target_crs="EPSG:4326",
+    )
+    assert res_stack["crs"] == "EPSG:4326"
+    with rasterio.open(out_stack) as src:
+        assert src.crs.to_string() == "EPSG:4326"
+        assert src.count == 2
+        assert 76.0 < src.bounds.left < 79.0
+        assert 33.0 < src.bounds.bottom < 35.0
+
+    rgb_utm = _create_band_tif(
+        tmp_path / "tci.tif",
+        width=32,
+        height=32,
+        pixel_size=10.0,
+        origin_x=ox,
+        origin_y=oy,
+        crs="EPSG:32643",
+        dtype="uint8",
+        nodata=None,
+        count=3,
+        value=120,
+    )
+    out_rgb = tmp_path / "rgb_4326.tif"
+    res_rgb = scene_stacking_service.publish_single_raster_geotiff(
+        {"id": "S2_TCI_4326"},
+        "visual",
+        rgb_utm,
+        out_rgb,
+        target_crs="EPSG:4326",
+    )
+    assert res_rgb["crs"] == "EPSG:4326"
+    assert res_rgb["band_descriptions"] == ["Red", "Green", "Blue"]
+    with rasterio.open(out_rgb) as src:
+        assert src.crs.to_string() == "EPSG:4326"
+        assert src.count == 3
+
+    direct_utm = _create_band_tif(tmp_path / "direct_utm.tif", width=24, height=24, pixel_size=30.0, origin_x=ox, origin_y=oy, crs="EPSG:32643", value=777)
+    reproj_res = reproject_file_to_crs_task(str(direct_utm), "EPSG:4326")
+    assert reproj_res["reprojected"] is True
+    assert reproj_res["crs"] == "EPSG:4326"
+    with rasterio.open(direct_utm) as src:
+        assert src.crs.to_string() == "EPSG:4326"
+
+

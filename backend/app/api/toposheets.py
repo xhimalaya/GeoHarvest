@@ -72,6 +72,7 @@ class ToposheetHarvestRequest(BaseModel):
     name: Optional[str] = "TopoSheet Harvest"
     sheets: List[ToposheetHarvestItem]
     destination_dir: Optional[str] = None
+    target_crs: Optional[str] = "EPSG:4326"
 
 
 def _index_features() -> List[Dict[str, Any]]:
@@ -354,7 +355,8 @@ async def harvest_toposheets(request: ToposheetHarvestRequest, db: Session = Dep
         selected_bands=["all"],
         db=db,
         destination_dir=request.destination_dir,
-        is_toposheet=True
+        is_toposheet=True,
+        target_crs=request.target_crs,
     )
 
     downloads_count = db.query(Download).filter(Download.job_id == job.id).count()

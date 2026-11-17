@@ -9,6 +9,7 @@ per V1 Rule 8 (no autonomous task execution, MCP, RAG, or geospatial tools yet).
 import asyncio
 import logging
 import os
+import re
 from typing import Any, AsyncIterator, Dict, List, Optional
 
 from backend.app.dependencies.config import settings
@@ -171,8 +172,9 @@ class AntigravityProvider(BaseAIProvider):
         if not turns:
             raise ProviderRequestError("Cannot send an empty conversation to Antigravity.")
 
+        target_model = (model or config.get("default_model") or PROVIDER_SPECS["antigravity"]["default_model"]).strip()
         sys_prompt, latest_prompt = self._compose_system_and_prompt(turns, system_instruction)
-        sdk_cfg = self._build_config(config, model, sys_prompt)
+        sdk_cfg = self._build_config(config, target_model, sys_prompt)
 
         response = None
         try:
@@ -191,7 +193,15 @@ class AntigravityProvider(BaseAIProvider):
         except (ProviderUnavailableError, ProviderAuthError):
             raise
         except Exception as exc:
-            err_msg = str(exc)
+            err_msg = " ".join(str(exc).split())
+            normalized_error = err_msg.lower()
+            if "429" in normalized_error or "resource_exhausted" in normalized_error or "quota exceeded" in normalized_error:
+                retry_match = re.search(r"retry in\s+([0-9hms.]+)", err_msg, re.IGNORECASE)
+                retry_hint = f" Retry in about {retry_match.group(1)}." if retry_match else " Retry after the provider quota resets."
+                raise ProviderRequestError(
+                    f"Google AI quota reached for {target_model}.{retry_hint} "
+                    "Switch to Ollama or another configured model/provider while it resets."
+                ) from exc
             if "401" in err_msg or "403" in err_msg or "API_KEY_INVALID" in err_msg or "API key" in err_msg.lower():
-                raise ProviderAuthError(f"Antigravity authentication failed: {err_msg}") from exc
-            raise ProviderRequestError(f"Antigravity runtime error: {err_msg}") from exc
+                raise ProviderAuthError(f"Antigravity authentication failed: {err_msg[:500]}") from exc
+            raise ProviderRequestError(f"Antigravity runtime error: {err_msg[:700]}") from exc

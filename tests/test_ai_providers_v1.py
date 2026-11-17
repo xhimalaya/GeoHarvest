@@ -86,6 +86,8 @@ def isolated_ai_store(tmp_path, monkeypatch):
 
     for var in (
         "GEMINI_API_KEY",
+        "GEMINI_MODEL",
+        "GEOHARVEST_GEMINI_MODEL",
         "ANTHROPIC_API_KEY",
         "ANTIGRAVITY_API_KEY",
         "GOOGLE_CLOUD_PROJECT",
@@ -100,6 +102,7 @@ def isolated_ai_store(tmp_path, monkeypatch):
     from backend.app.dependencies.config import settings
 
     monkeypatch.setattr(settings, "gemini_api_key", "")
+    monkeypatch.setattr(settings, "gemini_default_model", "gemini-3.1-pro-preview")
     monkeypatch.setattr(settings, "anthropic_api_key", "")
     yield cfg_file
 
@@ -128,7 +131,7 @@ def test_config_store_prunes_legacy_providers_and_sets_0600(tmp_path):
     )
 
     store = AIConfigStore(config_path=legacy_path)
-    store.update_provider("gemini", default_model="gemini-2.5-pro")
+    store.update_provider("gemini", default_model="gemini-3.1-pro-preview")
     status = store.get_public_status()
 
     assert set(V1_PROVIDER_IDS) == {"gemini", "claude", "ollama", "antigravity"}
@@ -136,11 +139,44 @@ def test_config_store_prunes_legacy_providers_and_sets_0600(tmp_path):
         assert removed not in status
     assert status["active_provider"] in V1_PROVIDER_IDS
     assert status["gemini"]["configured"] is True
+    assert status["gemini"]["default_model"] == "gemini-3.1-pro-preview"
+    assert "gemini-3.8-flash" in status["gemini"]["available_models"]
     assert status["gemini"]["masked_key"].startswith("AIza")
     assert "AIza-keep-me-123456" not in json.dumps(status)
 
     mode = stat.S_IMODE(legacy_path.stat().st_mode)
     assert mode == 0o600
+
+
+def test_gemini_model_env_and_legacy_default_migration(tmp_path, monkeypatch):
+    cfg_path = tmp_path / "ai_legacy_gemini.json"
+    cfg_path.write_text(
+        json.dumps(
+            {
+                "active_provider": "gemini",
+                "providers": {
+                    "gemini": {
+                        "api_key": "AIza-legacy-key-9999",
+                        "default_model": "gemini-2.5-pro",
+                        "custom_models": ["gemini-2.5-pro"],
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    store = AIConfigStore(config_path=cfg_path)
+    default_cfg = store.get_provider_config("gemini")
+    assert default_cfg["default_model"] == "gemini-3.1-pro-preview"
+    assert "gemini-2.5-pro" not in default_cfg["available_models"]
+    assert "gemini-3.8-flash" in default_cfg["available_models"]
+
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-3.8-flash")
+    env_cfg = store.get_provider_config("gemini")
+    assert env_cfg["default_model"] == "gemini-3.8-flash"
+    assert "gemini-3.1-pro-preview" in env_cfg["available_models"]
+    assert "gemini-3.8-flash" in env_cfg["available_models"]
 
 
 def test_normalize_turns_alternation():
@@ -161,79 +197,272 @@ def test_normalize_turns_alternation():
 
 
 # ---------------------------------------------------------------------------
-# 2. Individual Provider Test: Google Gemini
+# 2. Individual Provider Test: Google Gemini (google-genai Interactions API)
 # ---------------------------------------------------------------------------
 
 
+def _make_mock_genai_factory(
+    interactions_calls: List[Dict[str, Any]],
+    *,
+    models_handler,
+    interactions_handler,
+):
+    from types import SimpleNamespace
+
+    class _MockPager:
+        def __init__(self, items: List[Any]):
+            self._items = items
+            self._idx = 0
+
+        def __aiter__(self):
+            self._idx = 0
+            return self
+
+        async def __anext__(self):
+            if self._idx >= len(self._items):
+                raise StopAsyncIteration
+            item = self._items[self._idx]
+            self._idx += 1
+            return item
+
+    class _MockModels:
+        def __init__(self, api_key: str):
+            self._api_key = api_key
+
+        async def list(self, **kwargs):
+            return _MockPager(models_handler(self._api_key, kwargs))
+
+    class _MockInteractions:
+        def __init__(self, api_key: str):
+            self._api_key = api_key
+
+        async def create(self, **kwargs):
+            interactions_calls.append({"api_key": self._api_key, **kwargs})
+            return interactions_handler(self._api_key, kwargs)
+
+    class _MockAio:
+        def __init__(self, api_key: str):
+            self.models = _MockModels(api_key)
+            self.interactions = _MockInteractions(api_key)
+            self.closed = False
+
+        async def aclose(self):
+            self.closed = True
+
+    class _MockClient:
+        def __init__(self, api_key: str, timeout_ms: int = 120_000):
+            self.api_key = api_key
+            self.timeout_ms = timeout_ms
+            self.aio = _MockAio(api_key)
+
+    return _MockClient
+
+
 @pytest.mark.asyncio
-async def test_gemini_provider_unavailable_auth_and_streaming(monkeypatch):
+async def test_gemini_interactions_connection_chat_multiturn_and_models(monkeypatch):
+    from types import SimpleNamespace
+
     provider = GeminiProvider()
     cfg = ai_config.get_provider_config("gemini")
+    assert cfg["default_model"] == "gemini-3.1-pro-preview"
+    assert "gemini-3.8-flash" in cfg["available_models"]
 
     res_missing = await provider.test_connection(cfg)
     assert res_missing["ok"] is False
 
     with pytest.raises(ProviderUnavailableError):
-        await provider.chat([{"role": "user", "content": "Hello"}], "gemini-2.5-pro", cfg)
+        await provider.chat(
+            [{"role": "user", "content": "Hi, are you there? Tell me what you can do."}],
+            "",
+            cfg,
+        )
 
-    calls: List[Dict[str, Any]] = []
+    interactions_calls: List[Dict[str, Any]] = []
 
-    def handler(method: str, url: str, kwargs: Dict[str, Any]):
-        if method == "GET":
-            return _FakeHTTPResponse(
-                200,
-                json_data={
-                    "models": [
-                        {"name": "models/gemini-2.5-pro", "supportedGenerationMethods": ["generateContent"]},
-                        {"name": "models/gemini-2.5-flash", "supportedGenerationMethods": ["generateContent"]},
-                    ]
-                },
-            )
-        if kwargs["headers"].get("x-goog-api-key") == "bad-key":
-            return _FakeHTTPResponse(401, text="Unauthorized API key")
-        return _FakeHTTPResponse(
-            200,
-            lines=[
-                'data: {"candidates":[{"content":{"parts":[{"text":"NDVI "}]}}]}',
-                'data: {"candidates":[{"content":{"parts":[{"text":"is (NIR-Red)/(NIR+Red)."}]}}]}',
-                "data: [DONE]",
-            ],
+    def models_handler(api_key: str, kwargs: Dict[str, Any]):
+        return [
+            SimpleNamespace(name="models/gemini-3.1-pro-preview", supported_actions=["generateContent"]),
+            SimpleNamespace(name="models/gemini-3.8-flash", supported_actions=["generateContent"]),
+            SimpleNamespace(name="models/gemini-2.5-pro", supported_actions=["generateContent"]),
+        ]
+
+    class _AsyncEventStream:
+        def __init__(self, events: List[Any]):
+            self._events = events
+
+        def __aiter__(self):
+            async def _gen():
+                for ev in self._events:
+                    yield ev
+
+            return _gen()
+
+    def interactions_handler(api_key: str, kwargs: Dict[str, Any]):
+        model = kwargs["model"]
+        return _AsyncEventStream(
+            [
+                SimpleNamespace(event_type="interaction.created"),
+                SimpleNamespace(
+                    event_type="step.delta",
+                    delta=SimpleNamespace(type="text", text=f"[{model}] Yes, I am here. "),
+                ),
+                SimpleNamespace(
+                    event_type="step.delta",
+                    delta=SimpleNamespace(type="text", text="I can help with geospatial workflows."),
+                ),
+                SimpleNamespace(
+                    event_type="interaction.completed",
+                    interaction=SimpleNamespace(status="completed"),
+                ),
+            ]
         )
 
     monkeypatch.setattr(
-        "backend.ai.providers.gemini.httpx.AsyncClient",
-        _make_mock_httpx_client(calls, handler),
+        "backend.ai.providers.gemini._create_genai_client",
+        _make_mock_genai_factory(
+            interactions_calls,
+            models_handler=models_handler,
+            interactions_handler=interactions_handler,
+        ),
     )
 
     cfg_valid = dict(cfg, _api_key="test-gemini-secret-key")
     conn = await provider.test_connection(cfg_valid)
     assert conn["ok"] is True
-    assert "gemini-2.5-pro" in conn["models"]
+    assert conn["models"][0] == "gemini-3.1-pro-preview"
+    assert "gemini-3.8-flash" in conn["models"]
+    assert "gemini-2.5-pro" not in conn["models"]
 
+    # Basic single-turn text response with default model (gemini-3.1-pro-preview)
+    basic_reply = await provider.chat(
+        [{"role": "user", "content": "Hi, are you there? Tell me what you can do."}],
+        "",
+        cfg_valid,
+    )
+    assert basic_reply == "[gemini-3.1-pro-preview] Yes, I am here. I can help with geospatial workflows."
+    assert interactions_calls[-1]["model"] == "gemini-3.1-pro-preview"
+    assert interactions_calls[-1]["input"] == "Hi, are you there? Tell me what you can do."
+    assert interactions_calls[-1]["store"] is False
+    assert interactions_calls[-1]["stream"] is True
+
+    # Multi-turn conversation & alternative model selection (gemini-3.8-flash)
     deltas: List[str] = []
     async for chunk in provider.stream_chat(
         messages=[
             {"role": "user", "content": "Define NDVI"},
             {"role": "assistant", "content": "Normalized Difference Vegetation Index."},
-            {"role": "user", "content": "Formula?"},
+            {"role": "user", "content": "Hi, are you there? Tell me what you can do."},
         ],
-        model="gemini-custom-preview",
+        model="gemini-3.8-flash",
         config=cfg_valid,
     ):
         deltas.append(chunk)
 
-    assert "".join(deltas) == "NDVI is (NIR-Red)/(NIR+Red)."
-    stream_call = [c for c in calls if c["method"] == "POST"][0]
-    # Security check: key must be in header, never in query string
-    assert "key=" not in stream_call["url"]
-    assert "gemini-custom-preview:streamGenerateContent?alt=sse" in stream_call["url"]
-    assert stream_call["headers"]["x-goog-api-key"] == "test-gemini-secret-key"
-    contents = stream_call["json"]["contents"]
-    assert [c["role"] for c in contents] == ["user", "model", "user"]
+    assert "".join(deltas) == "[gemini-3.8-flash] Yes, I am here. I can help with geospatial workflows."
+    multi_call = interactions_calls[-1]
+    assert multi_call["model"] == "gemini-3.8-flash"
+    assert multi_call["api_key"] == "test-gemini-secret-key"
+    assert multi_call["generation_config"] == {"thinking_level": "low"}
+    assert multi_call["input"] == [
+        {"type": "user_input", "content": [{"type": "text", "text": "Define NDVI"}]},
+        {"type": "model_output", "content": [{"type": "text", "text": "Normalized Difference Vegetation Index."}]},
+        {"type": "user_input", "content": [{"type": "text", "text": "Hi, are you there? Tell me what you can do."}]},
+    ]
 
-    cfg_bad = dict(cfg, _api_key="bad-key")
-    with pytest.raises(ProviderAuthError):
-        await provider.chat([{"role": "user", "content": "hi"}], "gemini-2.5-pro", cfg_bad)
+    # Verify connection check detects unavailable configured default model when catalog is returned.
+    conn_missing_model = await provider.test_connection(dict(cfg_valid, default_model="gemini-nonexistent"))
+    assert conn_missing_model["ok"] is False
+    assert "404" in conn_missing_model["message"]
+
+
+@pytest.mark.asyncio
+async def test_gemini_client_uses_v1beta_and_fail_fast_retry():
+    from backend.ai.providers.gemini import _create_genai_client
+
+    sdk_client = _create_genai_client("test-key", timeout_ms=15_000)
+    assert sdk_client._api_client._http_options.api_version == "v1beta"
+    assert sdk_client._api_client._http_options.retry_options.attempts == 1
+    await sdk_client.aio.aclose()
+
+
+@pytest.mark.asyncio
+async def test_gemini_interactions_error_handling(monkeypatch):
+    from google.genai import errors as genai_errors
+    from backend.ai.providers.base import ProviderRequestError
+
+    provider = GeminiProvider()
+    cfg = dict(ai_config.get_provider_config("gemini"), _api_key="test-gemini-key")
+
+    def make_sdk_err(code: int, message: str):
+        err = genai_errors.ClientError(code, {"error": {"code": code, "message": message}}, None)
+        return err
+
+    mode = {"case": "auth_401"}
+
+    def models_handler(api_key: str, kwargs: Dict[str, Any]):
+        if mode["case"] == "conn_bad_key":
+            raise make_sdk_err(400, "API key not valid. Please pass a valid API key.")
+        return []
+
+    def interactions_handler(api_key: str, kwargs: Dict[str, Any]):
+        case = mode["case"]
+        if case == "conn_bad_key":
+            raise make_sdk_err(400, "API key not valid. Please pass a valid API key.")
+        if case == "auth_401":
+            raise make_sdk_err(401, "Invalid authentication credentials.")
+        if case == "auth_400":
+            raise make_sdk_err(400, "API key not valid. Please pass a valid API key.")
+        if case == "not_found_404":
+            raise make_sdk_err(404, "models/gemini-2.5-pro is no longer available to new users.")
+        if case == "rate_limit_429":
+            raise make_sdk_err(429, "Quota exceeded for requests per minute.")
+        if case == "timeout":
+            raise TimeoutError("Read timed out")
+        if case == "service_500":
+            raise genai_errors.ServerError(500, {"error": {"code": 500, "message": "Internal error"}}, None)
+        if case == "service_503":
+            raise genai_errors.ServerError(503, {"error": {"code": 503, "message": "Service unavailable"}}, None)
+        raise AssertionError(f"Unexpected case {case}")
+
+    monkeypatch.setattr(
+        "backend.ai.providers.gemini._create_genai_client",
+        _make_mock_genai_factory(
+            [],
+            models_handler=models_handler,
+            interactions_handler=interactions_handler,
+        ),
+    )
+
+    mode["case"] = "conn_bad_key"
+    conn_bad = await provider.test_connection(cfg)
+    assert conn_bad["ok"] is False
+    assert "authentication rejected" in conn_bad["message"].lower()
+
+    for auth_case in ("auth_401", "auth_400"):
+        mode["case"] = auth_case
+        with pytest.raises(ProviderAuthError):
+            await provider.chat([{"role": "user", "content": "Hi, are you there? Tell me what you can do."}], "", cfg)
+
+    mode["case"] = "not_found_404"
+    with pytest.raises(ProviderRequestError, match="404"):
+        await provider.chat(
+            [{"role": "user", "content": "Hi, are you there? Tell me what you can do."}],
+            "gemini-2.5-pro",
+            cfg,
+        )
+
+    mode["case"] = "rate_limit_429"
+    with pytest.raises(ProviderRequestError, match="429"):
+        await provider.chat([{"role": "user", "content": "Hi, are you there? Tell me what you can do."}], "", cfg)
+
+    mode["case"] = "timeout"
+    with pytest.raises(ProviderUnavailableError, match="timed out"):
+        await provider.chat([{"role": "user", "content": "Hi, are you there? Tell me what you can do."}], "", cfg)
+
+    for server_case, code_str in (("service_500", "500"), ("service_503", "503")):
+        mode["case"] = server_case
+        with pytest.raises(ProviderUnavailableError, match=code_str):
+            await provider.chat([{"role": "user", "content": "Hi, are you there? Tell me what you can do."}], "", cfg)
 
 
 # ---------------------------------------------------------------------------
@@ -364,6 +593,79 @@ async def test_ollama_discovery_docker_bridge_streaming_and_offline(monkeypatch)
     assert reply == "QGIS uses GDAL."
 
 
+@pytest.mark.asyncio
+async def test_ollama_host_bridge_not_overridden_by_env_and_404_fallback(monkeypatch):
+    from backend.ai.providers.base import ProviderRequestError
+    from backend.ai.providers.ollama import candidate_ollama_urls
+
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://ollama:11434")
+
+    # Explicit host.docker.internal base_url must stay primary ahead of OLLAMA_BASE_URL fallback.
+    assert candidate_ollama_urls("http://host.docker.internal:11434") == [
+        "http://host.docker.internal:11434",
+        "http://ollama:11434",
+        "http://localhost:11434",
+    ]
+
+    provider = OllamaProvider()
+    calls: List[Dict[str, Any]] = []
+
+    def split_models_handler(method: str, url: str, kwargs: Dict[str, Any]):
+        if method == "GET" and url == "http://ollama:11434/api/tags":
+            return _FakeHTTPResponse(200, json_data={"models": [{"name": "qwen2.5-coder:3b"}]})
+        if method == "GET" and url == "http://host.docker.internal:11434/api/tags":
+            return _FakeHTTPResponse(200, json_data={"models": [{"name": "qwen3-coder-next:q4_K_M"}]})
+        if method == "POST" and url == "http://ollama:11434/api/chat":
+            model_name = (kwargs.get("json") or {}).get("model")
+            if model_name == "qwen2.5-coder:3b":
+                return _FakeHTTPResponse(
+                    200,
+                    lines=['{"message":{"role":"assistant","content":"container ok"},"done":true}'],
+                )
+            return _FakeHTTPResponse(
+                404,
+                text=f'{{"error":"model \'{model_name}\' not found"}}',
+            )
+        if method == "POST" and url == "http://host.docker.internal:11434/api/chat":
+            model_name = (kwargs.get("json") or {}).get("model")
+            if model_name == "qwen3-coder-next:q4_K_M":
+                return _FakeHTTPResponse(
+                    200,
+                    lines=['{"message":{"role":"assistant","content":"host ok"},"done":true}'],
+                )
+            return _FakeHTTPResponse(404, text=f'{{"error":"model \'{model_name}\' not found"}}')
+        return _FakeHTTPResponse(404, text='{"error":"not found"}')
+
+    monkeypatch.setattr(
+        "backend.ai.providers.ollama.httpx.AsyncClient",
+        _make_mock_httpx_client(calls, split_models_handler),
+    )
+
+    ai_config.update_provider("ollama", base_url="http://host.docker.internal:11434")
+    endpoint, discovered = await chat_service.refresh_ollama_models(timeout=1.0)
+    assert endpoint == "http://host.docker.internal:11434"
+    assert discovered == ["qwen3-coder-next:q4_K_M"]
+
+    cfg_host = ai_config.get_provider_config("ollama")
+    reply_host = await provider.chat([{"role": "user", "content": "hi"}], "qwen3-coder-next:q4_K_M", cfg_host)
+    assert reply_host == "host ok"
+    assert [c["url"] for c in calls if c["method"] == "POST"] == ["http://host.docker.internal:11434/api/chat"]
+
+    # When base_url starts at http://ollama:11434 and returns 404 for a host model, fallback succeeds cleanly.
+    calls.clear()
+    cfg_container = dict(cfg_host, base_url="http://ollama:11434")
+    reply_fallback = await provider.chat([{"role": "user", "content": "hi"}], "qwen3-coder-next:q4_K_M", cfg_container)
+    assert reply_fallback == "host ok"
+    assert [c["url"] for c in calls if c["method"] == "POST"] == [
+        "http://ollama:11434/api/chat",
+        "http://host.docker.internal:11434/api/chat",
+    ]
+
+    # Truly missing model still surfaces HTTP 404 ProviderRequestError.
+    with pytest.raises(ProviderRequestError, match="HTTP 404"):
+        await provider.chat([{"role": "user", "content": "hi"}], "nonexistent:model", cfg_host)
+
+
 # ---------------------------------------------------------------------------
 # 5. Individual Provider Test: Google Antigravity SDK
 # ---------------------------------------------------------------------------
@@ -481,7 +783,7 @@ def test_cross_provider_conversation_history_and_sse_streaming(client, monkeypat
     # Configure mock credentials via API
     assert client.post(
         "/api/ai/configure",
-        json={"provider": "gemini", "api_key": "gem-secret-token", "default_model": "gemini-2.5-pro"},
+        json={"provider": "gemini", "api_key": "gem-secret-token", "default_model": "gemini-3.1-pro-preview"},
     ).status_code == 200
     assert client.post(
         "/api/ai/configure",
@@ -502,14 +804,14 @@ def test_cross_provider_conversation_history_and_sse_streaming(client, monkeypat
     monkeypatch.setattr(ClaudeProvider, "stream_chat", fake_claude_stream)
 
     # Create conversation on Gemini
-    conv = client.post("/api/ai/conversations", json={"provider": "gemini", "model": "gemini-2.5-pro"}).json()
+    conv = client.post("/api/ai/conversations", json={"provider": "gemini", "model": "gemini-3.1-pro-preview"}).json()
     cid = conv["id"]
 
     # Turn 1 (SSE streaming on Gemini)
     with client.stream(
         "POST",
         "/api/ai/chat/stream",
-        json={"conversation_id": cid, "prompt": "What is GeoTIFF?", "provider": "gemini", "model": "gemini-2.5-pro"},
+        json={"conversation_id": cid, "prompt": "What is GeoTIFF?", "provider": "gemini", "model": "gemini-3.1-pro-preview"},
     ) as resp:
         assert resp.status_code == 200
         body = "".join(resp.iter_text())

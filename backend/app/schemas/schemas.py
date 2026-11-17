@@ -105,6 +105,7 @@ class JobCreateRequest(BaseModel):
     target_resolution: Union[str, float] = "finest"
     resampling_method: str = "bilinear"
     allow_reproject: bool = False
+    target_crs: Optional[str] = "EPSG:4326"
     order_by: Optional[str] = None
 
 

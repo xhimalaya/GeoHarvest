@@ -75,7 +75,7 @@ export function highlightCode(code: string, lang: string): string {
       } else if (match[3]) {
         out += `<span style="color:var(--code-keyword)">${escapeHtml(match[3])}</span>`
       } else if (match[4]) {
-        out += `<span style="color:var(--accent-saffron, #B07C38)">${escapeHtml(match[4])}</span>`
+        out += `<span style="color:var(--code-number, var(--accent-turquoise))">${escapeHtml(match[4])}</span>`
       }
       lastIndex = idx + match[0].length
     }
@@ -97,7 +97,7 @@ export function highlightCode(code: string, lang: string): string {
     } else if (m[2]) {
       result += `<span style="color:var(--code-string)">${escapeHtml(m[2])}</span>`
     } else if (m[3]) {
-      result += `<span style="color:var(--accent-saffron, #B07C38)">${escapeHtml(m[3])}</span>`
+      result += `<span style="color:var(--code-number, var(--accent-turquoise))">${escapeHtml(m[3])}</span>`
     } else if (m[4]) {
       const word = m[4]
       const isKw =

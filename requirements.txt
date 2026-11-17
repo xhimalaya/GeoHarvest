@@ -58,7 +58,8 @@ google-cloud-storage>=2.16.0
 psutil>=6.0.0
 tqdm>=4.66.0
 
-# Google Antigravity SDK (AI provider integration)
+# Google Gemini & Antigravity SDKs (AI provider integrations)
+google-genai>=3.4.0
 google-antigravity>=0.1.23
 
 # Automated testing

@@ -9,6 +9,7 @@ from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, T
 from sqlalchemy.orm import relationship
 from pydantic import BaseModel, Field
 
+from backend.ai.config import get_default_gemini_model
 from backend.app.dependencies.database import Base
 
 ProviderLiteral = Literal["gemini", "claude", "ollama", "antigravity"]
@@ -23,7 +24,7 @@ class AIConversation(Base):
     id = Column(String, primary_key=True)
     title = Column(String, nullable=False, default="New Conversation")
     provider = Column(String, nullable=False, default="gemini")
-    model = Column(String, nullable=False, default="gemini-2.5-pro")
+    model = Column(String, nullable=False, default=get_default_gemini_model)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 

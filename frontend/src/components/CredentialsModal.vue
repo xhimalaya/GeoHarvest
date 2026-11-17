@@ -572,10 +572,10 @@ const aiConnectorSpecs = [
     supportsBaseUrl: false,
     allowManualModel: true,
     defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-    defaultModel: 'gemini-2.5-pro',
+    defaultModel: '',
     keyPlaceholder: 'AIzaSy...',
-    defaultModels: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'],
-    description: 'Google Gemini API with API key and streaming generation.',
+    defaultModels: [],
+    description: 'Google Gemini Interactions API with API key and streaming generation.',
   },
   {
     id: 'claude' as AiConnectorId,
@@ -618,7 +618,7 @@ const aiConnectorSpecs = [
     defaultBaseUrl: '',
     defaultModel: 'gemini-3.8-flash',
     keyPlaceholder: 'Gemini / Antigravity API key (or Vertex ADC)',
-    defaultModels: ['gemini-3.8-flash', 'gemini-2.5-pro', 'gemini-2.5-flash'],
+    defaultModels: ['gemini-3.8-flash', 'gemini-3.1-pro-preview', 'gemini-3.1-flash-lite'],
     description: 'Google Antigravity Python SDK (LocalAgentConfig chat runtime).',
   },
 ]
@@ -636,7 +636,7 @@ const ollamaPullAbort = ref<AbortController | null>(null)
 const aiForm = ref({
   apiKey: '',
   baseUrl: '',
-  model: 'gemini-2.5-pro',
+  model: '',
   vertexProject: '',
   vertexLocation: '',
 })

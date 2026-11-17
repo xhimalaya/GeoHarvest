@@ -48,8 +48,13 @@ def _match_band_file(files: List[Path], band_key: str) -> Optional[Path]:
 
 
 def _resolve_target_crs(target_crs: Optional[str], aoi_geometry: Optional[Dict[str, Any]], sample_file: str) -> str:
-    """Resolve auto_utm or empty CRS cleanly from AOI geometry or raster extent."""
-    if target_crs and target_crs.lower() != "auto_utm":
+    """Resolve auto_utm, native, or empty CRS cleanly from AOI geometry or raster extent."""
+    crs_norm = (target_crs or "").strip().lower()
+    if crs_norm == "native":
+        import rasterio
+        with rasterio.open(sample_file) as src:
+            return src.crs.to_string() if src.crs else "EPSG:4326"
+    if target_crs and crs_norm != "auto_utm":
         return target_crs
     if aoi_geometry:
         return crs_engine.recommend(aoi_geometry)["recommended_crs"]

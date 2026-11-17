@@ -3,6 +3,8 @@ from pathlib import Path
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+DEFAULT_GEMINI_MODEL = "gemini-3.1-pro-preview"
+
 
 class Settings(BaseSettings):
     app_name: str = "GeoHarvest"
@@ -17,6 +19,10 @@ class Settings(BaseSettings):
     catalog_dir: Path = data_dir / "catalog"
     aois_dir: Path = data_dir / "aois"
     db_path: Path = data_dir / "geoharvest.db"
+    host_home_path: Path = Field(
+        default_factory=Path.home,
+        validation_alias="GEOHARVEST_HOST_HOME_PATH",
+    )
 
     # Database configuration
     database_url: Optional[str] = Field(
@@ -49,8 +55,18 @@ class Settings(BaseSettings):
     default_retry_attempts: int = 5
 
     # Optional AI / External Keys
-    gemini_api_key: Optional[str] = None
-    gemini_default_model: str = "gemini-2.5-pro"
+    gemini_api_key: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("GEMINI_API_KEY", "GEOHARVEST_GEMINI_API_KEY"),
+    )
+    gemini_default_model: str = Field(
+        default=DEFAULT_GEMINI_MODEL,
+        validation_alias=AliasChoices(
+            "GEMINI_MODEL",
+            "GEOHARVEST_GEMINI_MODEL",
+            "GEOHARVEST_GEMINI_DEFAULT_MODEL",
+        ),
+    )
     anthropic_api_key: Optional[str] = None
     claude_default_model: str = "claude-3-5-sonnet-20241022"
     qdrant_host: str = "localhost"

@@ -14,7 +14,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from backend.app.dependencies.config import settings
+from backend.app.dependencies.config import DEFAULT_GEMINI_MODEL, settings
 
 logger = logging.getLogger("geoharvest.ai.config")
 
@@ -24,6 +24,19 @@ DEFAULT_SYSTEM_PROMPT = (
     "You are GeoHarvest AI, a helpful scientific and geospatial research assistant. "
     "Provide clear, accurate, concise explanations and runnable code when helpful."
 )
+
+LEGACY_GEMINI_RETIRED_MODELS = ("gemini-2.5-pro", "gemini-2.5-flash")
+
+
+def get_default_gemini_model() -> str:
+    """Resolves the configured default Gemini model from environment or settings."""
+    return (
+        os.environ.get("GEMINI_MODEL")
+        or os.environ.get("GEOHARVEST_GEMINI_MODEL")
+        or settings.gemini_default_model
+        or DEFAULT_GEMINI_MODEL
+    ).strip()
+
 
 PROVIDER_SPECS: Dict[str, Dict[str, Any]] = {
     "gemini": {
@@ -35,15 +48,16 @@ PROVIDER_SPECS: Dict[str, Dict[str, Any]] = {
         "supports_streaming": True,
         "allow_manual_model": True,
         "default_base_url": "https://generativelanguage.googleapis.com/v1beta",
-        "default_model": "gemini-2.5-pro",
-        "available_models": [
-            "gemini-2.5-pro",
-            "gemini-2.5-flash",
-            "gemini-2.0-flash",
-            "gemini-1.5-pro",
-            "gemini-1.5-flash",
-        ],
-        "description": "Google Gemini API using an API key and streaming generateContent.",
+        "default_model": get_default_gemini_model(),
+        "available_models": list(
+            dict.fromkeys([
+                get_default_gemini_model(),
+                DEFAULT_GEMINI_MODEL,
+                "gemini-3.8-flash",
+                "gemini-3.1-flash-lite",
+            ])
+        ),
+        "description": "Google Gemini API using the google-genai SDK Interactions API with SSE streaming.",
     },
     "claude": {
         "id": "claude",
@@ -88,8 +102,8 @@ PROVIDER_SPECS: Dict[str, Dict[str, Any]] = {
         "default_model": "gemini-3.8-flash",
         "available_models": [
             "gemini-3.8-flash",
-            "gemini-2.5-pro",
-            "gemini-2.5-flash",
+            "gemini-3.1-pro-preview",
+            "gemini-3.1-flash-lite",
         ],
         "description": "Google Antigravity Python SDK (LocalAgentConfig chat runtime, V1 no-tools mode).",
     },
@@ -196,12 +210,23 @@ class AIConfigStore:
         raw_default = (saved.get("default_model") or "").strip()
         if pid == "antigravity" and raw_default == "antigravity-agent":
             raw_default = ""
-        env_default_model = os.environ.get("OLLAMA_MODEL", "") if pid == "ollama" else ""
+        elif pid == "gemini" and raw_default in LEGACY_GEMINI_RETIRED_MODELS:
+            raw_default = ""
+
+        if pid == "ollama":
+            env_default_model = os.environ.get("OLLAMA_MODEL", "")
+        elif pid == "gemini":
+            env_default_model = get_default_gemini_model()
+        else:
+            env_default_model = ""
         default_model = (raw_default or env_default_model or spec["default_model"] or "").strip()
         custom_models = [
             m
             for m in (saved.get("custom_models") or [])
-            if not (pid == "antigravity" and m == "antigravity-agent")
+            if not (
+                (pid == "antigravity" and m == "antigravity-agent")
+                or (pid == "gemini" and m in LEGACY_GEMINI_RETIRED_MODELS)
+            )
         ]
         discovered_models = list(saved.get("discovered_models") or [])
 

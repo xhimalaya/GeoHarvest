@@ -73,6 +73,8 @@ GeoHarvest is a modern desktop geospatial harvesting platform designed for earth
 
 You can launch the entire GeoHarvest platform (frontend, backend, PostgreSQL database, and GDAL environment) using Docker Compose:
 
+When Ollama is installed on your host machine, Docker Compose connects GeoHarvest to it at `http://host.docker.internal:11434`. Compose does not start a separate Ollama container or download another copy of your models. GeoHarvest discovers the models already available on your host; set `OLLAMA_BASE_URL` or `OLLAMA_MODEL` in `.env` only if you need to override the defaults.
+
 > **File Saving on Local Computer:**  
 > All downloaded datasets and processed rasters are saved **directly to your local computer**, not inside the container:
 > - By default, files are written directly into `./data/downloads/` and `./data/processed/` on your host machine.

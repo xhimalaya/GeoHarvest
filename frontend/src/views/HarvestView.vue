@@ -432,6 +432,70 @@
                 <span v-else>Cloud filter not applicable.</span>
               </div>
             </div>
+
+            <!-- Compact band and download destination settings -->
+            <section class="pt-3 border-t gh-divider space-y-2.5">
+              <div class="flex items-center justify-between gap-2">
+                <span class="gh-label">Bands</span>
+                <span class="font-mono text-[11.5px] gh-text-muted">
+                  {{ harvestStore.selectedBands.length }}/{{ harvestStore.availableBands.length }}
+                </span>
+                <div class="flex items-center gap-2 text-[11.5px]">
+                  <button
+                    type="button"
+                    @click="harvestStore.selectAllBands()"
+                    class="gh-accent hover:underline cursor-pointer"
+                  >All</button>
+                  <button
+                    type="button"
+                    @click="harvestStore.selectDefaultBands()"
+                    class="gh-text-secondary hover:gh-text-primary cursor-pointer"
+                  >Defaults</button>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-1 max-h-32 overflow-y-auto pr-0.5">
+                <label
+                  v-for="band in harvestStore.availableBands"
+                  :key="band.id"
+                  class="flex min-w-0 items-center gap-1.5 px-1.5 py-1 rounded-[6px] gh-surface-secondary border gh-border cursor-pointer text-[11.5px]"
+                  :title="band.desc"
+                >
+                  <input
+                    type="checkbox"
+                    :checked="harvestStore.selectedBands.includes(band.id)"
+                    @change="harvestStore.toggleBand(band.id)"
+                    class="rounded cursor-pointer w-3 h-3 shrink-0"
+                  />
+                  <span class="truncate gh-text-primary">{{ band.label }}</span>
+                </label>
+              </div>
+              <div class="flex items-center gap-1.5 pt-2 border-t gh-divider">
+                <span class="gh-label shrink-0">Save to</span>
+                <input
+                  :value="harvestStore.customDestinationDir || harvestStore.destinationInfo?.active_directory || 'data/downloads'"
+                  @click="openDirectoryPicker"
+                  readonly
+                  type="text"
+                  class="min-w-0 flex-1 gh-input px-2 py-1.5 text-[11.5px] font-mono cursor-pointer truncate"
+                  :title="directoryPreviewPath"
+                />
+                <button
+                  type="button"
+                  @click="openDirectoryPicker"
+                  class="px-2 py-1.5 rounded-[6px] gh-btn-secondary text-[11.5px] cursor-pointer shrink-0"
+                >Browse</button>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="gh-label shrink-0">Output CRS</span>
+                <select
+                  v-model="harvestStore.outputCrs"
+                  class="min-w-0 flex-1 gh-input px-2 py-1.5 text-[11.5px] font-mono cursor-pointer"
+                >
+                  <option value="EPSG:4326">EPSG:4326 (WGS 84)</option>
+                  <option value="native">Native Sensor CRS</option>
+                </select>
+              </div>
+            </section>
           </section>
 
           <!-- SECTION 3: SEARCH -->
@@ -789,34 +853,9 @@
           </div>
         </div>
 
-        <!-- Bottom Download & Band Selection Controls -->
-        <div class="p-3.5 border-t gh-border gh-surface-secondary space-y-3 shrink-0 text-[12.5px]">
-          <!-- Band Selection -->
-          <div class="space-y-1.5">
-            <div class="flex items-center justify-between">
-              <span class="gh-label">Spectral Bands</span>
-              <span class="font-mono text-[12px] gh-accent">
-                {{ harvestStore.selectedBands.length }} selected
-              </span>
-            </div>
-            <div class="grid grid-cols-2 gap-1 max-h-24 overflow-y-auto pr-0.5">
-              <label
-                v-for="b in harvestStore.availableBands"
-                :key="b.id"
-                class="flex items-center space-x-1.5 px-2 py-1 rounded-[6px] gh-surface-primary border gh-border cursor-pointer text-[12px]"
-              >
-                <input
-                  type="checkbox"
-                  :checked="harvestStore.selectedBands.includes(b.id)"
-                  @change="harvestStore.toggleBand(b.id)"
-                  class="rounded cursor-pointer w-3.5 h-3.5 shrink-0"
-                />
-                <span class="truncate gh-text-primary" :title="b.desc">{{ b.label }}</span>
-              </label>
-            </div>
-          </div>
-
-          <!-- Task Name & Download Destination -->
+        <!-- Download actions -->
+        <div class="p-3.5 border-t gh-border gh-surface-secondary space-y-2.5 shrink-0 text-[12.5px]">
+          <!-- Task Name -->
           <div class="space-y-2 pt-2 border-t gh-divider">
             <div class="flex items-center justify-between text-[12px]">
               <span class="gh-text-secondary">
@@ -836,33 +875,6 @@
               />
             </div>
 
-            <div class="flex items-center space-x-1.5">
-              <input
-                :value="
-                  harvestStore.customDestinationDir ||
-                  (harvestStore.destinationInfo?.active_directory
-                    ? harvestStore.destinationInfo.active_directory
-                    : 'data/downloads')
-                "
-                @click="openDirectoryPicker"
-                readonly
-                type="text"
-                class="flex-1 gh-input px-2.5 py-1.5 text-[12px] font-mono cursor-pointer truncate"
-                title="Click to select download folder"
-              />
-              <button
-                type="button"
-                @click="openDirectoryPicker"
-                class="px-2.5 py-1.5 rounded-[7px] gh-btn-secondary text-[12px] cursor-pointer shrink-0"
-              >
-                Browse
-              </button>
-            </div>
-
-            <!-- Directory Preview -->
-            <div class="text-[11.5px] font-mono gh-text-muted truncate" :title="directoryPreviewPath">
-              Path: {{ directoryPreviewPath }}
-            </div>
           </div>
 
           <!-- Harvest Action Button (Primary Teal Accent) -->

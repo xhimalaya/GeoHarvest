@@ -33,8 +33,9 @@ def candidate_ollama_urls(base_url: str) -> List[str]:
                 candidates.append(alt)
     elif "host.docker.internal" in clean:
         env_url = os.environ.get("OLLAMA_BASE_URL", "").strip().rstrip("/")
-        if env_url and env_url not in candidates:
-            candidates.insert(0, env_url)
+        for alt in (env_url, clean.replace("host.docker.internal", "localhost")):
+            if alt and alt not in candidates:
+                candidates.append(alt)
     return candidates
 
 
@@ -133,10 +134,18 @@ class OllamaProvider(BaseAIProvider):
         }
 
         last_err: Optional[Exception] = None
+        first_request_err: Optional[ProviderRequestError] = None
         for cand in candidate_ollama_urls(base_url):
             try:
                 async with httpx.AsyncClient(timeout=httpx.Timeout(180.0, connect=8.0)) as client:
                     async with client.stream("POST", f"{cand}/api/chat", json=payload) as resp:
+                        if resp.status_code == 404:
+                            raw_err = (await resp.aread()).decode("utf-8", errors="replace")
+                            if first_request_err is None:
+                                first_request_err = ProviderRequestError(
+                                    f"Ollama returned HTTP {resp.status_code}: {raw_err[:400]}"
+                                )
+                            continue
                         if resp.status_code >= 400:
                             raw_err = (await resp.aread()).decode("utf-8", errors="replace")
                             raise ProviderRequestError(f"Ollama returned HTTP {resp.status_code}: {raw_err[:400]}")
@@ -160,6 +169,8 @@ class OllamaProvider(BaseAIProvider):
                 last_err = exc
                 continue
 
+        if first_request_err is not None:
+            raise first_request_err
         raise ProviderUnavailableError(f"Could not connect to Ollama at {base_url}: {last_err}")
 
     async def pull_model(self, model: str, base_url: str) -> AsyncIterator[Dict[str, Any]]:

@@ -9,7 +9,7 @@ from backend.app.dependencies.config import settings
 from backend.app.dependencies.database import SessionLocal
 from backend.app.models.models import Job, Download, JobStatus, DownloadStatus
 from backend.core.jobs.engine import job_engine
-from backend.core.processing.scene_stacker import scene_stacking_service
+from backend.core.processing.scene_stacker import scene_stacking_service, normalize_target_crs
 
 logger = logging.getLogger("geoharvest.recovery")
 
@@ -66,6 +66,11 @@ class CrashRecoveryManager:
 
                 if isinstance(job.job_metadata, dict) and isinstance(job.job_metadata.get("scene_plans"), dict):
                     meta = copy.deepcopy(job.job_metadata)
+                    stacking_cfg = meta.get("stacking_config") or {}
+                    try:
+                        expected_job_crs = normalize_target_crs(stacking_cfg.get("target_crs"))
+                    except Exception:
+                        expected_job_crs = None
                     for scene_id, sp in meta["scene_plans"].items():
                         dl_ids = list(sp.get("download_ids") or [])
                         final_out = sp.get("final_output_path")
@@ -86,6 +91,7 @@ class CrashRecoveryManager:
                             if final_path.exists() and final_path.is_file() and final_path.stat().st_size > 0:
                                 val = scene_stacking_service.validate_stacked_output(
                                     output_path=final_path,
+                                    expected_crs=expected_job_crs,
                                     check_data_readable=True,
                                 )
                                 if val.get("valid"):

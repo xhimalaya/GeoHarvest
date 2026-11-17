@@ -247,7 +247,10 @@ class RasterOps:
         try:
             # 1. Determine target CRS
             unified_crs = None
-            if target_crs and target_crs.lower() != "auto_utm":
+            crs_norm = (target_crs or "").strip().lower()
+            if target_crs is not None and crs_norm in ("", "native"):
+                unified_crs = None
+            elif target_crs and crs_norm != "auto_utm":
                 unified_crs = target_crs
             elif aoi_geometry:
                 try:

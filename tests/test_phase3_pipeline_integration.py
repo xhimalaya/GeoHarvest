@@ -212,6 +212,7 @@ async def test_e2e_landsat8_6band_stacking_catalog_lineage_and_cleanup(tmp_path)
                 selected_bands=["B2", "B3", "B4", "B5", "B6", "B7"],
                 db=db,
                 destination_dir=str(tmp_path),
+                target_crs="native",
             )
             if job.id in engine._active_tasks:
                 await engine._active_tasks[job.id]
@@ -310,6 +311,7 @@ async def test_sentinel2_multires_multimonth_same_month_separation_and_mosaic_st
                 selected_bands=["visual", "red", "green", "blue", "nir", "swir16", "swir22"],
                 db=db,
                 destination_dir=str(tmp_path),
+                target_crs="native",
             )
             if job.id in engine._active_tasks:
                 await engine._active_tasks[job.id]
@@ -430,6 +432,7 @@ async def test_visual_only_thumbnail_direct_and_toposheet_modes(tmp_path):
         assert vis_tif.exists()
         with rasterio.open(vis_tif) as src:
             assert src.count == 3
+            assert src.crs.to_string() == "EPSG:4326"
             assert list(src.descriptions) == ["Red", "Green", "Blue"]
         assert not (tmp_path / "vis" / ".staging").exists()
 
@@ -574,6 +577,7 @@ async def test_api_jobs_forwards_configurable_stacking_options(tmp_path):
                     "destination_dir": str(tmp_path),
                     "target_resolution": "coarsest",
                     "resampling_method": "nearest",
+                    "target_crs": "native",
                 },
             )
             assert resp.status_code == 200
@@ -653,5 +657,131 @@ async def test_restart_failed_scene_and_job_endpoints(tmp_path):
             assert detail2["status"] == "COMPLETED"
             assert detail2["progress"] == 100.0
             assert all(s["status"] == "completed" and s["progress_percentage"] == 100.0 for s in detail2["scenes"])
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_default_harvest_and_processing_output_epsg4326(tmp_path):
+    """Default POST /api/jobs, direct GeoTIFF harvest, and mosaic/execute endpoints output EPSG:4326."""
+    db = SessionLocal()
+    try:
+        from backend.core.jobs.engine import job_engine
+
+        scene = _make_sentinel_cdse_scene("S2B_43SFS_20261117_0_L2A_WGS", "2026-11-17T05:30:00Z")
+
+        # Pre-seed an old EPSG:32643 file at the deliverable path to ensure it is NOT reused when EPSG:4326 is requested
+        existing_out = (
+            tmp_path
+            / "WGS84_Default_Harvest"
+            / "sentinel-2-l2a"
+            / "2026"
+            / "11"
+            / f"{scene.id}.tif"
+        )
+        _write_test_geotiff(existing_out, width=16, height=16, res=10.0, crs="EPSG:32643", fill_values=[99, 99], count=2)
+
+        async def fake_download_utm(url, destination_path, **kwargs):
+            _write_test_geotiff(Path(destination_path), width=24, height=24, res=10.0, crs="EPSG:32643", fill_values=250)
+            return True
+
+        client = TestClient(app)
+        with patch.object(job_engine.download_engine, "download_file", side_effect=fake_download_utm):
+            resp = client.post(
+                "/api/jobs",
+                json={
+                    "name": "WGS84 Default Harvest",
+                    "scenes": [scene.model_dump()],
+                    "bands": ["red", "blue"],
+                    "destination_dir": str(tmp_path),
+                },
+            )
+            assert resp.status_code == 200
+            job_id = resp.json()["id"]
+            if job_id in job_engine._active_tasks:
+                await job_engine._active_tasks[job_id]
+            else:
+                await job_engine._run_job(job_id)
+
+        db.expire_all()
+        job = db.query(Job).filter(Job.id == job_id).first()
+        assert job.status == JobStatus.COMPLETED
+        assert job.job_metadata["stacking_config"]["target_crs"] == "EPSG:4326"
+        assert existing_out.exists()
+        with rasterio.open(existing_out) as src:
+            assert src.crs.to_string() == "EPSG:4326"
+            assert src.count == 2
+
+        ds = db.query(Dataset).filter(Dataset.id == scene.id).first()
+        stac_doc = json.loads(Path(ds.dataset_metadata["stac_item_path"]).read_text())
+        assert stac_doc["properties"]["proj:code"] == "EPSG:4326"
+
+        # Verify Mosaic & Clip API defaults to EPSG:4326 even on EPSG:32643 inputs
+        utm_tile = _write_test_geotiff(tmp_path / "utm_tile.tif", width=24, height=24, res=10.0, crs="EPSG:32643", fill_values=333)
+        mosaic_out = tmp_path / "mosaic_default_4326.tif"
+        mos_resp = client.post(
+            "/api/processing/mosaic-clip",
+            json={
+                "input_file_paths": [str(utm_tile)],
+                "output_path": str(mosaic_out),
+            },
+        )
+        assert mos_resp.status_code == 200
+        assert mos_resp.json()["crs"] == "EPSG:4326"
+        with rasterio.open(mosaic_out) as msrc:
+            assert msrc.crs.to_string() == "EPSG:4326"
+
+        # Verify invalid target_crs returns HTTP 400 cleanly
+        bad_resp = client.post(
+            "/api/jobs",
+            json={
+                "name": "Invalid CRS Job",
+                "scenes": [scene.model_dump()],
+                "bands": ["red"],
+                "target_crs": "NOT_A_VALID_CRS_99999",
+            },
+        )
+        assert bad_resp.status_code == 400
+
+        # Verify direct mode raster (e.g. toposheet GeoTIFF in EPSG:32643) also converts to EPSG:4326
+        topo_scene = SearchResultItem(
+            id="SOI_43J_12_GEO",
+            collection="survey-of-india-50k",
+            provider_id="survey-of-india-toposheets",
+            title="Toposheet GeoTIFF 43J/12",
+            datetime="2024-01-01T00:00:00Z",
+            bbox=[77.0, 34.0, 77.25, 34.25],
+            geometry={"type": "Polygon", "coordinates": []},
+            assets={
+                "georef_tif": AssetInfo(
+                    name="georef_tif",
+                    url="https://example.org/43J_12.tif",
+                    size_bytes=1024,
+                    mime_type="image/tiff",
+                    band="georef",
+                )
+            },
+        )
+        with patch.object(job_engine.download_engine, "download_file", side_effect=fake_download_utm):
+            topo_job = job_engine.create_harvest_job(
+                name="Topo GeoTIFF WGS84",
+                scenes=[topo_scene],
+                selected_bands=["all"],
+                db=db,
+                destination_dir=str(tmp_path / "topo_wgs"),
+                is_toposheet=True,
+            )
+            if topo_job.id in job_engine._active_tasks:
+                await job_engine._active_tasks[topo_job.id]
+            else:
+                await job_engine._run_job(topo_job.id)
+
+        db.expire_all()
+        done_topo = db.query(Job).filter(Job.id == topo_job.id).first()
+        assert done_topo.status == JobStatus.COMPLETED
+        topo_tifs = list((tmp_path / "topo_wgs").rglob("*.tif"))
+        assert len(topo_tifs) == 1
+        with rasterio.open(topo_tifs[0]) as tsrc:
+            assert tsrc.crs.to_string() == "EPSG:4326"
     finally:
         db.close()

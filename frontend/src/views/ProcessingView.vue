@@ -319,7 +319,7 @@
                   Auto UTM
                 </button>
               </div>
-              <input v-model="targetCRS" type="text" placeholder="EPSG:32643" class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px] font-mono" />
+              <input v-model="targetCRS" type="text" placeholder="EPSG:4326" class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px] font-mono" />
             </div>
 
             <div class="space-y-2 pb-1">
@@ -580,7 +580,7 @@
           <div class="pt-4 border-t gh-divider grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div class="space-y-1.5">
               <label class="block text-[12.5px] font-semibold gh-text-primary">Target CRS</label>
-              <input v-model="targetCRS" type="text" placeholder="EPSG:32643" class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px] font-mono" />
+              <input v-model="targetCRS" type="text" placeholder="EPSG:4326" class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px] font-mono" />
             </div>
             <div class="space-y-1.5">
               <label class="block text-[12.5px] font-semibold gh-text-primary">Resolution (m / deg)</label>
@@ -1017,7 +1017,7 @@ const multiInputPaths = ref<string[]>([])
 const outputFilename = ref('')
 const exportAsCog = ref(true)
 const clipToAOI = ref(true)
-const targetCRS = ref('EPSG:32643')
+const targetCRS = ref('EPSG:4326')
 const targetResolution = ref<number | undefined>(undefined)
 const resamplingMethod = ref('bilinear')
 

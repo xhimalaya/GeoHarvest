@@ -29,7 +29,7 @@ class ExecuteProcessingRequest(BaseModel):
     recipe_id: str = "s2-aoi-cog"
     aoi_geometry: Optional[Dict[str, Any]] = None
     clip_to_aoi: bool = True
-    target_crs: Optional[str] = "auto_utm"
+    target_crs: Optional[str] = "EPSG:4326"
     job_id: Optional[str] = None
 
 
@@ -211,7 +211,7 @@ class MosaicClipRequest(BaseModel):
     input_file_paths: List[str]
     output_path: Optional[str] = None
     aoi_geometry: Optional[Dict[str, Any]] = None
-    target_crs: Optional[str] = "auto_utm"
+    target_crs: Optional[str] = "EPSG:4326"
     nodata: Optional[float] = 0.0
     to_cog: bool = True
     job_id: Optional[str] = None
@@ -221,7 +221,7 @@ class JobMosaicClipRequest(BaseModel):
     selected_download_ids: Optional[List[str]] = None
     band: Optional[str] = None
     aoi_geometry: Optional[Dict[str, Any]] = None
-    target_crs: Optional[str] = "auto_utm"
+    target_crs: Optional[str] = "EPSG:4326"
     nodata: Optional[float] = 0.0
     to_cog: bool = True
     output_path: Optional[str] = None
@@ -555,7 +555,7 @@ class BandStackRequest(BaseModel):
     input_file_paths: List[str]
     band_names: Optional[List[str]] = None
     aoi_geometry: Optional[Dict[str, Any]] = None
-    target_crs: Optional[str] = None
+    target_crs: Optional[str] = "EPSG:4326"
     output_filename: Optional[str] = None
     to_cog: bool = True
     resampling_method: str = "bilinear"

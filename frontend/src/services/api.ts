@@ -75,6 +75,7 @@ export const api = {
     name?: string
     sheets: Array<{ sheet_number: string; formats?: string[]; bbox?: number[]; geometry?: any }>
     destination_dir?: string
+    target_crs?: string
   }): Promise<any> {
     const res = await fetch(`${BASE_URL}/toposheets/harvest`, {
       method: 'POST',
@@ -174,6 +175,7 @@ export const api = {
     bands: string[]
     aoi?: any
     destination_dir?: string
+    target_crs?: string
   }): Promise<JobDetail> {
     const res = await fetch(`${BASE_URL}/jobs`, {
       method: 'POST',

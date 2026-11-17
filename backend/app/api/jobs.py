@@ -23,18 +23,22 @@ async def create_harvest_job(request: JobCreateRequest, db: Session = Depends(ge
     if not request.scenes:
         raise HTTPException(status_code=400, detail="Cannot create harvest job without any selected scenes.")
     
-    job = job_engine.create_harvest_job(
-        name=request.name or "Sentinel-2 Harvest",
-        scenes=request.scenes,
-        selected_bands=request.bands,
-        db=db,
-        destination_dir=request.destination_dir,
-        aoi=request.aoi,
-        target_resolution=request.target_resolution,
-        resampling_method=request.resampling_method,
-        allow_reproject=request.allow_reproject,
-        order_by=request.order_by,
-    )
+    try:
+        job = job_engine.create_harvest_job(
+            name=request.name or "Sentinel-2 Harvest",
+            scenes=request.scenes,
+            selected_bands=request.bands,
+            db=db,
+            destination_dir=request.destination_dir,
+            aoi=request.aoi,
+            target_resolution=request.target_resolution,
+            resampling_method=request.resampling_method,
+            allow_reproject=request.allow_reproject,
+            target_crs=request.target_crs,
+            order_by=request.order_by,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     
     downloads_count = db.query(Download).filter(Download.job_id == job.id).count()
     meta = job.job_metadata or {}
