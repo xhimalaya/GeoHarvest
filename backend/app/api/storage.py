@@ -352,6 +352,12 @@ async def search_storage(
         for entry in base_root.rglob("*"):
             if len(matches) >= 60:
                 break
+            try:
+                rel_parts = entry.relative_to(base_root).parts
+                if any(part.startswith(".") and not part.startswith(".part") for part in rel_parts):
+                    continue
+            except ValueError:
+                pass
             if entry.name.startswith(".") and not entry.name.startswith(".part"):
                 continue
 

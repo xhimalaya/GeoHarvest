@@ -205,11 +205,28 @@ async def test_full_bhuvan_harvest_job_workflow(tmp_path):
             }
         )
 
-        # Mock DownloadEngine.download_file to succeed and produce a valid dummy file
+        # Mock DownloadEngine.download_file to succeed and produce a valid 1-band CartoDEM GeoTIFF
         async def mock_download_file(url, destination_path, **kwargs):
+            import numpy as np
+            import rasterio
+            from rasterio.transform import from_origin
+
             dest = Path(destination_path)
             dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_bytes(b"DUMMY_TIFF_BYTES_CONTENT")
+            data = np.full((16, 16), 3500, dtype="int16")
+            with rasterio.open(
+                dest,
+                "w",
+                driver="GTiff",
+                height=16,
+                width=16,
+                count=1,
+                dtype="int16",
+                crs="EPSG:4326",
+                transform=from_origin(77.0, 35.0, 0.0003, 0.0003),
+                nodata=-32768,
+            ) as dst:
+                dst.write(data, 1)
             return True
 
         with patch.object(engine.download_engine, "download_file", side_effect=mock_download_file):
@@ -217,7 +234,8 @@ async def test_full_bhuvan_harvest_job_workflow(tmp_path):
                 name="E2E Bhuvan Harvest",
                 scenes=[scene],
                 selected_bands=["cartodem"],
-                db=db
+                db=db,
+                destination_dir=str(tmp_path),
             )
 
             # Await the created background task
@@ -234,6 +252,9 @@ async def test_full_bhuvan_harvest_job_workflow(tmp_path):
 
         dl = db.query(Download).filter(Download.job_id == job.id).first()
         assert dl.status == DownloadStatus.COMPLETED
-        assert Path(dl.destination).exists()
+        # Staging file was cleaned up after stacked scene validation; final scene GeoTIFF exists at canonical path
+        assert not Path(dl.destination).exists()
+        expected_final = tmp_path / "E2E_Bhuvan_Harvest" / "bhuvan-cartodem-30m" / "2024" / "01" / "BHUVAN_CARTODEM_E2E_01.tif"
+        assert expected_final.exists()
     finally:
         db.close()

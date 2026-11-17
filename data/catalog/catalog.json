@@ -11,17 +11,7 @@
     },
     {
       "rel": "child",
-      "href": "./collections/sentinel-2-l2a/collection.json",
-      "type": "application/json"
-    },
-    {
-      "rel": "child",
       "href": "./collections/bhuvan-cartodem-30m/collection.json",
-      "type": "application/json"
-    },
-    {
-      "rel": "child",
-      "href": "./collections/survey-of-india-50k/collection.json",
       "type": "application/json"
     }
   ]

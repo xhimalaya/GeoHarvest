@@ -1,346 +1,290 @@
 <template>
-  <div class="h-full w-full flex flex-col bg-slate-950 text-slate-100 overflow-hidden select-none font-sans">
-    <!-- TOP TOOLBAR: Studio Header, Execution Mode, AOI, GEE Auth, Layout & Actions -->
-    <header class="h-12 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-3 shrink-0 z-20">
-      <!-- Left: Logo & Execution Mode Switcher -->
-      <div class="flex items-center space-x-3">
+  <div class="flex flex-col h-full w-full gh-workspace-bg gh-text-primary overflow-hidden">
+    <!-- STUDIO WORKSTATION HEADER STRIP -->
+    <header class="h-11 px-4 border-b gh-border gh-surface-primary flex items-center justify-between gap-3 shrink-0 overflow-x-auto">
+      <!-- Left: Identity + Runtime Mode + AOI Context -->
+      <div class="flex items-center space-x-3 shrink-0">
         <div class="flex items-center space-x-2">
-          <span class="text-xl">🪐</span>
-          <div>
-            <div class="flex items-center space-x-1.5">
-              <h1 class="text-xs font-bold uppercase tracking-wider text-slate-100">
-                Earth Engine Studio
-              </h1>
-              <span class="text-[9px] bg-emerald-950 text-emerald-400 border border-emerald-800/80 px-1 py-0.2 rounded font-mono font-semibold">
-                Jupyter Notebook
-              </span>
-            </div>
-          </div>
+          <Terminal class="w-4 h-4 gh-accent shrink-0" />
+          <span class="text-[13.5px] font-semibold gh-text-primary">Earth Engine Python</span>
         </div>
 
-        <div class="h-5 w-px bg-slate-800 mx-1"></div>
+        <div class="h-4 w-px gh-divider border-l gh-border"></div>
 
-        <!-- DUAL EXECUTION MODE SWITCHER -->
-        <div class="flex items-center bg-slate-950 border border-slate-750 p-0.5 rounded-lg text-xs">
+        <!-- Runtime Switch: GEE Cloud vs Local Python -->
+        <div class="flex items-center p-0.5 rounded-[7px] border gh-border gh-surface-secondary text-[12px]">
           <button
             @click="setExecutionMode('gee')"
             :class="[
-              'px-2.5 py-1 rounded-md font-semibold flex items-center space-x-1.5 transition-all cursor-pointer',
-              executionMode === 'gee'
-                ? 'bg-emerald-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+              'px-2.5 py-0.5 rounded-[5px] font-medium transition-colors cursor-pointer flex items-center space-x-1.5',
+              executionMode === 'gee' ? 'gh-surface-elevated gh-accent font-semibold' : 'gh-text-secondary hover:gh-text-primary'
             ]"
-            title="Execute notebook cells on Google Earth Engine cloud infrastructure"
+            title="Run Google Earth Engine Cloud API script"
           >
-            <span>⚡</span>
+            <Globe class="w-3.5 h-3.5" />
             <span>GEE Cloud</span>
           </button>
           <button
             @click="setExecutionMode('local')"
             :class="[
-              'px-2.5 py-1 rounded-md font-semibold flex items-center space-x-1.5 transition-all cursor-pointer',
-              executionMode === 'local'
-                ? 'bg-sky-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+              'px-2.5 py-0.5 rounded-[5px] font-medium transition-colors cursor-pointer flex items-center space-x-1.5',
+              executionMode === 'local' ? 'gh-surface-elevated gh-accent font-semibold' : 'gh-text-secondary hover:gh-text-primary'
             ]"
-            title="Execute notebook cells locally on downloaded rasters (Rasterio, NumPy, GeoPandas)"
+            title="Run local Python geospatial runtime (Rasterio / GDAL / GeoPandas)"
           >
-            <span>💻</span>
-            <span>Local File Process</span>
+            <HardDrive class="w-3.5 h-3.5" />
+            <span>Local Python</span>
+          </button>
+        </div>
+
+        <div class="h-4 w-px border-l gh-border"></div>
+
+        <!-- AOI Selector Button -->
+        <div class="flex items-center space-x-1">
+          <button
+            @click="showAoiModal = true; loadSavedAois()"
+            :class="[
+              'px-2.5 py-1 rounded-[7px] border text-[12px] flex items-center space-x-1.5 transition-colors cursor-pointer',
+              hasAoi ? 'gh-selected-bg gh-focus-border gh-turquoise font-semibold' : 'gh-btn-secondary'
+            ]"
+            title="Load a GeoJSON study area boundary into Python variable aoi"
+          >
+            <MapPin class="w-3.5 h-3.5 shrink-0" />
+            <span class="truncate max-w-[140px]">{{ activeAoiName || 'Load AOI Geometry' }}</span>
+            <span v-if="activeAoiArea" class="text-[11px] font-mono gh-accent">
+              ({{ activeAoiArea.toFixed(1) }} km2)
+            </span>
+          </button>
+          <button
+            v-if="hasAoi"
+            @click="clearActiveAoi"
+            class="p-1 rounded-[6px] gh-btn-ghost gh-text-muted hover:gh-error cursor-pointer"
+            title="Clear loaded AOI"
+          >
+            <X class="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      <!-- Center: Loaded GeoJSON AOI Indicator & Action -->
-      <div class="flex items-center space-x-2">
-        <button
-          @click="showAoiModal = true"
-          :class="[
-            'px-2.5 py-1 rounded-lg text-xs font-medium border flex items-center space-x-1.5 transition-all cursor-pointer',
-            hasAoi
-              ? 'bg-sky-950/80 border-sky-600/80 text-sky-200 hover:bg-sky-900/60'
-              : 'bg-slate-950/80 border-slate-750 text-slate-400 hover:text-slate-200 hover:border-slate-600'
-          ]"
-          title="Manage or load study area GeoJSON"
-        >
-          <span :class="['w-2 h-2 rounded-full', hasAoi ? 'bg-sky-400 animate-pulse' : 'bg-slate-500']"></span>
-          <span class="max-w-[180px] truncate font-mono">
-            {{ activeAoiName ? activeAoiName : 'Load GeoJSON AOI' }}
-          </span>
-          <span v-if="activeAoiArea" class="text-[10px] text-sky-400 font-mono">
-            ({{ activeAoiArea.toFixed(1) }} km²)
-          </span>
-          <span class="text-[10px] text-slate-400">▼</span>
-        </button>
-
-        <button
-          v-if="hasAoi"
-          @click="clearActiveAoi"
-          class="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-slate-800 transition-colors cursor-pointer"
-          title="Clear loaded AOI"
-        >
-          ✕
-        </button>
-      </div>
-
-      <!-- Right: View Modes, GEE Auth & Run Actions -->
-      <div class="flex items-center space-x-2">
-        <!-- Layout View Selector -->
-        <div class="flex items-center bg-slate-950 border border-slate-800 p-0.5 rounded-lg text-[11px]">
+      <!-- Right: View Layout + GEE Auth + Execute All -->
+      <div class="flex items-center space-x-2 shrink-0">
+        <div class="flex items-center p-0.5 rounded-[7px] border gh-border gh-surface-secondary text-[12px]">
           <button
             @click="layoutMode = 'split'"
             :class="[
-              'px-2 py-0.5 rounded font-medium transition-colors cursor-pointer flex items-center space-x-1',
-              layoutMode === 'split' ? 'bg-slate-800 text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+              'px-2 py-0.5 rounded-[5px] font-medium transition-colors cursor-pointer flex items-center space-x-1',
+              layoutMode === 'split' ? 'gh-surface-elevated gh-accent font-semibold' : 'gh-text-secondary hover:gh-text-primary'
             ]"
-            title="Side-by-side split view (Notebook on left, Map & Data on right)"
+            title="Split code notebook and map/output view"
           >
-            <span>◫</span>
+            <Columns2 class="w-3.5 h-3.5" />
             <span>Split</span>
           </button>
           <button
             @click="layoutMode = 'notebook'"
             :class="[
-              'px-2 py-0.5 rounded font-medium transition-colors cursor-pointer flex items-center space-x-1',
-              layoutMode === 'notebook' ? 'bg-slate-800 text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+              'px-2 py-0.5 rounded-[5px] font-medium transition-colors cursor-pointer flex items-center space-x-1',
+              layoutMode === 'notebook' ? 'gh-surface-elevated gh-accent font-semibold' : 'gh-text-secondary hover:gh-text-primary'
             ]"
-            title="Notebook full-width view"
+            title="Expand code notebook full width"
           >
-            <span>📓</span>
+            <BookOpen class="w-3.5 h-3.5" />
             <span>Notebook</span>
           </button>
           <button
             @click="layoutMode = 'map'"
             :class="[
-              'px-2 py-0.5 rounded font-medium transition-colors cursor-pointer flex items-center space-x-1',
-              layoutMode === 'map' ? 'bg-slate-800 text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+              'px-2 py-0.5 rounded-[5px] font-medium transition-colors cursor-pointer flex items-center space-x-1',
+              layoutMode === 'map' ? 'gh-surface-elevated gh-accent font-semibold' : 'gh-text-secondary hover:gh-text-primary'
             ]"
-            title="Map & Data inspector view"
+            title="Expand map and output inspector full width"
           >
-            <span>🗺️</span>
-            <span>Map & Data</span>
+            <MapIcon class="w-3.5 h-3.5" />
+            <span>Map &amp; Output</span>
           </button>
         </div>
 
-        <div class="h-4 w-px bg-slate-800"></div>
-
-        <!-- GEE Auth Badge -->
         <button
           @click="openAuthModal"
           :class="[
-            'px-2 py-1 rounded-lg text-[11px] font-mono flex items-center space-x-1.5 border transition-all cursor-pointer',
+            'px-2.5 py-1 rounded-[7px] text-[12px] font-mono flex items-center space-x-1.5 border transition-colors cursor-pointer',
             eeStatus.initialized
-              ? 'bg-emerald-950/60 border-emerald-800/80 text-emerald-300 hover:border-emerald-600'
-              : 'bg-amber-950/60 border-amber-800/80 text-amber-300 hover:border-amber-600'
+              ? 'gh-selected-bg gh-focus-border gh-turquoise font-semibold'
+              : 'gh-warning-soft-bg gh-warning-border gh-warning font-semibold'
           ]"
-          title="Click to configure Earth Engine authentication"
+          title="Configure Google Earth Engine authentication"
         >
-          <span :class="['w-1.5 h-1.5 rounded-full', eeStatus.initialized ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse']"></span>
+          <span
+            :class="[
+              'w-2 h-2 rounded-full shrink-0',
+              eeStatus.initialized ? 'bg-[var(--accent-turquoise)]' : 'bg-[var(--warning)]'
+            ]"
+          ></span>
           <span class="truncate max-w-[130px]">
-            {{ eeStatus.initialized ? (eeStatus.project_id || 'Connected') : 'Auth GEE' }}
+            {{ eeStatus.initialized ? (eeStatus.project_id || 'GEE Connected') : 'Auth GEE' }}
           </span>
         </button>
 
-        <!-- RUN ALL CELLS BUTTON -->
         <button
           @click="runAllCells"
           :disabled="isKernelBusy"
-          :class="[
-            'px-3 py-1 text-xs font-bold rounded-lg shadow-md flex items-center space-x-1.5 transition-all cursor-pointer disabled:opacity-50',
-            executionMode === 'gee'
-              ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950'
-              : 'bg-sky-600 hover:bg-sky-500 text-white shadow-sky-950'
-          ]"
-          title="Run all notebook cells from top to bottom"
+          class="px-3.5 py-1 gh-btn-primary text-[12.5px] font-semibold rounded-[8px] flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+          title="Execute all code cells sequentially"
         >
-          <svg v-if="isKernelBusy" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-          </svg>
-          <span v-else>▶▶</span>
+          <Play class="w-3.5 h-3.5" />
           <span>{{ isKernelBusy ? 'Executing...' : 'Run All' }}</span>
         </button>
       </div>
     </header>
 
-    <!-- MAIN STUDIO BODY -->
+    <!-- MAIN 3-PANE WORKSTATION -->
     <div class="flex-1 flex overflow-hidden relative">
-      <!-- ================= LEFT SIDEBAR: Catalog, Themes, Snippets & Files ================= -->
-      <aside class="w-80 bg-slate-900 border-r border-slate-800 flex flex-col h-full shrink-0 z-10 shadow-xl">
-        <!-- Sidebar Navigation Tabs -->
-        <div class="p-2 border-b border-slate-800 bg-slate-950/80 flex items-center justify-between text-xs">
-          <div class="flex items-center space-x-1">
-            <button
-              @click="sidebarTab = 'catalog'"
-              :class="[
-                'px-2.5 py-1 rounded font-semibold transition-colors cursor-pointer',
-                sidebarTab === 'catalog' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-slate-200'
-              ]"
-            >
-              Satellites & Themes
-            </button>
-            <button
-              @click="sidebarTab = 'snippets'"
-              :class="[
-                'px-2.5 py-1 rounded font-semibold transition-colors cursor-pointer',
-                sidebarTab === 'snippets' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-slate-200'
-              ]"
-            >
-              Snippets
-            </button>
-            <button
-              @click="sidebarTab = 'files'; loadLocalFiles()"
-              :class="[
-                'px-2.5 py-1 rounded font-semibold transition-colors cursor-pointer',
-                sidebarTab === 'files' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'
-              ]"
-            >
-              Local Files
-            </button>
-          </div>
+      <!-- LEFT SIDEBAR: Datasets, Snippets & Local Files (290px) -->
+      <aside class="w-[290px] gh-surface-primary border-r gh-border flex flex-col h-full shrink-0 overflow-hidden">
+        <!-- Sidebar Tabs -->
+        <div class="px-2.5 py-2 border-b gh-border gh-surface-secondary flex items-center space-x-1 text-[12px] shrink-0">
+          <button
+            @click="sidebarTab = 'catalog'"
+            :class="[
+              'flex-1 px-2 py-1 rounded-[6px] font-medium transition-colors cursor-pointer text-center',
+              sidebarTab === 'catalog' ? 'gh-surface-elevated gh-accent font-semibold border gh-border' : 'gh-text-secondary hover:gh-text-primary border border-transparent'
+            ]"
+          >
+            Datasets
+          </button>
+          <button
+            @click="sidebarTab = 'snippets'"
+            :class="[
+              'flex-1 px-2 py-1 rounded-[6px] font-medium transition-colors cursor-pointer text-center',
+              sidebarTab === 'snippets' ? 'gh-surface-elevated gh-accent font-semibold border gh-border' : 'gh-text-secondary hover:gh-text-primary border border-transparent'
+            ]"
+          >
+            Snippets
+          </button>
+          <button
+            @click="sidebarTab = 'files'; loadLocalFiles()"
+            :class="[
+              'flex-1 px-2 py-1 rounded-[6px] font-medium transition-colors cursor-pointer text-center',
+              sidebarTab === 'files' ? 'gh-surface-elevated gh-accent font-semibold border gh-border' : 'gh-text-secondary hover:gh-text-primary border border-transparent'
+            ]"
+          >
+            Local Files
+          </button>
         </div>
 
-        <!-- 1. SATELLITES & THEMES CATALOG -->
-        <div v-if="sidebarTab === 'catalog'" class="flex-1 flex flex-col overflow-hidden p-2.5 space-y-2">
-          <!-- Category Filter Pills -->
-          <div class="flex items-center space-x-1 overflow-x-auto pb-1 scrollbar-none text-[11px]">
-            <button
-              v-for="cat in categories"
-              :key="cat.id"
-              @click="activeCategory = cat.id; loadCatalogDatasets()"
-              :class="[
-                'px-2 py-0.5 rounded-full whitespace-nowrap font-medium transition-colors cursor-pointer',
-                activeCategory === cat.id
-                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-700 font-bold'
-                  : 'bg-slate-800/80 text-slate-400 hover:text-slate-200'
-              ]"
-            >
-              {{ cat.label }}
-            </button>
+        <!-- 1. SATELLITE & THEME DATASETS -->
+        <div v-if="sidebarTab === 'catalog'" class="flex-1 flex flex-col overflow-hidden">
+          <div class="p-2.5 border-b gh-divider space-y-2 shrink-0">
+            <div class="flex items-center space-x-1 overflow-x-auto pb-1 text-[11px]">
+              <button
+                v-for="cat in categories"
+                :key="cat.id"
+                @click="activeCategory = cat.id; loadCatalogDatasets()"
+                :class="[
+                  'px-2 py-0.5 rounded-[6px] border whitespace-nowrap font-medium transition-colors cursor-pointer',
+                  activeCategory === cat.id
+                    ? 'gh-selected-bg gh-focus-border gh-turquoise font-semibold'
+                    : 'gh-surface-secondary gh-border gh-text-secondary hover:gh-text-primary'
+                ]"
+              >
+                {{ cat.label }}
+              </button>
+            </div>
+
+            <div class="relative">
+              <Search class="w-3.5 h-3.5 gh-text-muted absolute left-2.5 top-2 pointer-events-none" />
+              <input
+                v-model="catalogSearchQuery"
+                @input="loadCatalogDatasets"
+                type="text"
+                placeholder="Search datasets, DEM, land cover..."
+                class="w-full gh-input rounded-[7px] pl-8 pr-3 py-1 text-[12px] font-mono"
+              />
+            </div>
           </div>
 
-          <!-- Search Input -->
-          <div class="relative">
-            <input
-              v-model="catalogSearchQuery"
-              @input="loadCatalogDatasets"
-              type="text"
-              placeholder="Search satellites, DEM, land cover..."
-              class="w-full bg-slate-950 border border-slate-750 rounded-lg pl-7 pr-3 py-1 text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-emerald-500 font-mono"
-            />
-            <span class="text-slate-500 absolute left-2 top-1.5 text-xs">🔍</span>
-          </div>
-
-          <!-- Catalog List -->
-          <div class="flex-1 overflow-y-auto space-y-2 pr-0.5 scrollbar-thin scrollbar-thumb-slate-700">
+          <div class="flex-1 overflow-y-auto divide-y gh-divide">
             <div
               v-for="ds in catalogDatasets"
               :key="ds.id"
-              class="p-2.5 rounded-xl border bg-slate-950/60 border-slate-800 hover:border-slate-700 hover:bg-slate-950 transition-all text-xs space-y-1.5"
+              class="px-3 py-2.5 hover:gh-surface-secondary transition-colors space-y-1.5"
             >
-              <div class="flex items-center justify-between">
-                <span class="text-[9px] font-mono uppercase font-bold px-1.5 py-0.2 rounded bg-slate-900 border border-slate-750 text-slate-300">
-                  {{ ds.category }}
-                </span>
-                <span class="text-[10px] font-mono text-emerald-400 font-bold">
-                  {{ ds.resolution }}
-                </span>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-[10.5px] font-mono uppercase gh-text-muted">{{ ds.category }}</span>
+                <span class="text-[11px] font-mono gh-saffron font-semibold">{{ ds.resolution }}</span>
               </div>
-
-              <h3 class="font-bold text-slate-100 text-[11px] leading-tight">
-                {{ ds.name }}
-              </h3>
-
-              <p class="text-[10px] text-slate-400 line-clamp-2 leading-relaxed">
-                {{ ds.description }}
-              </p>
-
-              <div class="flex items-center justify-between pt-1 border-t border-slate-800/80">
-                <span class="text-[9px] font-mono text-slate-500 truncate max-w-[140px]">
-                  {{ ds.provider }}
-                </span>
-                <div class="flex items-center space-x-1.5">
-                  <button
-                    @click="insertDatasetCodeAsCell(ds.id)"
-                    class="px-2 py-0.5 bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/40 hover:border-emerald-500 text-emerald-300 hover:text-white rounded text-[10px] font-bold transition-all cursor-pointer flex items-center space-x-1"
-                    title="Insert dataset starter code as a new notebook cell"
-                  >
-                    <span>+</span>
-                    <span>Insert Cell</span>
-                  </button>
-                </div>
+              <h3 class="font-semibold gh-text-primary text-[12.5px] leading-snug">{{ ds.name }}</h3>
+              <p class="text-[11.5px] gh-text-secondary line-clamp-2 leading-relaxed">{{ ds.description }}</p>
+              <div class="flex items-center justify-between pt-1">
+                <span class="text-[10.5px] font-mono gh-text-muted truncate max-w-[140px]">{{ ds.provider }}</span>
+                <button
+                  @click="insertDatasetCodeAsCell(ds.id)"
+                  class="px-2 py-0.5 rounded-[6px] gh-btn-secondary text-[11px] font-medium gh-accent flex items-center space-x-1 cursor-pointer"
+                  title="Insert starter code as a new cell"
+                >
+                  <Plus class="w-3 h-3" />
+                  <span>Insert</span>
+                </button>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- 2. THEMATIC SNIPPETS -->
-        <div v-else-if="sidebarTab === 'snippets'" class="flex-1 flex flex-col overflow-hidden p-2.5 space-y-2">
-          <div class="text-[11px] text-slate-400">
-            Click any curated algorithm snippet to insert it as a new cell in your Jupyter notebook:
+        <!-- 2. SNIPPETS -->
+        <div v-else-if="sidebarTab === 'snippets'" class="flex-1 flex flex-col overflow-hidden">
+          <div class="px-3 py-2 border-b gh-divider text-[11.5px] gh-text-secondary shrink-0">
+            Insert pre-configured scripts into the active notebook:
           </div>
-          <div class="flex-1 overflow-y-auto space-y-2 pr-0.5 scrollbar-thin scrollbar-thumb-slate-700">
+          <div class="flex-1 overflow-y-auto divide-y gh-divide">
             <div
               v-for="snip in curatedSnippets"
               :key="snip.id"
-              class="p-2.5 rounded-xl border bg-slate-950/60 border-slate-800 hover:border-slate-700 hover:bg-slate-950 transition-all text-xs space-y-1.5"
+              class="px-3 py-2.5 hover:gh-surface-secondary transition-colors space-y-1.5"
             >
               <div class="flex items-center justify-between">
-                <span :class="[
-                  'text-[9px] font-mono uppercase font-bold px-1.5 py-0.2 rounded border',
-                  snip.mode === 'gee' ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-sky-950 text-sky-400 border-sky-800'
-                ]">
-                  {{ snip.mode === 'gee' ? 'GEE Cloud' : 'Local File' }}
+                <span class="text-[10.5px] font-mono uppercase gh-accent font-semibold">
+                  {{ snip.mode === 'gee' ? 'GEE Cloud' : 'Local Python' }}
                 </span>
                 <button
                   @click="insertSnippetCodeAsCell(snip)"
-                  class="px-2 py-0.5 bg-slate-800 hover:bg-emerald-600 text-slate-200 hover:text-white rounded text-[10px] font-bold transition-all cursor-pointer"
+                  class="px-2 py-0.5 rounded-[6px] gh-btn-secondary text-[11px] font-medium flex items-center space-x-1 cursor-pointer"
                 >
-                  + Add Cell
+                  <Plus class="w-3 h-3 gh-accent" />
+                  <span>Add Cell</span>
                 </button>
               </div>
-
-              <h4 class="font-bold text-slate-200 text-[11px]">
-                {{ snip.title }}
-              </h4>
-              <p class="text-[10px] text-slate-400 leading-relaxed">
-                {{ snip.description }}
-              </p>
+              <h4 class="font-semibold gh-text-primary text-[12.5px]">{{ snip.title }}</h4>
+              <p class="text-[11.5px] gh-text-secondary leading-relaxed">{{ snip.description }}</p>
             </div>
           </div>
         </div>
 
-        <!-- 3. AVAILABLE LOCAL FILES -->
-        <div v-else class="flex-1 flex flex-col overflow-hidden p-2.5 space-y-2">
-          <div class="flex items-center justify-between text-[11px]">
-            <span class="text-slate-400">Downloaded Rasters & AOIs:</span>
-            <button @click="loadLocalFiles" class="text-sky-400 hover:underline cursor-pointer text-[10px]">
+        <!-- 3. LOCAL FILES -->
+        <div v-else class="flex-1 flex flex-col overflow-hidden">
+          <div class="px-3 py-2 border-b gh-divider flex items-center justify-between text-[11.5px] shrink-0">
+            <span class="gh-text-secondary">Workspace Rasters &amp; AOIs</span>
+            <button @click="loadLocalFiles" class="gh-accent hover:underline cursor-pointer text-[11px] font-mono">
               Refresh
             </button>
           </div>
-
-          <div class="flex-1 overflow-y-auto space-y-1.5 pr-0.5 scrollbar-thin scrollbar-thumb-slate-700">
-            <div v-if="localFilesList.length === 0" class="p-3 text-center text-slate-500 text-xs">
-              No downloaded rasters found in ./data/downloads or ./data/processed.
+          <div class="flex-1 overflow-y-auto divide-y gh-divide">
+            <div v-if="localFilesList.length === 0" class="p-4 text-center gh-text-muted text-[12px]">
+              No local rasters found in ./data/downloads or ./data/processed.
             </div>
             <div
               v-for="f in localFilesList"
               :key="f.absolute_path"
-              class="p-2 rounded-lg bg-slate-950/80 border border-slate-800 text-xs space-y-1"
+              class="px-3 py-2.5 hover:gh-surface-secondary space-y-1"
             >
-              <div class="flex items-center justify-between">
-                <span class="font-mono text-[11px] text-slate-200 truncate max-w-[170px]" :title="f.name">
-                  {{ f.name }}
-                </span>
-                <span class="text-[9px] font-mono text-slate-500">
-                  {{ formatBytes(f.size_bytes) }}
-                </span>
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-mono text-[12px] gh-text-primary truncate" :title="f.name">{{ f.name }}</span>
+                <span class="text-[10.5px] font-mono gh-text-muted shrink-0">{{ formatBytes(f.size_bytes) }}</span>
               </div>
-              <div class="flex items-center justify-between pt-1 text-[10px]">
-                <span class="text-slate-500 font-mono">{{ f.root }}</span>
+              <div class="flex items-center justify-between text-[11px] font-mono">
+                <span class="gh-text-muted">{{ f.root }}</span>
                 <button
                   @click="insertFilePathIntoActiveCell(f.absolute_path)"
-                  class="text-sky-400 hover:text-sky-300 font-semibold cursor-pointer"
+                  class="gh-accent hover:underline font-medium cursor-pointer"
                 >
                   + Insert Path
                 </button>
@@ -350,352 +294,302 @@
         </div>
       </aside>
 
-      <!-- ================= MAIN WORKSPACE: NOTEBOOK & INSPECTOR ================= -->
-      <main class="flex-1 flex overflow-hidden bg-slate-950">
-        <!-- LEFT/CENTER: JUPYTER NOTEBOOK DOCUMENT -->
+      <!-- MAIN EDITOR & INSPECTOR AREA -->
+      <main class="flex-1 flex overflow-hidden gh-workspace-bg min-w-0">
+        <!-- NOTEBOOK EDITOR COLUMN -->
         <section
           v-show="layoutMode !== 'map'"
           :class="[
-            'flex flex-col h-full bg-slate-950 border-r border-slate-800 transition-all duration-150',
+            'flex flex-col h-full gh-workspace-bg border-r gh-border transition-all duration-150 min-w-0',
             layoutMode === 'split' ? 'w-7/12' : 'w-full'
           ]"
         >
-          <!-- NOTEBOOK COMMAND BAR / KERNEL TOOLBAR -->
-          <div class="h-9 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-3 shrink-0 text-xs">
-            <!-- Left: Add Cell & Execution Shortcuts -->
-            <div class="flex items-center space-x-1.5">
+          <!-- Script / Notebook Toolbar -->
+          <div class="h-10 gh-surface-primary border-b gh-border flex items-center justify-between px-3 shrink-0 text-[12px] overflow-x-auto gap-2">
+            <div class="flex items-center space-x-1.5 shrink-0">
               <button
                 @click="addCell('code')"
-                class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded font-medium flex items-center space-x-1 cursor-pointer transition-colors"
-                title="Insert a new Python code cell below the current cell"
+                class="px-2.5 py-1 rounded-[6px] gh-btn-secondary font-medium flex items-center space-x-1 cursor-pointer"
+                title="Insert new Python code cell"
               >
-                <span class="text-emerald-400 font-bold">+</span>
+                <Plus class="w-3.5 h-3.5 gh-accent" />
                 <span>Code</span>
               </button>
               <button
                 @click="addCell('markdown')"
-                class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded font-medium flex items-center space-x-1 cursor-pointer transition-colors"
-                title="Insert a new Markdown documentation cell"
+                class="px-2.5 py-1 rounded-[6px] gh-btn-secondary font-medium flex items-center space-x-1 cursor-pointer"
+                title="Insert new Markdown cell"
               >
-                <span class="text-sky-400 font-bold">+</span>
+                <Plus class="w-3.5 h-3.5 gh-text-secondary" />
                 <span>Markdown</span>
               </button>
 
-              <div class="h-4 w-px bg-slate-800 mx-1"></div>
+              <div class="h-4 w-px border-l gh-border mx-1"></div>
 
               <button
                 @click="runActiveCell"
                 :disabled="isKernelBusy"
-                class="px-2.5 py-1 bg-emerald-700/80 hover:bg-emerald-600 text-white rounded font-medium flex items-center space-x-1 cursor-pointer transition-colors disabled:opacity-50"
+                class="px-2.5 py-1 rounded-[6px] gh-btn-primary font-semibold flex items-center space-x-1 cursor-pointer disabled:opacity-50"
                 title="Run selected cell (Shift + Enter)"
               >
-                <span>▶</span>
+                <Play class="w-3.5 h-3.5" />
                 <span>Run</span>
               </button>
 
               <button
                 @click="restartKernel"
-                class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-300 rounded font-medium flex items-center space-x-1 cursor-pointer transition-colors"
-                title="Restart kernel and reset execution state"
+                class="px-2.5 py-1 rounded-[6px] gh-btn-ghost font-medium flex items-center space-x-1 cursor-pointer"
+                title="Restart Python kernel and reset state"
               >
-                <span>🔄</span>
+                <RotateCcw class="w-3.5 h-3.5" />
                 <span>Restart</span>
               </button>
 
               <button
                 @click="clearAllOutputs"
-                class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 rounded font-medium cursor-pointer transition-colors"
+                class="px-2.5 py-1 rounded-[6px] gh-btn-ghost font-medium cursor-pointer"
                 title="Clear all cell outputs"
               >
-                <span>🧹 Clear</span>
+                <span>Clear Outputs</span>
               </button>
             </div>
 
-            <!-- Right: Kernel Status Badge & Export/Import -->
-            <div class="flex items-center space-x-2.5 text-[11px] font-mono">
-              <!-- Kernel Indicator -->
-              <div class="flex items-center space-x-1.5 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
-                <span
-                  :class="[
-                    'w-2 h-2 rounded-full',
-                    isKernelBusy ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'
-                  ]"
-                ></span>
-                <span class="text-slate-300 font-medium">
-                  {{ executionMode === 'gee' ? 'Python 3 (GEE)' : 'Python 3 (Local)' }}
-                </span>
-                <span class="text-slate-500">|</span>
-                <span :class="isKernelBusy ? 'text-amber-400' : 'text-slate-400'">
-                  {{ isKernelBusy ? 'busy' : 'idle' }}
-                </span>
+            <div class="flex items-center space-x-2 text-[11.5px] font-mono shrink-0">
+              <div class="flex items-center space-x-1.5 gh-surface-secondary px-2 py-0.5 rounded-[6px] border gh-border">
+                <span :class="['w-2 h-2 rounded-full', isKernelBusy ? 'bg-[var(--warning)]' : 'bg-[var(--success)]']"></span>
+                <span class="gh-text-primary">{{ executionMode === 'gee' ? 'Python 3 (GEE)' : 'Python 3 (Local)' }}</span>
+                <span class="gh-text-muted">|</span>
+                <span :class="isKernelBusy ? 'gh-warning' : 'gh-text-muted'">{{ isKernelBusy ? 'busy' : 'idle' }}</span>
               </div>
 
-              <!-- Export .ipynb -->
               <button
                 @click="exportNotebook"
-                class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded flex items-center space-x-1 cursor-pointer"
-                title="Download this notebook as a standard .ipynb file"
+                class="px-2 py-0.5 rounded-[6px] gh-btn-secondary flex items-center space-x-1 cursor-pointer"
+                title="Export notebook as .ipynb"
               >
-                <span>📥</span>
+                <Download class="w-3 h-3" />
                 <span>.ipynb</span>
               </button>
 
-              <!-- Import .ipynb Hidden File Input -->
               <label
-                class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded flex items-center space-x-1 cursor-pointer"
-                title="Load an existing .ipynb notebook from your computer"
+                class="px-2 py-0.5 rounded-[6px] gh-btn-secondary flex items-center space-x-1 cursor-pointer"
+                title="Open .ipynb notebook file"
               >
-                <span>📤</span>
+                <Upload class="w-3 h-3" />
                 <span>Open</span>
-                <input
-                  type="file"
-                  accept=".ipynb,application/json"
-                  @change="handleNotebookImport"
-                  class="hidden"
-                />
+                <input type="file" accept=".ipynb,application/json" @change="handleNotebookImport" class="hidden" />
               </label>
 
-              <!-- Reset to Default Tutorial -->
               <button
                 @click="resetToDefaultNotebook"
-                class="text-slate-500 hover:text-slate-300 cursor-pointer ml-1"
-                title="Reset to default multi-cell tutorial notebook"
+                class="gh-text-muted hover:gh-text-primary cursor-pointer px-1"
+                title="Reset notebook to default starter"
               >
                 Reset
               </button>
             </div>
           </div>
 
-          <!-- SCROLLABLE NOTEBOOK DOCUMENT -->
-          <div class="flex-1 overflow-y-auto p-4 space-y-3.5 scrollbar-thin scrollbar-thumb-slate-800 font-mono">
-            <!-- RENDER CELLS -->
+          <!-- Cells Scroll Stream -->
+          <div class="flex-1 overflow-y-auto p-4 space-y-3 font-mono">
             <div
               v-for="(cell, index) in notebookCells"
               :key="cell.id"
               :class="[
-                'group rounded-xl border transition-all duration-150 bg-slate-900/60 overflow-hidden',
-                activeCellId === cell.id
-                  ? 'border-emerald-500/80 ring-1 ring-emerald-500/30 shadow-lg shadow-emerald-950/20'
-                  : 'border-slate-800 hover:border-slate-750'
+                'group rounded-[10px] border transition-colors overflow-hidden gh-surface-primary',
+                activeCellId === cell.id ? 'gh-focus-border' : 'gh-border'
               ]"
               @click="activeCellId = cell.id"
             >
-              <!-- Cell Action Bar (Toolbar on Hover or Focus) -->
-              <div class="h-6 bg-slate-900/90 border-b border-slate-800/80 flex items-center justify-between px-2 text-[10px] text-slate-400 select-none">
+              <!-- Cell Control Strip -->
+              <div class="h-7 gh-surface-secondary border-b gh-divider flex items-center justify-between px-3 text-[11px] gh-text-secondary select-none">
                 <div class="flex items-center space-x-2">
-                  <span class="font-bold text-slate-500 text-[10px]">#{{ index + 1 }}</span>
-                  <span
-                    :class="[
-                      'px-1.5 py-0.2 rounded font-semibold uppercase text-[9px] border',
-                      cell.type === 'code' ? 'bg-emerald-950/80 text-emerald-400 border-emerald-800/60' : 'bg-sky-950/80 text-sky-400 border-sky-800/60'
-                    ]"
-                  >
+                  <span class="font-semibold gh-text-muted">#{{ index + 1 }}</span>
+                  <span :class="cell.type === 'code' ? 'gh-accent font-semibold' : 'gh-text-secondary'" class="uppercase text-[10px]">
                     {{ cell.type }}
                   </span>
-                  <span v-if="cell.isRunning" class="text-amber-400 font-semibold animate-pulse flex items-center space-x-1">
-                    <span>⚡</span>
-                    <span>Running...</span>
-                  </span>
+                  <span v-if="cell.isRunning" class="gh-warning font-semibold">Running...</span>
                 </div>
 
-                <div class="flex items-center space-x-1.5 opacity-70 group-hover:opacity-100 transition-opacity">
+                <div class="flex items-center space-x-1 opacity-75 group-hover:opacity-100 transition-opacity">
                   <button
                     v-if="cell.type === 'code'"
                     @click.stop="runCell(cell.id)"
                     :disabled="cell.isRunning"
-                    class="hover:text-emerald-400 cursor-pointer p-0.5"
+                    class="p-1 rounded-[5px] hover:gh-surface-elevated hover:gh-accent cursor-pointer"
                     title="Run cell (Shift+Enter)"
                   >
-                    ▶
+                    <Play class="w-3 h-3" />
                   </button>
                   <button
                     @click.stop="toggleCellType(cell.id)"
-                    class="hover:text-slate-200 cursor-pointer p-0.5"
-                    title="Toggle Code / Markdown"
+                    class="px-1.5 py-0.5 rounded-[5px] hover:gh-surface-elevated hover:gh-text-primary cursor-pointer text-[10px]"
+                    title="Switch between Code and Markdown"
                   >
-                    ⇄ {{ cell.type === 'code' ? 'MD' : 'Code' }}
+                    {{ cell.type === 'code' ? 'to MD' : 'to Code' }}
                   </button>
                   <button
                     @click.stop="moveCell(cell.id, 'up')"
                     :disabled="index === 0"
-                    class="hover:text-slate-200 cursor-pointer p-0.5 disabled:opacity-30"
-                    title="Move cell up"
+                    class="p-1 rounded-[5px] hover:gh-surface-elevated cursor-pointer disabled:opacity-30"
+                    title="Move up"
                   >
-                    ▲
+                    <ChevronUp class="w-3 h-3" />
                   </button>
                   <button
                     @click.stop="moveCell(cell.id, 'down')"
                     :disabled="index === notebookCells.length - 1"
-                    class="hover:text-slate-200 cursor-pointer p-0.5 disabled:opacity-30"
-                    title="Move cell down"
+                    class="p-1 rounded-[5px] hover:gh-surface-elevated cursor-pointer disabled:opacity-30"
+                    title="Move down"
                   >
-                    ▼
+                    <ChevronDown class="w-3 h-3" />
                   </button>
                   <button
                     @click.stop="addCell('code', cell.id)"
-                    class="hover:text-slate-200 cursor-pointer p-0.5"
+                    class="p-1 rounded-[5px] hover:gh-surface-elevated cursor-pointer"
                     title="Insert code cell below"
                   >
-                    +
+                    <Plus class="w-3 h-3" />
                   </button>
                   <button
                     @click.stop="deleteCell(cell.id)"
-                    class="hover:text-rose-400 cursor-pointer p-0.5"
+                    class="p-1 rounded-[5px] hover:gh-error-soft-bg hover:gh-error cursor-pointer"
                     title="Delete cell"
                   >
-                    ✕
+                    <Trash2 class="w-3 h-3" />
                   </button>
                 </div>
               </div>
 
-              <!-- Cell Main Content: Code / Markdown Input -->
-              <div class="flex items-stretch bg-slate-950">
-                <!-- Cell Prompt (In [1]: / In [ ]: / In [*]:) -->
-                <div class="w-14 shrink-0 p-2 text-right text-[11px] font-mono select-none border-r border-slate-900 bg-slate-950/80">
+              <!-- Cell Input Area (Dedicated Theme-Matched Editor Surface) -->
+              <div class="flex items-stretch gh-code-bg">
+                <div
+                  class="w-14 shrink-0 py-2.5 px-2 text-right text-[11px] font-mono select-none border-r gh-divider"
+                  style="color: var(--code-gutter);"
+                >
                   <template v-if="cell.type === 'code'">
-                    <span v-if="cell.isRunning" class="text-amber-400 font-bold animate-pulse">In [*]:</span>
-                    <span v-else-if="cell.executionCount !== null" class="text-emerald-400 font-bold">In [{{ cell.executionCount }}]:</span>
-                    <span v-else class="text-slate-600">In [ ]:</span>
+                    <span v-if="cell.isRunning" class="gh-warning font-semibold">[*]:</span>
+                    <span v-else-if="cell.executionCount !== null" class="gh-accent font-semibold">[{{ cell.executionCount }}]:</span>
+                    <span v-else>[ ]:</span>
                   </template>
                   <template v-else>
-                    <span class="text-sky-500/80 text-[10px]">MD</span>
+                    <span>MD</span>
                   </template>
                 </div>
 
-                <!-- Cell Editor Body -->
-                <div class="flex-1 overflow-hidden relative">
-                  <!-- 1. Code Editor Textarea -->
-                  <div v-if="cell.type === 'code'" class="w-full">
-                    <textarea
-                      :id="'cell-textarea-' + cell.id"
-                      v-model="cell.source"
-                      @keydown="handleCellKeydown($event, cell.id)"
-                      spellcheck="false"
-                      rows="4"
-                      class="w-full bg-transparent text-emerald-200/90 p-2.5 outline-none resize-y font-mono text-[11px] leading-relaxed selection:bg-emerald-900 selection:text-white"
-                      placeholder="# Write Python code here..."
-                    ></textarea>
-                  </div>
+                <div class="flex-1 overflow-hidden">
+                  <textarea
+                    v-if="cell.type === 'code'"
+                    :id="'cell-textarea-' + cell.id"
+                    v-model="cell.source"
+                    @keydown="handleCellKeydown($event, cell.id)"
+                    spellcheck="false"
+                    rows="4"
+                    class="w-full bg-transparent p-2.5 outline-none resize-y font-mono text-[12.5px] leading-[1.6]"
+                    style="color: var(--code-text);"
+                    placeholder="# Write Python geospatial code here..."
+                  ></textarea>
 
-                  <!-- 2. Markdown Cell (Edit vs Rendered Preview) -->
-                  <div v-else class="w-full">
+                  <div v-else class="w-full gh-surface-primary">
                     <div
                       v-if="!cell.isEditingMarkdown"
                       @dblclick="cell.isEditingMarkdown = true"
-                      class="p-3 text-xs text-slate-200 leading-relaxed font-sans prose prose-invert max-w-none cursor-pointer"
+                      class="p-3.5 text-[13px] gh-text-primary leading-relaxed font-sans max-w-none cursor-pointer"
                       title="Double-click to edit markdown"
                     >
                       <div v-html="renderSimpleMarkdown(cell.source)"></div>
                     </div>
-                    <div v-else class="w-full">
+                    <div v-else class="w-full gh-code-bg">
                       <textarea
                         v-model="cell.source"
                         @blur="cell.isEditingMarkdown = false"
                         spellcheck="false"
                         rows="3"
-                        class="w-full bg-slate-900 text-sky-200 p-2.5 outline-none resize-y font-mono text-[11px] leading-relaxed"
-                        placeholder="# Markdown heading or explanation..."
+                        class="w-full bg-transparent p-2.5 outline-none resize-y font-mono text-[12.5px] leading-relaxed"
+                        style="color: var(--code-text);"
+                        placeholder="# Markdown heading..."
                       ></textarea>
-                      <div class="px-2 py-1 bg-slate-900/90 text-right text-[10px] text-slate-400">
-                        Click outside or run to render markdown
+                      <div class="px-3 py-1 gh-surface-secondary border-t gh-divider text-right text-[10.5px] gh-text-muted">
+                        Click outside or press Run to render
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <!-- Cell Output Area (Directly below code cell) -->
+              <!-- Cell Execution Output -->
               <div
                 v-if="cell.type === 'code' && cell.outputs"
-                class="border-t border-slate-800 bg-slate-950/90 flex flex-col font-mono text-[11px]"
+                class="border-t gh-divider gh-surface-primary font-mono text-[12px]"
               >
-                <!-- Output Status Bar -->
-                <div class="h-6 bg-slate-900/40 border-b border-slate-900 flex items-center justify-between px-3 text-[10px] text-slate-400">
+                <div class="h-7 gh-surface-secondary border-b gh-divider flex items-center justify-between px-3 text-[11px] gh-text-muted">
                   <div class="flex items-center space-x-2">
-                    <span class="text-slate-500 font-bold">Out [{{ cell.executionCount || ' ' }}]:</span>
-                    <span v-if="cell.outputs.execution_time_ms !== undefined" class="text-slate-400">
-                      ⚡ {{ (cell.outputs.execution_time_ms / 1000).toFixed(2) }}s
+                    <span class="font-semibold">Out [{{ cell.executionCount || ' ' }}]</span>
+                    <span v-if="cell.outputs.execution_time_ms !== undefined">
+                      &bull; {{ (cell.outputs.execution_time_ms / 1000).toFixed(2) }}s
                     </span>
                   </div>
-                  <button
-                    @click="cell.outputs = null"
-                    class="text-slate-500 hover:text-slate-300 cursor-pointer"
-                    title="Clear cell output"
-                  >
-                    Clear ✕
+                  <button @click="cell.outputs = null" class="hover:gh-text-primary cursor-pointer">
+                    Clear
                   </button>
                 </div>
 
-                <!-- Stdout Logs -->
-                <div v-if="cell.outputs.logs" class="p-3 overflow-x-auto text-slate-200 leading-relaxed max-h-60 scrollbar-thin">
+                <div v-if="cell.outputs.logs" class="p-3 overflow-x-auto gh-text-primary leading-relaxed max-h-60 gh-code-bg">
                   <pre class="whitespace-pre-wrap">{{ cell.outputs.logs }}</pre>
                 </div>
 
-                <!-- Error Traceback -->
-                <div v-if="cell.outputs.error" class="p-3 bg-rose-950/40 border-t border-rose-900/50 text-rose-300 text-xs">
-                  <div class="font-bold flex items-center space-x-1.5 text-rose-400">
-                    <span>⚠️</span>
-                    <span>Execution Error:</span>
+                <div v-if="cell.outputs.error" class="p-3 gh-error-soft-bg border-t gh-error-border gh-error text-[12px]">
+                  <div class="font-semibold flex items-center space-x-1.5">
+                    <AlertTriangle class="w-3.5 h-3.5" />
+                    <span>Execution Error</span>
                   </div>
-                  <pre class="mt-1 whitespace-pre-wrap text-[11px] font-mono text-rose-200">{{ cell.outputs.error }}</pre>
+                  <pre class="mt-1 whitespace-pre-wrap text-[11.5px]">{{ cell.outputs.error }}</pre>
                 </div>
 
-                <!-- Generated Map Layer Badges -->
                 <div
                   v-if="cell.outputs.cell_layers && cell.outputs.cell_layers.length > 0"
-                  class="p-2.5 bg-emerald-950/30 border-t border-emerald-900/40 flex flex-wrap gap-2 items-center"
+                  class="px-3 py-2 gh-selected-bg border-t gh-divider flex flex-wrap gap-2 items-center text-[11.5px]"
                 >
-                  <span class="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
-                    Layers Added:
-                  </span>
+                  <span class="gh-label">Layers Added:</span>
                   <div
                     v-for="lyr in cell.outputs.cell_layers"
                     :key="lyr.name"
-                    class="flex items-center space-x-1.5 px-2 py-0.5 rounded bg-emerald-900/50 border border-emerald-700/80 text-[10px] text-emerald-200"
+                    class="flex items-center space-x-1.5 px-2 py-0.5 rounded-[6px] gh-surface-primary border gh-border"
                   >
-                    <span>🗺️</span>
-                    <span class="font-bold">{{ lyr.name }}</span>
-                    <button
-                      @click="focusMapLayer(lyr.name)"
-                      class="text-[9px] bg-emerald-600 hover:bg-emerald-500 text-white px-1 rounded cursor-pointer ml-1"
-                    >
-                      View on Map ↗
+                    <Layers class="w-3 h-3 gh-accent" />
+                    <span class="font-semibold gh-text-primary">{{ lyr.name }}</span>
+                    <button @click="focusMapLayer(lyr.name)" class="gh-accent hover:underline text-[11px] cursor-pointer ml-1">
+                      View
                     </button>
                   </div>
                 </div>
 
-                <!-- Generated Output Files -->
                 <div
                   v-if="cell.outputs.output_files && cell.outputs.output_files.length > 0"
-                  class="p-2.5 bg-purple-950/30 border-t border-purple-900/40 flex flex-wrap gap-2 items-center"
+                  class="px-3 py-2 gh-surface-secondary border-t gh-divider flex flex-wrap gap-2 items-center text-[11.5px]"
                 >
-                  <span class="text-[10px] font-bold text-purple-400 uppercase tracking-wider">
-                    Files Created:
-                  </span>
+                  <span class="gh-label">Files:</span>
                   <a
                     v-for="f in cell.outputs.output_files"
                     :key="f.name"
                     :href="f.download_url"
                     target="_blank"
-                    class="flex items-center space-x-1.5 px-2 py-0.5 rounded bg-purple-900/50 border border-purple-700/80 text-[10px] text-purple-200 hover:bg-purple-800 transition-colors"
+                    class="flex items-center space-x-1 px-2 py-0.5 rounded-[6px] gh-surface-primary border gh-border gh-accent hover:underline"
                   >
-                    <span>📁</span>
-                    <span class="font-bold font-mono">{{ f.name }}</span>
-                    <span class="text-[9px] text-purple-300">({{ f.formatted_size }})</span>
-                    <span>↗</span>
+                    <Download class="w-3 h-3" />
+                    <span>{{ f.name }} ({{ f.formatted_size }})</span>
                   </a>
                 </div>
 
-                <!-- Extracted Data Metrics Preview -->
                 <div
                   v-if="cell.outputs.data && Object.keys(cell.outputs.data).length > 0"
-                  class="p-2 bg-amber-950/20 border-t border-amber-900/30 text-[10px] flex items-center space-x-2"
+                  class="px-3 py-2 gh-surface-secondary border-t gh-divider text-[11.5px] flex flex-wrap items-center gap-2"
                 >
-                  <span class="font-bold text-amber-400">Data variables:</span>
+                  <span class="gh-label">Variables:</span>
                   <span
                     v-for="(val, key) in cell.outputs.data"
                     :key="key"
-                    class="font-mono bg-amber-900/40 border border-amber-800 px-1.5 py-0.2 rounded text-amber-200"
+                    class="px-2 py-0.5 rounded-[6px] gh-surface-primary border gh-border gh-text-primary"
                   >
                     {{ key }} = {{ typeof val === 'object' ? JSON.stringify(val) : val }}
                   </span>
@@ -703,178 +597,154 @@
               </div>
             </div>
 
-            <!-- Bottom Add Cell Action -->
-            <div class="flex items-center justify-center space-x-2 pt-2 pb-6">
-              <button
-                @click="addCell('code')"
-                class="px-3 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-750 text-slate-300 hover:text-white rounded-lg text-xs font-semibold flex items-center space-x-1 cursor-pointer transition-colors"
-              >
-                <span>+ Code Cell</span>
+            <!-- Add Cell Footer -->
+            <div class="flex items-center justify-center space-x-2 pt-1 pb-6">
+              <button @click="addCell('code')" class="px-3 py-1.5 rounded-[8px] gh-btn-secondary text-[12px] font-medium flex items-center space-x-1 cursor-pointer">
+                <Plus class="w-3.5 h-3.5 gh-accent" />
+                <span>Code Cell</span>
               </button>
-              <button
-                @click="addCell('markdown')"
-                class="px-3 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-750 text-slate-300 hover:text-white rounded-lg text-xs font-semibold flex items-center space-x-1 cursor-pointer transition-colors"
-              >
-                <span>+ Markdown Cell</span>
+              <button @click="addCell('markdown')" class="px-3 py-1.5 rounded-[8px] gh-btn-secondary text-[12px] font-medium flex items-center space-x-1 cursor-pointer">
+                <Plus class="w-3.5 h-3.5" />
+                <span>Markdown Cell</span>
               </button>
             </div>
           </div>
         </section>
 
-        <!-- RIGHT/CENTER: RESULTS & VISUALIZATION INSPECTOR -->
+        <!-- RIGHT INSPECTOR: Map, Data, Output Files & Console -->
         <section
           v-show="layoutMode !== 'notebook'"
           :class="[
-            'flex flex-col h-full bg-slate-900 overflow-hidden transition-all duration-150',
+            'flex flex-col h-full gh-surface-primary overflow-hidden transition-all duration-150 min-w-0',
             layoutMode === 'split' ? 'w-5/12' : 'w-full'
           ]"
         >
-          <!-- Inspector Tab Headers -->
-          <div class="h-9 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-3 shrink-0 text-xs">
-            <div class="flex items-center space-x-1">
+          <!-- Inspector Tabs -->
+          <div class="h-10 gh-surface-primary border-b gh-border flex items-center justify-between px-3 shrink-0 text-[12px] overflow-x-auto gap-2">
+            <div class="flex items-center space-x-1 shrink-0">
               <button
                 @click="inspectorTab = 'map'"
                 :class="[
-                  'px-3 py-1 rounded font-semibold transition-colors cursor-pointer flex items-center space-x-1.5',
-                  inspectorTab === 'map' ? 'bg-slate-800 text-emerald-400 border border-slate-700' : 'text-slate-400 hover:text-slate-200'
+                  'px-2.5 py-1 rounded-[6px] font-medium transition-colors cursor-pointer flex items-center space-x-1.5',
+                  inspectorTab === 'map' ? 'gh-selected-bg gh-turquoise font-semibold' : 'gh-text-secondary hover:gh-text-primary'
                 ]"
               >
-                <span>🗺️</span>
-                <span>Map Viewer</span>
-                <span v-if="resultLayers.length > 0" class="text-[9px] bg-emerald-950 text-emerald-400 px-1 rounded-full border border-emerald-800">
-                  {{ resultLayers.length }}
-                </span>
+                <MapIcon class="w-3.5 h-3.5" />
+                <span>Map</span>
+                <span v-if="resultLayers.length > 0" class="font-mono text-[10.5px]">({{ resultLayers.length }})</span>
               </button>
 
               <button
                 @click="inspectorTab = 'data'"
                 :class="[
-                  'px-3 py-1 rounded font-semibold transition-colors cursor-pointer flex items-center space-x-1.5',
-                  inspectorTab === 'data' ? 'bg-slate-800 text-amber-400 border border-slate-700' : 'text-slate-400 hover:text-slate-200'
+                  'px-2.5 py-1 rounded-[6px] font-medium transition-colors cursor-pointer flex items-center space-x-1.5',
+                  inspectorTab === 'data' ? 'gh-selected-bg gh-turquoise font-semibold' : 'gh-text-secondary hover:gh-text-primary'
                 ]"
               >
-                <span>📊</span>
-                <span>Data after processing</span>
-                <span v-if="Object.keys(resultData).length > 0" class="text-[9px] bg-amber-950 text-amber-400 px-1 rounded-full border border-amber-800">
-                  {{ Object.keys(resultData).length }}
-                </span>
+                <Database class="w-3.5 h-3.5" />
+                <span>Data</span>
+                <span v-if="Object.keys(resultData).length > 0" class="font-mono text-[10.5px]">({{ Object.keys(resultData).length }})</span>
               </button>
 
               <button
                 @click="inspectorTab = 'files'"
                 :class="[
-                  'px-3 py-1 rounded font-semibold transition-colors cursor-pointer flex items-center space-x-1.5',
-                  inspectorTab === 'files' ? 'bg-slate-800 text-purple-400 border border-slate-700' : 'text-slate-400 hover:text-slate-200'
+                  'px-2.5 py-1 rounded-[6px] font-medium transition-colors cursor-pointer flex items-center space-x-1.5',
+                  inspectorTab === 'files' ? 'gh-selected-bg gh-turquoise font-semibold' : 'gh-text-secondary hover:gh-text-primary'
                 ]"
               >
-                <span>📁</span>
-                <span>Output Files</span>
-                <span v-if="resultOutputFiles.length > 0" class="text-[9px] bg-purple-950 text-purple-400 px-1 rounded-full border border-purple-800">
-                  {{ resultOutputFiles.length }}
-                </span>
+                <FolderOpen class="w-3.5 h-3.5" />
+                <span>Outputs</span>
+                <span v-if="resultOutputFiles.length > 0" class="font-mono text-[10.5px]">({{ resultOutputFiles.length }})</span>
               </button>
 
               <button
                 @click="inspectorTab = 'console'"
                 :class="[
-                  'px-3 py-1 rounded font-semibold transition-colors cursor-pointer flex items-center space-x-1.5',
-                  inspectorTab === 'console' ? 'bg-slate-800 text-sky-400 border border-slate-700' : 'text-slate-400 hover:text-slate-200'
+                  'px-2.5 py-1 rounded-[6px] font-medium transition-colors cursor-pointer flex items-center space-x-1.5',
+                  inspectorTab === 'console' ? 'gh-selected-bg gh-turquoise font-semibold' : 'gh-text-secondary hover:gh-text-primary'
                 ]"
               >
-                <span>💻</span>
-                <span>Terminal</span>
-                <span v-if="hasExecutionError" class="text-[9px] bg-rose-950 text-rose-400 px-1 rounded-full border border-rose-800">
-                  !
-                </span>
+                <Terminal class="w-3.5 h-3.5" />
+                <span>Console</span>
+                <span v-if="hasExecutionError" class="gh-error font-mono font-bold">!</span>
               </button>
             </div>
 
-            <div class="flex items-center space-x-2 text-[11px] font-mono text-slate-400">
+            <div class="text-[11px] font-mono gh-text-muted shrink-0">
               <span v-if="lastExecutionTimeMs !== null">
-                Duration: <strong class="text-slate-200">{{ (lastExecutionTimeMs / 1000).toFixed(2) }}s</strong>
+                {{ (lastExecutionTimeMs / 1000).toFixed(2) }}s
               </span>
             </div>
           </div>
 
-          <!-- TAB 1: INTERACTIVE MAP VIEWER -->
-          <div v-show="inspectorTab === 'map'" class="flex-1 relative w-full h-full bg-slate-950">
+          <!-- TAB 1: MAP VIEWER -->
+          <div v-show="inspectorTab === 'map'" class="flex-1 relative w-full h-full gh-workspace-bg">
             <div ref="mapContainer" class="w-full h-full"></div>
 
-            <!-- Map Floating Toolbar (Basemap & AOI Tools) -->
-            <div class="absolute top-2.5 left-2.5 z-10 flex items-center space-x-1.5 bg-slate-900/95 backdrop-blur border border-slate-750 rounded-xl p-1 shadow-2xl">
+            <!-- Basemap & Draw Controls -->
+            <div class="absolute top-3 left-3 z-10 flex items-center space-x-1.5 gh-surface-elevated border gh-border rounded-[8px] p-1 shadow-sm">
               <select
                 v-model="activeBasemap"
                 @change="switchBasemap"
-                class="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-0.5 outline-none font-semibold cursor-pointer"
+                class="gh-input text-[12px] rounded-[6px] px-2 py-1 font-medium cursor-pointer"
               >
-                <option value="dark">🌑 Dark Canvas</option>
-                <option value="satellite">🛰️ Satellite (Esri)</option>
-                <option value="osm">🗺️ OpenStreetMap</option>
-                <option value="topo">🏔️ OpenTopo</option>
+                <option value="osm">OpenStreetMap</option>
+                <option value="topo">OpenTopoMap</option>
+                <option value="satellite">Satellite (Esri)</option>
+                <option value="dark">Canvas Dark</option>
               </select>
 
-              <div class="h-4 w-px bg-slate-800"></div>
+              <div class="h-4 w-px border-l gh-border"></div>
 
-              <!-- Draw AOI buttons -->
               <button
                 @click="startDraw('Polygon')"
                 :class="[
-                  'px-2 py-0.5 rounded text-xs font-semibold transition-colors cursor-pointer',
-                  activeDrawType === 'Polygon' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+                  'px-2 py-1 rounded-[6px] text-[12px] font-medium flex items-center space-x-1 transition-colors cursor-pointer',
+                  activeDrawType === 'Polygon' ? 'gh-btn-primary' : 'gh-btn-ghost'
                 ]"
                 title="Draw polygon AOI on map"
               >
-                ⬡ Polygon
+                <Pentagon class="w-3.5 h-3.5" />
+                <span>Polygon</span>
               </button>
               <button
                 @click="startDraw('Box')"
                 :class="[
-                  'px-2 py-0.5 rounded text-xs font-semibold transition-colors cursor-pointer',
-                  activeDrawType === 'Box' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+                  'px-2 py-1 rounded-[6px] text-[12px] font-medium flex items-center space-x-1 transition-colors cursor-pointer',
+                  activeDrawType === 'Box' ? 'gh-btn-primary' : 'gh-btn-ghost'
                 ]"
                 title="Draw bounding box AOI on map"
               >
-                □ Box
+                <Square class="w-3.5 h-3.5" />
+                <span>Box</span>
               </button>
             </div>
 
-            <!-- Map Floating Layer Switcher (Top-Right) -->
+            <!-- Map Layers Control -->
             <div
               v-if="resultLayers.length > 0"
-              class="absolute top-2.5 right-2.5 z-10 w-64 bg-slate-900/95 backdrop-blur border border-slate-750 rounded-xl p-2.5 shadow-2xl space-y-2 max-h-80 overflow-y-auto scrollbar-thin text-xs"
+              class="absolute top-3 right-3 z-10 w-64 gh-surface-elevated border gh-border rounded-[10px] p-3 shadow-sm space-y-2 max-h-72 overflow-y-auto text-[12px]"
             >
-              <div class="flex items-center justify-between pb-1 border-b border-slate-800">
-                <span class="font-bold text-slate-200 text-[11px] flex items-center space-x-1">
-                  <span>Layers</span>
-                  <span class="text-emerald-400 font-mono">({{ resultLayers.length }})</span>
+              <div class="flex items-center justify-between pb-1.5 border-b gh-divider">
+                <span class="font-semibold gh-text-primary flex items-center space-x-1.5">
+                  <Layers class="w-3.5 h-3.5 gh-accent" />
+                  <span>Layers ({{ resultLayers.length }})</span>
                 </span>
-                <button
-                  @click="clearAllResultLayers"
-                  class="text-[10px] text-slate-400 hover:text-rose-400 cursor-pointer"
-                >
+                <button @click="clearAllResultLayers" class="text-[11px] gh-text-muted hover:gh-error cursor-pointer">
                   Clear All
                 </button>
               </div>
 
-              <div class="space-y-2">
-                <div
-                  v-for="(layer, idx) in resultLayers"
-                  :key="layer.name + idx"
-                  class="bg-slate-950/80 p-2 rounded-lg border border-slate-800 space-y-1.5"
-                >
+              <div class="divide-y gh-divide">
+                <div v-for="(layer, idx) in resultLayers" :key="layer.name + idx" class="py-2 first:pt-0 last:pb-0 space-y-1">
                   <div class="flex items-center justify-between">
-                    <span class="font-semibold text-slate-200 truncate max-w-[150px] text-[11px]" :title="layer.name">
-                      {{ layer.name }}
-                    </span>
-                    <button
-                      @click="removeResultLayer(idx)"
-                      class="text-slate-500 hover:text-rose-400 cursor-pointer"
-                    >
-                      ✕
+                    <span class="font-medium gh-text-primary truncate max-w-[165px]" :title="layer.name">{{ layer.name }}</span>
+                    <button @click="removeResultLayer(idx)" class="gh-text-muted hover:gh-error cursor-pointer">
+                      <X class="w-3.5 h-3.5" />
                     </button>
                   </div>
-                  <!-- Layer Opacity -->
-                  <div class="flex items-center space-x-2 text-[10px] text-slate-400">
+                  <div class="flex items-center space-x-2 text-[11px] gh-text-secondary">
                     <span>Opacity</span>
                     <input
                       v-model.number="layer.opacity"
@@ -883,365 +753,340 @@
                       min="0.1"
                       max="1.0"
                       step="0.05"
-                      class="w-full accent-emerald-400 h-1 bg-slate-800 rounded cursor-pointer"
+                      class="w-full h-1 accent-[var(--accent-primary)] cursor-pointer"
                     />
-                    <span class="font-mono text-[9px]">{{ Math.round(layer.opacity * 100) }}%</span>
+                    <span class="font-mono text-[10.5px]">{{ Math.round(layer.opacity * 100) }}%</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- Coordinates HUD (Bottom-Right) -->
-            <div class="absolute bottom-2.5 right-2.5 z-10 flex items-center space-x-2 bg-slate-900/90 backdrop-blur border border-slate-750 rounded px-2 py-0.5 text-[10px] font-mono text-slate-400 pointer-events-none">
-              <span>Lon: {{ mouseLon !== null ? mouseLon.toFixed(3) + '°' : '--' }}</span>
-              <span>Lat: {{ mouseLat !== null ? mouseLat.toFixed(3) + '°' : '--' }}</span>
-              <span class="text-emerald-400">Z: {{ currentZoom.toFixed(1) }}</span>
+            <!-- Coordinate Readout -->
+            <div class="absolute bottom-3 right-3 z-10 flex items-center space-x-2.5 gh-surface-elevated border gh-border rounded-[6px] px-2.5 py-1 text-[11px] font-mono gh-text-secondary pointer-events-none">
+              <span class="gh-saffron font-semibold">Lon {{ mouseLon !== null ? mouseLon.toFixed(3) + ' deg' : '--' }}</span>
+              <span class="gh-saffron font-semibold">Lat {{ mouseLat !== null ? mouseLat.toFixed(3) + ' deg' : '--' }}</span>
+              <span class="gh-accent font-semibold">Z {{ currentZoom.toFixed(1) }}</span>
             </div>
           </div>
 
-          <!-- TAB 2: DATA AFTER PROCESSING (TABLE & JSON) -->
-          <div v-show="inspectorTab === 'data'" class="flex-1 flex flex-col p-3 overflow-hidden bg-slate-950 text-xs">
-            <div class="flex items-center justify-between pb-1.5 border-b border-slate-800 shrink-0">
-              <div class="flex items-center space-x-2">
-                <span class="font-bold text-slate-200 text-xs">Data After Processing</span>
-                <span class="text-[10px] text-slate-400 font-mono">(variables saved in `data` or `results`)</span>
+          <!-- TAB 2: DATA TABLE -->
+          <div v-show="inspectorTab === 'data'" class="flex-1 flex flex-col p-4 overflow-hidden gh-workspace-bg">
+            <div class="flex items-center justify-between pb-2.5 border-b gh-border shrink-0">
+              <div>
+                <span class="font-semibold gh-text-primary text-[13px]">Computed Variables</span>
+                <span class="text-[11px] gh-text-muted font-mono ml-2">data[...]</span>
               </div>
-              <button
-                @click="copyDataJson"
-                class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[10px] cursor-pointer"
-              >
-                Copy JSON
+              <button @click="copyDataJson" class="px-2.5 py-1 rounded-[6px] gh-btn-secondary text-[11.5px] flex items-center space-x-1 cursor-pointer">
+                <Copy class="w-3 h-3" />
+                <span>Copy JSON</span>
               </button>
             </div>
 
             <div class="flex-1 overflow-auto pt-2">
-              <div v-if="Object.keys(resultData).length === 0" class="text-slate-500 italic p-6 text-center">
-                No computed variables returned yet. In your Python notebook cells, store values in `data["your_metric"] = ...` to inspect them here after processing.
+              <div v-if="Object.keys(resultData).length === 0" class="gh-text-muted p-6 text-center text-[12.5px]">
+                No variables recorded yet. Store metrics in <code class="font-mono gh-accent">data["metric"] = value</code> to inspect here.
               </div>
-              <table v-else class="w-full border-collapse text-left font-mono text-[11px]">
+              <table v-else class="w-full border-collapse text-left font-mono text-[12px]">
                 <thead>
-                  <tr class="border-b border-slate-800 text-slate-400">
-                    <th class="py-1.5 px-3">Metric / Property</th>
-                    <th class="py-1.5 px-3">Computed Value</th>
+                  <tr class="border-b gh-border gh-text-secondary">
+                    <th class="py-2 px-3 font-semibold">Property</th>
+                    <th class="py-2 px-3 font-semibold">Value</th>
                   </tr>
                 </thead>
-                <tbody>
-                  <tr
-                    v-for="(val, key) in resultData"
-                    :key="key"
-                    class="border-b border-slate-850 hover:bg-slate-900/60 transition-colors"
-                  >
-                    <td class="py-1.5 px-3 font-semibold text-emerald-400">{{ key }}</td>
-                    <td class="py-1.5 px-3 text-slate-200 break-all">{{ typeof val === 'object' ? JSON.stringify(val) : val }}</td>
+                <tbody class="divide-y gh-divide">
+                  <tr v-for="(val, key) in resultData" :key="key" class="hover:gh-surface-secondary">
+                    <td class="py-2 px-3 font-semibold gh-accent">{{ key }}</td>
+                    <td class="py-2 px-3 gh-text-primary break-all">{{ typeof val === 'object' ? JSON.stringify(val) : val }}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
           </div>
 
-          <!-- TAB 3: OUTPUT FILES (PROCESSED / EXPORTED) -->
-          <div v-show="inspectorTab === 'files'" class="flex-1 flex flex-col p-3 overflow-hidden bg-slate-950 text-xs">
-            <div class="flex items-center justify-between pb-1.5 border-b border-slate-800 shrink-0">
-              <span class="font-bold text-slate-200 text-xs">Generated Output Files</span>
-              <span class="text-slate-400 text-[10px] font-mono">Location: ./data/processed/</span>
+          <!-- TAB 3: OUTPUT FILES -->
+          <div v-show="inspectorTab === 'files'" class="flex-1 flex flex-col p-4 overflow-hidden gh-workspace-bg">
+            <div class="flex items-center justify-between pb-2.5 border-b gh-border shrink-0">
+              <span class="font-semibold gh-text-primary text-[13px]">Generated Output Files</span>
+              <span class="gh-text-muted text-[11px] font-mono">./data/processed/</span>
             </div>
 
-            <div class="flex-1 overflow-auto pt-2 space-y-2">
-              <div v-if="resultOutputFiles.length === 0" class="text-slate-500 italic p-6 text-center">
-                No newly generated files detected in this session. Write output files to `processed_dir` in your notebook cells to download or preview them here.
+            <div class="flex-1 overflow-auto divide-y gh-divide">
+              <div v-if="resultOutputFiles.length === 0" class="gh-text-muted p-6 text-center text-[12.5px]">
+                No generated output files yet. Write rasters to <code class="font-mono gh-accent">processed_dir</code>.
               </div>
               <div
                 v-for="file in resultOutputFiles"
                 :key="file.name"
-                class="p-2.5 rounded-xl border border-slate-800 bg-slate-900/80 flex items-center justify-between"
+                class="py-3 flex items-center justify-between gap-3"
               >
-                <div class="space-y-0.5">
-                  <div class="font-bold text-slate-100 font-mono">{{ file.name }}</div>
-                  <div class="text-[10px] text-slate-400 font-mono">
-                    Size: {{ file.formatted_size }} | Format: {{ file.extension }}
-                  </div>
+                <div class="min-w-0">
+                  <div class="font-semibold gh-text-primary font-mono text-[12.5px] truncate">{{ file.name }}</div>
+                  <div class="text-[11px] gh-text-secondary font-mono">{{ file.formatted_size }} &bull; {{ file.extension }}</div>
                 </div>
-
-                <div class="flex items-center space-x-2">
-                  <a
-                    :href="file.download_url"
-                    target="_blank"
-                    class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-[10px] transition-colors"
-                  >
-                    Download File ↗
-                  </a>
-                </div>
+                <a
+                  :href="file.download_url"
+                  target="_blank"
+                  class="px-3 py-1.5 gh-btn-primary rounded-[7px] font-semibold text-[12px] flex items-center space-x-1 shrink-0"
+                >
+                  <Download class="w-3.5 h-3.5" />
+                  <span>Download</span>
+                </a>
               </div>
             </div>
           </div>
 
-          <!-- TAB 4: CONSOLE LOGS & TERMINAL OUTPUT -->
-          <div v-show="inspectorTab === 'console'" class="flex-1 flex flex-col p-3 overflow-hidden bg-slate-950 font-mono text-xs">
-            <div class="flex items-center justify-between pb-1.5 border-b border-slate-800 shrink-0">
-              <span class="text-slate-400 text-[11px]">Notebook Execution Terminal (Cumulative)</span>
+          <!-- TAB 4: CONSOLE LOGS -->
+          <div v-show="inspectorTab === 'console'" class="flex-1 flex flex-col p-4 overflow-hidden gh-workspace-bg font-mono text-[12px]">
+            <div class="flex items-center justify-between pb-2.5 border-b gh-border shrink-0">
+              <span class="gh-text-secondary text-[12px]">Execution Console</span>
               <div class="flex items-center space-x-2">
-                <button
-                  @click="copyConsoleLogs"
-                  class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[10px] cursor-pointer"
-                >
-                  Copy Logs
+                <button @click="copyConsoleLogs" class="px-2.5 py-1 gh-btn-secondary rounded-[6px] text-[11px] cursor-pointer">
+                  Copy
                 </button>
-                <button
-                  @click="consoleLogs = ''"
-                  class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 rounded text-[10px] cursor-pointer"
-                >
-                  Clear Console
+                <button @click="consoleLogs = ''" class="px-2.5 py-1 gh-btn-ghost rounded-[6px] text-[11px] cursor-pointer">
+                  Clear
                 </button>
               </div>
             </div>
 
-            <div class="flex-1 overflow-auto pt-2 space-y-1 text-[11px] leading-relaxed text-slate-200">
-              <div v-if="!consoleLogs" class="text-slate-600 italic p-4 text-center">
-                Notebook execution logs and cumulative stdout will appear here.
+            <div class="flex-1 overflow-auto mt-2 p-3 rounded-[8px] gh-code-bg border gh-border text-[12px] leading-relaxed">
+              <div v-if="!consoleLogs" class="gh-text-muted italic">
+                Execution logs and stdout output will appear here.
               </div>
-              <pre v-else class="whitespace-pre-wrap font-mono">{{ consoleLogs }}</pre>
+              <pre v-else class="whitespace-pre-wrap" style="color: var(--code-text);">{{ consoleLogs }}</pre>
             </div>
           </div>
         </section>
       </main>
     </div>
 
-    <!-- ================= LOAD GEOJSON AOI MODAL ================= -->
+    <!-- MODAL: LOAD STUDY AREA GEOJSON -->
     <div
       v-if="showAoiModal"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-100"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
     >
-      <div class="bg-slate-900 border border-sky-600/80 rounded-2xl w-full max-w-lg shadow-2xl p-5 space-y-4 text-xs text-slate-200">
-        <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+      <div class="gh-surface-elevated border gh-border rounded-[14px] w-full max-w-lg shadow-xl p-5 space-y-4 text-[13px] gh-text-primary">
+        <div class="flex items-center justify-between pb-2.5 border-b gh-divider">
           <div class="flex items-center space-x-2">
-            <span class="text-lg">🗺️</span>
-            <h3 class="font-bold text-sm text-slate-100">Load Study Area GeoJSON</h3>
+            <MapPin class="w-4 h-4 gh-accent" />
+            <h3 class="font-semibold text-[15px]">Load Study Area GeoJSON</h3>
           </div>
-          <button @click="showAoiModal = false" class="text-slate-400 hover:text-slate-100 cursor-pointer">
-            ✕
+          <button @click="showAoiModal = false" class="p-1 rounded-[6px] gh-btn-ghost cursor-pointer">
+            <X class="w-4 h-4" />
           </button>
         </div>
 
-        <!-- Option 1: Upload from Local Computer -->
-        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
-          <span class="font-bold text-slate-200 block text-xs">Option A: Upload .geojson from Computer</span>
+        <div class="space-y-1.5">
+          <label class="block text-[12px] font-semibold gh-text-primary">Upload .geojson / .json</label>
           <input
             type="file"
             accept=".geojson,.json"
             @change="handleLocalGeoJsonUpload"
-            class="block w-full text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-sky-600 file:text-white hover:file:bg-sky-500 cursor-pointer"
+            class="block w-full text-[12px] gh-text-secondary file:mr-3 file:py-1.5 file:px-3 file:rounded-[7px] file:border file:gh-border file:gh-surface-secondary file:text-[12px] file:font-medium file:gh-text-primary cursor-pointer"
           />
         </div>
 
-        <!-- Option 2: Select from Saved AOIs -->
-        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
+        <div class="pt-3 border-t gh-divider space-y-2">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-slate-200 text-xs">Option B: Choose from Saved AOIs</span>
-            <button @click="loadSavedAois" class="text-sky-400 text-[10px] hover:underline cursor-pointer">
+            <span class="font-semibold text-[12px] gh-text-primary">Saved AOIs</span>
+            <button @click="loadSavedAois" class="gh-accent text-[11.5px] font-mono hover:underline cursor-pointer">
               Refresh
             </button>
           </div>
-          <div class="max-h-32 overflow-y-auto space-y-1 pr-1 scrollbar-thin">
-            <div v-if="savedAoisList.length === 0" class="text-slate-500 text-[11px] italic">
+          <div class="max-h-36 overflow-y-auto divide-y gh-divide border gh-border rounded-[8px] gh-surface-primary">
+            <div v-if="savedAoisList.length === 0" class="px-3 py-3 gh-text-muted text-[12px]">
               No saved AOIs found.
             </div>
             <div
               v-for="aoiItem in savedAoisList"
               :key="aoiItem.id"
               @click="selectSavedAoi(aoiItem)"
-              class="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-750 flex items-center justify-between cursor-pointer"
+              class="px-3 py-2 hover:gh-surface-secondary flex items-center justify-between cursor-pointer"
             >
               <div>
-                <span class="font-semibold text-slate-200">{{ aoiItem.name }}</span>
-                <span class="text-[10px] font-mono text-sky-400 ml-2">({{ aoiItem.area_km2.toFixed(1) }} km²)</span>
+                <span class="font-medium gh-text-primary">{{ aoiItem.name }}</span>
+                <span class="text-[11px] font-mono gh-accent ml-2">({{ aoiItem.area_km2?.toFixed(1) }} km2)</span>
               </div>
-              <span class="text-xs text-sky-400 font-bold">Select ➔</span>
+              <span class="text-[11.5px] gh-accent font-semibold">Select</span>
             </div>
           </div>
         </div>
 
-        <!-- Option 3: Presets (e.g. Ladakh) -->
-        <div class="flex items-center space-x-2">
+        <div class="pt-2 border-t gh-divider flex items-center justify-between gap-2">
           <button
             @click="loadLadakhPreset"
-            class="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl text-xs transition-colors cursor-pointer text-center"
+            class="px-3.5 py-2 gh-btn-secondary rounded-[8px] text-[12.5px] font-medium flex items-center space-x-1.5 cursor-pointer"
           >
-            🏔️ Load Ladakh Region Preset
+            <Mountain class="w-3.5 h-3.5 gh-accent" />
+            <span>Load Ladakh Region Preset</span>
+          </button>
+          <button @click="showAoiModal = false" class="px-3.5 py-2 gh-btn-ghost rounded-[8px] text-[12.5px] cursor-pointer">
+            Cancel
           </button>
         </div>
       </div>
     </div>
 
-    <!-- ================= GEE AUTHENTICATION MODAL ================= -->
+    <!-- MODAL: GEE AUTHENTICATION -->
     <div
       v-if="showAuthModal"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-100"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
     >
-      <div class="bg-slate-900 border border-amber-600/80 rounded-2xl w-full max-w-lg shadow-2xl p-5 space-y-4 text-xs text-slate-200">
-        <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+      <div class="gh-surface-elevated border gh-border rounded-[14px] w-full max-w-lg shadow-xl p-5 space-y-4 text-[13px] gh-text-primary">
+        <div class="flex items-center justify-between pb-2.5 border-b gh-divider">
           <div class="flex items-center space-x-2">
-            <span class="text-lg">🔐</span>
-            <h3 class="font-bold text-sm text-slate-100">Google Earth Engine Authentication</h3>
+            <Lock class="w-4 h-4 gh-accent" />
+            <h3 class="font-semibold text-[15px]">Google Earth Engine Authentication</h3>
           </div>
-          <button @click="showAuthModal = false" class="text-slate-400 hover:text-slate-100 cursor-pointer">
-            ✕
+          <button @click="showAuthModal = false" class="p-1 rounded-[6px] gh-btn-ghost cursor-pointer">
+            <X class="w-4 h-4" />
           </button>
         </div>
 
-        <!-- Auth Tabs -->
-        <div class="flex items-center bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs">
+        <div class="flex items-center gh-surface-secondary p-1 rounded-[8px] border gh-border text-[12px]">
           <button
             @click="authTab = 'oauth'"
             :class="[
-              'flex-1 py-1.5 rounded font-semibold text-xs transition-colors cursor-pointer',
-              authTab === 'oauth' ? 'bg-amber-600 text-slate-950 font-bold' : 'text-slate-400 hover:text-slate-200'
+              'flex-1 py-1.5 rounded-[6px] font-medium transition-colors cursor-pointer',
+              authTab === 'oauth' ? 'gh-surface-elevated gh-accent font-semibold' : 'gh-text-secondary hover:gh-text-primary'
             ]"
           >
-            🌐 Google OAuth
+            Google OAuth
           </button>
           <button
             @click="authTab = 'project'"
             :class="[
-              'flex-1 py-1.5 rounded font-semibold text-xs transition-colors cursor-pointer',
-              authTab === 'project' ? 'bg-amber-600 text-slate-950 font-bold' : 'text-slate-400 hover:text-slate-200'
+              'flex-1 py-1.5 rounded-[6px] font-medium transition-colors cursor-pointer',
+              authTab === 'project' ? 'gh-surface-elevated gh-accent font-semibold' : 'gh-text-secondary hover:gh-text-primary'
             ]"
           >
-            📁 Cloud Project ID
+            Cloud Project ID
           </button>
           <button
             @click="authTab = 'service_account'"
             :class="[
-              'flex-1 py-1.5 rounded font-semibold text-xs transition-colors cursor-pointer',
-              authTab === 'service_account' ? 'bg-amber-600 text-slate-950 font-bold' : 'text-slate-400 hover:text-slate-200'
+              'flex-1 py-1.5 rounded-[6px] font-medium transition-colors cursor-pointer',
+              authTab === 'service_account' ? 'gh-surface-elevated gh-accent font-semibold' : 'gh-text-secondary hover:gh-text-primary'
             ]"
           >
-            🔑 Service Account
+            Service Account
           </button>
         </div>
 
-        <!-- OAuth Tab -->
-        <div v-if="authTab === 'oauth'" class="space-y-3.5">
-          <div class="bg-amber-950/40 border border-amber-700/80 rounded-xl p-3.5 space-y-2">
+        <div v-if="authTab === 'oauth'" class="space-y-4">
+          <div class="p-3.5 rounded-[8px] gh-surface-primary border gh-border space-y-2.5">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-amber-300 text-xs">Step 1: Sign in with Google</span>
-              <span class="text-[10px] font-mono text-amber-400 bg-amber-950 px-1.5 py-0.5 rounded border border-amber-800">Official GEE OAuth</span>
+              <span class="font-semibold text-[12.5px]">Step 1: Sign in with Google</span>
+              <span class="text-[11px] font-mono gh-accent">Official GEE OAuth</span>
             </div>
-            <p class="text-[11px] text-amber-200/90 leading-relaxed">
-              Click below to open Google's Earth Engine verification page in your browser. Log in and copy the authorization code.
+            <p class="text-[12px] gh-text-secondary leading-relaxed">
+              Open Google Earth Engine verification in a new browser tab, sign in, and copy the authorization code.
             </p>
             <button
               @click="openExternalAuthPage"
               :disabled="isGeneratingAuthUrl"
-              class="w-full py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold rounded-lg text-xs shadow-md shadow-amber-950 flex items-center justify-center space-x-2 transition-all cursor-pointer"
+              class="w-full py-2 gh-btn-secondary rounded-[8px] text-[12.5px] font-semibold flex items-center justify-center space-x-2 cursor-pointer"
             >
-              <span>🌐</span>
-              <span>Open Google Earth Engine Authentication Page ↗</span>
+              <ExternalLink class="w-3.5 h-3.5 gh-accent" />
+              <span>Open Earth Engine Auth Page</span>
             </button>
           </div>
 
-          <div class="space-y-3 bg-slate-950/60 p-3.5 rounded-xl border border-slate-800">
-            <span class="font-bold text-slate-300 text-xs block">Step 2: Enter Authorization Code & Cloud Project</span>
+          <div class="space-y-3 p-3.5 rounded-[8px] gh-surface-primary border gh-border">
+            <span class="font-semibold text-[12.5px] block">Step 2: Paste Authorization Code</span>
             <div>
-              <label class="block text-[11px] text-slate-400 mb-1">Authorization Code (from Google)</label>
+              <label class="block text-[11.5px] gh-text-secondary mb-1">Authorization Code</label>
               <input
                 v-model="authCodeInput"
                 type="text"
-                placeholder="Paste authorization code: 4/0AfgeX..."
-                class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none font-mono focus:border-amber-500"
+                placeholder="4/0AfgeX..."
+                class="w-full gh-input rounded-[7px] px-3 py-1.5 text-[12px] font-mono"
               />
             </div>
             <div>
-              <label class="block text-[11px] text-slate-400 mb-1">Google Cloud Project ID</label>
+              <label class="block text-[11.5px] gh-text-secondary mb-1">Google Cloud Project ID</label>
               <input
                 v-model="authProjectInput"
                 type="text"
-                placeholder="e.g. ee-my-project or project-id-12345"
-                class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none font-mono focus:border-amber-500"
+                placeholder="e.g. ee-my-project"
+                class="w-full gh-input rounded-[7px] px-3 py-1.5 text-[12px] font-mono"
               />
             </div>
             <button
               @click="submitAuthCode"
               :disabled="isSubmittingAuth || !authCodeInput"
-              class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-lg text-xs transition-colors cursor-pointer flex items-center justify-center space-x-1.5"
+              class="w-full py-2 gh-btn-primary disabled:opacity-50 font-semibold rounded-[8px] text-[12.5px] cursor-pointer"
             >
-              <span v-if="isSubmittingAuth">Verifying with Google...</span>
-              <span v-else>Authorize & Initialize GEE</span>
+              {{ isSubmittingAuth ? 'Verifying with Google...' : 'Authorize & Initialize GEE' }}
             </button>
           </div>
         </div>
 
-        <!-- Project ID Tab -->
-        <div v-else-if="authTab === 'project'" class="space-y-3 bg-slate-950/60 p-3.5 rounded-xl border border-slate-800">
-          <p class="text-[11px] text-slate-400 leading-relaxed">
-            If your Google credentials already exist on this machine or via gcloud, specify the Earth Engine Cloud Project ID to initialize.
+        <div v-else-if="authTab === 'project'" class="space-y-3 p-3.5 rounded-[8px] gh-surface-primary border gh-border">
+          <p class="text-[12px] gh-text-secondary leading-relaxed">
+            If your Google credentials already exist on this machine, specify your Earth Engine Cloud Project ID to initialize.
           </p>
           <div>
-            <label class="block text-[11px] text-slate-400 mb-1">Google Cloud Project ID</label>
+            <label class="block text-[11.5px] gh-text-secondary mb-1">Google Cloud Project ID</label>
             <input
               v-model="authProjectInput"
               type="text"
               placeholder="e.g. ee-your-project"
-              class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none font-mono focus:border-amber-500"
+              class="w-full gh-input rounded-[7px] px-3 py-1.5 text-[12px] font-mono"
             />
           </div>
           <button
             @click="submitProjectId"
             :disabled="isSubmittingAuth || !authProjectInput"
-            class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-lg text-xs transition-colors cursor-pointer"
+            class="w-full py-2 gh-btn-primary disabled:opacity-50 font-semibold rounded-[8px] text-[12.5px] cursor-pointer"
           >
-            Set Project & Initialize
+            Set Project &amp; Initialize
           </button>
         </div>
 
-        <!-- Service Account Tab -->
-        <div v-else class="space-y-3 bg-slate-950/60 p-3.5 rounded-xl border border-slate-800">
-          <p class="text-[11px] text-slate-400 leading-relaxed">
+        <div v-else class="space-y-3 p-3.5 rounded-[8px] gh-surface-primary border gh-border">
+          <p class="text-[12px] gh-text-secondary leading-relaxed">
             Authenticate using a Google Cloud Service Account JSON key with the Earth Engine Resource Viewer role.
           </p>
           <div>
-            <label class="block text-[11px] text-slate-400 mb-1">Service Account Key JSON</label>
+            <label class="block text-[11.5px] gh-text-secondary mb-1">Service Account Key JSON</label>
             <textarea
               v-model="serviceAccountJsonInput"
               rows="5"
               placeholder="Paste JSON content..."
-              class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-[11px] text-slate-100 font-mono outline-none focus:border-amber-500"
+              class="w-full gh-input rounded-[7px] p-2.5 text-[11.5px] font-mono"
             ></textarea>
           </div>
           <button
             @click="submitServiceAccount"
             :disabled="isSubmittingAuth || !serviceAccountJsonInput"
-            class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-lg text-xs transition-colors cursor-pointer"
+            class="w-full py-2 gh-btn-primary disabled:opacity-50 font-semibold rounded-[8px] text-[12.5px] cursor-pointer"
           >
             Authenticate Service Account
           </button>
         </div>
 
-        <!-- Feedback Alert -->
         <div
           v-if="authModalMessage"
           :class="[
-            'p-2.5 rounded-lg text-xs font-mono',
-            authModalError ? 'bg-rose-950/80 text-rose-300 border border-rose-800' : 'bg-emerald-950/80 text-emerald-300 border border-emerald-800'
+            'p-2.5 rounded-[7px] text-[12px] font-mono border',
+            authModalError ? 'gh-error-soft-bg gh-error-border gh-error' : 'gh-selected-bg gh-focus-border gh-turquoise'
           ]"
         >
           {{ authModalMessage }}
         </div>
 
-        <!-- Footer Actions -->
-        <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+        <div class="flex items-center justify-between pt-2 border-t gh-divider">
           <button
             v-if="eeStatus.is_authenticated"
             @click="logoutGee"
-            class="text-rose-400 hover:text-rose-300 text-xs font-semibold cursor-pointer"
+            class="gh-error hover:underline text-[12px] font-semibold cursor-pointer"
           >
             Disconnect Credentials
           </button>
           <div v-else></div>
 
-          <button
-            @click="showAuthModal = false"
-            class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold cursor-pointer"
-          >
+          <button @click="showAuthModal = false" class="px-4 py-1.5 gh-btn-secondary rounded-[8px] text-[12.5px] font-medium cursor-pointer">
             Close
           </button>
         </div>
@@ -1251,7 +1096,36 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import {
+  AlertTriangle,
+  BookOpen,
+  ChevronDown,
+  ChevronUp,
+  Columns2,
+  Copy,
+  Database,
+  Download,
+  ExternalLink,
+  FolderOpen,
+  Globe,
+  HardDrive,
+  Layers,
+  Lock,
+  Map as MapIcon,
+  MapPin,
+  Mountain,
+  Pentagon,
+  Play,
+  Plus,
+  RotateCcw,
+  Search,
+  Square,
+  Terminal,
+  Trash2,
+  Upload,
+  X,
+} from 'lucide-vue-next'
 import Map from 'ol/Map'
 import View from 'ol/View'
 import TileLayer from 'ol/layer/Tile'
@@ -1265,11 +1139,9 @@ import { Style, Stroke, Fill } from 'ol/style'
 import { fromLonLat, toLonLat } from 'ol/proj'
 import { api } from '../services/api'
 
-// Studio Mode: 'gee' or 'local'
 const executionMode = ref<'gee' | 'local'>('gee')
 const layoutMode = ref<'split' | 'notebook' | 'map'>('split')
 
-// Left Sidebar & Tabs
 const sidebarTab = ref<'catalog' | 'snippets' | 'files'>('catalog')
 const catalogDatasets = ref<any[]>([])
 const activeCategory = ref('all')
@@ -1279,18 +1151,15 @@ const localFilesList = ref<any[]>([])
 
 const categories = [
   { id: 'all', label: 'All' },
-  { id: 'optical', label: '🛰️ Optical' },
-  { id: 'radar', label: '📡 Radar SAR' },
-  { id: 'landcover', label: '🌲 Land Cover' },
-  { id: 'elevation', label: '🏔️ Elevation' },
-  { id: 'climate', label: '🌡️ Climate' },
-  { id: 'water', label: '💧 Water' },
-  { id: 'local', label: '💻 Local' },
+  { id: 'optical', label: 'Optical' },
+  { id: 'radar', label: 'Radar SAR' },
+  { id: 'landcover', label: 'Land Cover' },
+  { id: 'elevation', label: 'Elevation' },
+  { id: 'climate', label: 'Climate' },
+  { id: 'water', label: 'Water' },
+  { id: 'local', label: 'Local' },
 ]
 
-// =========================================================================
-// JUPYTER NOTEBOOK STATE
-// =========================================================================
 interface NotebookCell {
   id: string
   type: 'code' | 'markdown'
@@ -1314,7 +1183,6 @@ const executionCounter = ref<number>(1)
 const isKernelBusy = ref<boolean>(false)
 const sessionId = ref<string>(`session_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`)
 
-// Inspector & Results Tabs
 const inspectorTab = ref<'map' | 'data' | 'files' | 'console'>('map')
 const consoleLogs = ref<string>('')
 const hasExecutionError = ref(false)
@@ -1323,7 +1191,6 @@ const resultLayers = ref<any[]>([])
 const resultData = ref<Record<string, any>>({})
 const resultOutputFiles = ref<any[]>([])
 
-// AOI Management State
 const showAoiModal = ref(false)
 const hasAoi = ref(false)
 const activeAoiName = ref<string | null>(null)
@@ -1331,7 +1198,6 @@ const activeAoiArea = ref<number | null>(null)
 const loadedAoiGeoJson = ref<any | null>(null)
 const savedAoisList = ref<any[]>([])
 
-// OpenLayers Map State
 const mapContainer = ref<HTMLElement | null>(null)
 let olMap: Map | null = null
 let baseTileLayer: TileLayer | null = null
@@ -1340,13 +1206,12 @@ let aoiLayer: VectorLayer | null = null
 let currentDrawInteraction: Draw | null = null
 let dynamicOlLayers: TileLayer[] = []
 
-const activeBasemap = ref<'dark' | 'satellite' | 'osm' | 'topo'>('dark')
+const activeBasemap = ref<'dark' | 'satellite' | 'osm' | 'topo'>('osm')
 const activeDrawType = ref<'Polygon' | 'Box' | null>(null)
 const mouseLon = ref<number | null>(null)
 const mouseLat = ref<number | null>(null)
 const currentZoom = ref<number>(6)
 
-// GEE Auth State
 const eeStatus = ref<any>({
   available: true,
   is_authenticated: false,
@@ -1364,14 +1229,11 @@ const authModalMessage = ref<string | null>(null)
 const authModalError = ref(false)
 let currentSessionId: string | null = null
 
-// =========================================================================
-// DEFAULT NOTEBOOK WORKFLOWS
-// =========================================================================
 const DEFAULT_GEE_NOTEBOOK: NotebookCell[] = [
   {
     id: 'cell-md-1',
     type: 'markdown',
-    source: `# 🌍 Google Earth Engine Cloud Workflow\n\nInteractive Jupyter Python environment powered by **Google Earth Engine** (\`ee\`) and \`Map\`.\n- Multi-cell state persistence: Variables and functions defined in earlier cells persist into subsequent cells.\n- If a study area is loaded, it is injected as **\`aoi\`** (an \`ee.Geometry\`).`,
+    source: `# Google Earth Engine Cloud Workflow\n\nInteractive Python environment powered by **Google Earth Engine** (\`ee\`) and \`Map\`.\n- Multi-cell state persistence: variables defined earlier remain active.\n- Loaded study area geometry is available as **\`aoi\`** (\`ee.Geometry\`).`,
     executionCount: null,
     isRunning: false,
     outputs: null,
@@ -1379,7 +1241,7 @@ const DEFAULT_GEE_NOTEBOOK: NotebookCell[] = [
   {
     id: 'cell-1',
     type: 'code',
-    source: `import ee\n\n# 1. Query Sentinel-2 L2A Surface Reflectance\n# Filters by cloud cover and date range\ncollection = (\n    ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")\n    .filterDate("2024-01-01", "2024-06-30")\n    .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 20))\n)\n\nif aoi is not None:\n    collection = collection.filterBounds(aoi)\n\nprint("Collection initialized.")\nprint(f"Total scenes available: {collection.size().getInfo()}")`,
+    source: `import ee\n\n# 1. Query Sentinel-2 L2A Surface Reflectance\ncollection = (\n    ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")\n    .filterDate("2024-01-01", "2024-06-30")\n    .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 20))\n)\n\nif aoi is not None:\n    collection = collection.filterBounds(aoi)\n\nprint("Collection initialized.")\nprint(f"Total scenes available: {collection.size().getInfo()}")`,
     executionCount: null,
     isRunning: false,
     outputs: null,
@@ -1387,7 +1249,7 @@ const DEFAULT_GEE_NOTEBOOK: NotebookCell[] = [
   {
     id: 'cell-2',
     type: 'code',
-    source: `# 2. Compute cloud-free median composite and display True-Color RGB\nimage = collection.median()\nif aoi is not None:\n    image = image.clip(aoi)\n\nrgb_vis = {"bands": ["B4", "B3", "B2"], "min": 0, "max": 3000}\nMap.addLayer(image, rgb_vis, "Sentinel-2 True Color (RGB)")\nprint("True Color layer added to interactive Map!")`,
+    source: `# 2. Compute median composite and display True-Color RGB\nimage = collection.median()\nif aoi is not None:\n    image = image.clip(aoi)\n\nrgb_vis = {"bands": ["B4", "B3", "B2"], "min": 0, "max": 3000}\nMap.addLayer(image, rgb_vis, "Sentinel-2 True Color (RGB)")\nprint("True Color layer added to interactive Map.")`,
     executionCount: null,
     isRunning: false,
     outputs: null,
@@ -1395,7 +1257,7 @@ const DEFAULT_GEE_NOTEBOOK: NotebookCell[] = [
   {
     id: 'cell-3',
     type: 'code',
-    source: `# 3. Calculate Normalized Difference Vegetation Index (NDVI)\nndvi = image.normalizedDifference(["B8", "B4"]).rename("NDVI")\nndvi_vis = {\n    "min": -0.1, "max": 0.8,\n    "palette": ["#a50026", "#d73027", "#f46d43", "#fdae61", "#ffffbf", "#a6d96a", "#1a9850", "#006837"]\n}\nMap.addLayer(ndvi, ndvi_vis, "Sentinel-2 NDVI")\n\n# Extract zonal statistics over AOI\nif aoi is not None:\n    stats = ndvi.reduceRegion(\n        reducer=ee.Reducer.mean(),\n        geometry=aoi,\n        scale=20,\n        maxPixels=1e8\n    ).getInfo()\n    data["mean_ndvi"] = stats.get("NDVI")\n    print("Mean NDVI over AOI:", stats)\nelse:\n    print("NDVI composite visualized on Map.")`,
+    source: `# 3. Calculate NDVI and extract AOI mean\nndvi = image.normalizedDifference(["B8", "B4"]).rename("NDVI")\nndvi_vis = {\n    "min": -0.1, "max": 0.8,\n    "palette": ["#a50026", "#d73027", "#f46d43", "#fdae61", "#ffffbf", "#a6d96a", "#1a9850", "#006837"]\n}\nMap.addLayer(ndvi, ndvi_vis, "Sentinel-2 NDVI")\n\nif aoi is not None:\n    stats = ndvi.reduceRegion(\n        reducer=ee.Reducer.mean(),\n        geometry=aoi,\n        scale=20,\n        maxPixels=1e8\n    ).getInfo()\n    data["mean_ndvi"] = stats.get("NDVI")\n    print("Mean NDVI over AOI:", stats)\nelse:\n    print("NDVI composite visualized on Map.")`,
     executionCount: null,
     isRunning: false,
     outputs: null,
@@ -1406,7 +1268,7 @@ const DEFAULT_LOCAL_NOTEBOOK: NotebookCell[] = [
   {
     id: 'cell-md-local-1',
     type: 'markdown',
-    source: `# 💻 Local File Geospatial Processing\n\nProcess downloaded rasters and shapefiles directly on your machine using **Rasterio**, **NumPy**, **GeoPandas**, and **Shapely**.\n- Local storage scanned from \`./data/downloads\` and \`./data/processed\`.\n- Generated GeoTIFFs written to \`processed_dir\` are tracked and made available for download!`,
+    source: `# Local Geospatial Python Runtime\n\nAnalyze downloaded rasters and vectors directly using **Rasterio**, **NumPy**, **GeoPandas**, and **Shapely**.\n- Workspace indexed from \`./data/downloads\` and \`./data/processed\`.\n- Output files saved to \`processed_dir\` appear in the Output Inspector.`,
     executionCount: null,
     isRunning: false,
     outputs: null,
@@ -1422,7 +1284,7 @@ const DEFAULT_LOCAL_NOTEBOOK: NotebookCell[] = [
   {
     id: 'cell-local-2',
     type: 'code',
-    source: `# Check for candidate GeoTIFFs\ntif_candidates = [f['absolute_path'] for f in local_files if f['extension'] in ['.tif', '.tiff']]\n\nif not tif_candidates:\n    print("No downloaded GeoTIFF found. Harvest a satellite scene or specify a file path.")\n    data["status"] = "No GeoTIFF available"\nelse:\n    input_tif = tif_candidates[0]\n    with rasterio.open(input_tif) as src:\n        print(f"Loaded: {Path(input_tif).name}")\n        print(f"Shape: {src.width} x {src.height}, Bands: {src.count}, CRS: {src.crs}")\n        data["raster_width"] = src.width\n        data["raster_height"] = src.height\n        data["raster_bands"] = src.count\n        data["raster_crs"] = str(src.crs)\n        Map.addLayer(input_tif, name="Local GeoTIFF")`,
+    source: `# Inspect candidate GeoTIFF\ntif_candidates = [f['absolute_path'] for f in local_files if f['extension'] in ['.tif', '.tiff']]\n\nif not tif_candidates:\n    print("No downloaded GeoTIFF found. Harvest a satellite scene or specify a file path.")\n    data["status"] = "No GeoTIFF available"\nelse:\n    input_tif = tif_candidates[0]\n    with rasterio.open(input_tif) as src:\n        print(f"Loaded: {Path(input_tif).name}")\n        print(f"Shape: {src.width} x {src.height}, Bands: {src.count}, CRS: {src.crs}")\n        data["raster_width"] = src.width\n        data["raster_height"] = src.height\n        data["raster_bands"] = src.count\n        data["raster_crs"] = str(src.crs)\n        Map.addLayer(input_tif, name="Local GeoTIFF")`,
     executionCount: null,
     isRunning: false,
     outputs: null,
@@ -1458,15 +1320,12 @@ function resetToDefaultNotebook() {
   }
 }
 
-// =========================================================================
-// NOTEBOOK CELL OPERATIONS
-// =========================================================================
 function addCell(type: 'code' | 'markdown' = 'code', afterId?: string) {
   const newId = 'cell-' + Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 5)
   const newCell: NotebookCell = {
     id: newId,
     type,
-    source: type === 'code' ? '' : '### Documentation\nEnter markdown text here...',
+    source: type === 'code' ? '' : '### Documentation\nEnter notes here...',
     executionCount: null,
     isRunning: false,
     outputs: null,
@@ -1492,7 +1351,6 @@ function addCell(type: 'code' | 'markdown' = 'code', afterId?: string) {
 
 function deleteCell(cellId: string) {
   if (notebookCells.value.length <= 1) {
-    // If only one cell, clear it rather than empty document
     notebookCells.value[0].source = ''
     notebookCells.value[0].outputs = null
     notebookCells.value[0].executionCount = null
@@ -1542,9 +1400,6 @@ function clearAllOutputs() {
   resultOutputFiles.value = []
 }
 
-// =========================================================================
-// KERNEL RESTART & VARIABLE PERSISTENCE
-// =========================================================================
 async function restartKernel() {
   isKernelBusy.value = true
   try {
@@ -1553,7 +1408,7 @@ async function restartKernel() {
     executionCounter.value = 1
     clearAllOutputs()
     clearAllResultLayers()
-    consoleLogs.value = '[Kernel Restarted: Session variables and namespace have been reset.]\n'
+    consoleLogs.value = '[Kernel Restarted: Session variables and namespace reset.]\n'
   } catch (err: any) {
     console.error('Failed to restart kernel', err)
   } finally {
@@ -1561,9 +1416,6 @@ async function restartKernel() {
   }
 }
 
-// =========================================================================
-// CELL & NOTEBOOK EXECUTION
-// =========================================================================
 function handleCellKeydown(e: KeyboardEvent, cellId: string) {
   if (e.key === 'Tab') {
     e.preventDefault()
@@ -1640,7 +1492,6 @@ async function runCell(cellId: string, advanceToNext: boolean = false) {
       consoleLogs.value += `\n[In ${count} ERROR]:\n${res.error}\n`
     }
 
-    // Merge global results
     if (res.data) {
       resultData.value = { ...resultData.value, ...res.data }
     }
@@ -1648,7 +1499,6 @@ async function runCell(cellId: string, advanceToNext: boolean = false) {
       resultOutputFiles.value = [...res.output_files, ...resultOutputFiles.value]
     }
 
-    // Render layers on Map
     if (res.layers && res.layers.length > 0) {
       renderResultLayers(res.layers)
     }
@@ -1697,16 +1547,12 @@ async function runAllCells() {
       activeCellId.value = cell.id
       await runCell(cell.id, false)
       if (cell.outputs?.error) {
-        // Stop execution on first error like standard Jupyter
         break
       }
     }
   }
 }
 
-// =========================================================================
-// EXPORT & IMPORT .IPYNB
-// =========================================================================
 function exportNotebook() {
   const ipynbObj = {
     cells: notebookCells.value.map((c) => ({
@@ -1772,9 +1618,6 @@ async function handleNotebookImport(e: Event) {
   }
 }
 
-// =========================================================================
-// SIDEBAR CATALOG & SNIPPET INTEGRATION
-// =========================================================================
 async function fetchStatus() {
   try {
     eeStatus.value = await api.getEarthEngineStatus()
@@ -1849,7 +1692,6 @@ function insertFilePathIntoActiveCell(absPath: string) {
   }
 }
 
-// Markdown Renderer Helper
 function renderSimpleMarkdown(content: string): string {
   if (!content) return ''
   let html = content
@@ -1857,40 +1699,29 @@ function renderSimpleMarkdown(content: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
 
-  // Code blocks
-  html = html.replace(/```([a-z]*)\n([\s\S]*?)```/g, '<pre class="bg-slate-900 border border-slate-800 p-2 rounded text-emerald-300 font-mono text-[11px] overflow-x-auto">$2</pre>')
-  // Inline code
-  html = html.replace(/`([^`]+)`/g, '<code class="bg-slate-900 px-1 py-0.5 rounded text-emerald-400 font-mono text-[10px]">$1</code>')
-  // Headers
-  html = html.replace(/^### (.*$)/gim, '<h3 class="text-sm font-bold text-slate-100 mt-2 mb-1">$1</h3>')
-  html = html.replace(/^## (.*$)/gim, '<h2 class="text-base font-bold text-slate-100 mt-2.5 mb-1.5">$1</h2>')
-  html = html.replace(/^# (.*$)/gim, '<h1 class="text-lg font-extrabold text-slate-100 mt-3 mb-2">$1</h1>')
-  // Bold & Italic
-  html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-100">$1</strong>')
-  html = html.replace(/\*(.*?)\*/g, '<em class="italic text-slate-300">$1</em>')
-  // Bullet lists
-  html = html.replace(/^\- (.*$)/gim, '<li class="ml-4 list-disc text-slate-300 text-xs">$1</li>')
-  // Paragraphs
+  html = html.replace(/```([a-z]*)\n([\s\S]*?)```/g, '<pre class="gh-code-bg border gh-border p-2.5 rounded-[7px] font-mono text-[12px] overflow-x-auto my-2">$2</pre>')
+  html = html.replace(/`([^`]+)`/g, '<code class="gh-surface-secondary border gh-border px-1.5 py-0.5 rounded-[4px] gh-accent font-mono text-[11.5px]">$1</code>')
+  html = html.replace(/^### (.*$)/gim, '<h3 class="text-[14px] font-semibold gh-text-primary mt-2 mb-1">$1</h3>')
+  html = html.replace(/^## (.*$)/gim, '<h2 class="text-[15.5px] font-semibold gh-text-primary mt-2.5 mb-1.5">$1</h2>')
+  html = html.replace(/^# (.*$)/gim, '<h1 class="text-[17px] font-semibold gh-text-primary mt-2 mb-2">$1</h1>')
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold gh-text-primary">$1</strong>')
+  html = html.replace(/\*(.*?)\*/g, '<em class="italic gh-text-secondary">$1</em>')
+  html = html.replace(/^\- (.*$)/gim, '<li class="ml-4 list-disc gh-text-secondary text-[12.5px]">$1</li>')
   html = html.replace(/\n\n/g, '<div class="h-2"></div>')
   html = html.replace(/\n/g, '<br/>')
 
   return html
 }
 
-// =========================================================================
-// OPENLAYERS MAP & LAYER RENDERING
-// =========================================================================
 function renderResultLayers(layers: any[]) {
   resultLayers.value = layers
   if (!olMap) return
 
-  // Remove previous dynamic layers
   for (const l of dynamicOlLayers) {
     olMap.removeLayer(l)
   }
   dynamicOlLayers = []
 
-  // Add each layer
   layers.forEach((layerSpec) => {
     if (layerSpec.layer_type === 'gee_tile' && layerSpec.tile_url) {
       const tileL = new TileLayer({
@@ -1907,7 +1738,7 @@ function renderResultLayers(layers: any[]) {
   })
 }
 
-function focusMapLayer(layerName: string) {
+function focusMapLayer(_layerName: string) {
   inspectorTab.value = 'map'
   layoutMode.value = 'split'
 }
@@ -1936,9 +1767,6 @@ function clearAllResultLayers() {
   resultLayers.value = []
 }
 
-// =========================================================================
-// AOI MANAGEMENT
-// =========================================================================
 function clearActiveAoi() {
   hasAoi.value = false
   activeAoiName.value = null
@@ -1949,7 +1777,7 @@ function clearActiveAoi() {
 
 async function loadSavedAois() {
   try {
-    savedAoisList.value = await api.listSavedAOIs()
+    savedAoisList.value = await api.getSavedAOIs()
   } catch (e: any) {
     console.error('Failed to load saved AOIs', e)
   }
@@ -1982,7 +1810,7 @@ async function handleLocalGeoJsonUpload(e: Event) {
   try {
     const text = await file.text()
     const geo = JSON.parse(text)
-    const valRes = await api.validateAOI({ geometry: geo })
+    const valRes = await api.validateAOI(geo)
     if (valRes && valRes.valid) {
       applyLoadedGeoJson(geo, file.name.replace(/\.[^/.]+$/, ''), valRes.area_km2)
       showAoiModal.value = false
@@ -2028,23 +1856,19 @@ function getDrawnAoiGeoJson(): any {
   return obj.geometry
 }
 
-// MAP SETUP & DRAWING
 function initMap() {
   if (!mapContainer.value) return
 
   baseTileLayer = new TileLayer({
-    source: new XYZ({
-      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-      maxZoom: 16,
-    }),
+    source: new OSM(),
     zIndex: 1,
   })
 
   aoiLayer = new VectorLayer({
     source: aoiSource,
     style: new Style({
-      stroke: new Stroke({ color: '#38bdf8', width: 2.5 }),
-      fill: new Fill({ color: 'rgba(56, 189, 248, 0.15)' }),
+      stroke: new Stroke({ color: '#A32B50', width: 2.5 }),
+      fill: new Fill({ color: 'rgba(125, 33, 66, 0.16)' }),
     }),
     zIndex: 10,
   })
@@ -2053,7 +1877,7 @@ function initMap() {
     target: mapContainer.value,
     layers: [baseTileLayer, aoiLayer],
     view: new View({
-      center: fromLonLat([77.5, 34.15]), // Default: Ladakh
+      center: fromLonLat([77.5, 34.15]),
       zoom: 6,
       maxZoom: 19,
       minZoom: 2,
@@ -2141,9 +1965,6 @@ function startDraw(type: 'Polygon' | 'Box') {
   olMap.addInteraction(currentDrawInteraction)
 }
 
-// =========================================================================
-// GEE AUTHENTICATION ACTIONS
-// =========================================================================
 function openAuthModal() {
   showAuthModal.value = true
   authModalMessage.value = null
@@ -2157,7 +1978,7 @@ async function openExternalAuthPage() {
     const res = await api.getEarthEngineAuthUrl()
     currentSessionId = res.session_id
     window.open(res.auth_url || res.auth_page_url, '_blank')
-    authModalMessage.value = 'Opened Google verification page in new tab. Sign in and copy the authorization code.'
+    authModalMessage.value = 'Opened Google verification page in a new tab. Copy the authorization code after signing in.'
     authModalError.value = false
   } catch (e: any) {
     authModalMessage.value = `Failed to generate auth URL: ${e.message}`
@@ -2177,12 +1998,12 @@ async function submitAuthCode() {
       session_id: currentSessionId || undefined,
       project_id: authProjectInput.value.trim() || undefined,
     })
-    authModalMessage.value = res.message || 'Successfully authenticated with Google Earth Engine!'
+    authModalMessage.value = res.message || 'Successfully authenticated with Google Earth Engine.'
     authModalError.value = false
     await fetchStatus()
     setTimeout(() => { showAuthModal.value = false }, 1500)
   } catch (e: any) {
-    authModalMessage.value = e.message || 'Authorization failed. Check the code and project ID.'
+    authModalMessage.value = e.message || 'Authorization failed. Check code and project ID.'
     authModalError.value = true
   } finally {
     isSubmittingAuth.value = false
@@ -2195,7 +2016,7 @@ async function submitProjectId() {
   authModalMessage.value = null
   try {
     await api.setEarthEngineProject(authProjectInput.value.trim())
-    authModalMessage.value = 'Google Cloud Project ID updated and verified!'
+    authModalMessage.value = 'Google Cloud Project ID updated and verified.'
     authModalError.value = false
     await fetchStatus()
     setTimeout(() => { showAuthModal.value = false }, 1200)
@@ -2216,7 +2037,7 @@ async function submitServiceAccount() {
       service_account_json: parsed,
       project_id: authProjectInput.value.trim() || undefined,
     })
-    authModalMessage.value = 'Service account successfully authorized!'
+    authModalMessage.value = 'Service account authorized.'
     authModalError.value = false
     await fetchStatus()
     setTimeout(() => { showAuthModal.value = false }, 1200)

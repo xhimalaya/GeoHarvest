@@ -1,50 +1,43 @@
 <template>
   <div ref="containerRef" class="relative select-none" :class="[widthClass]">
-    <!-- Trigger Button -->
+    <!-- Trigger Button (8px radius per Section 11) -->
     <button
       type="button"
       :disabled="disabled"
       @click="toggleOpen"
       :class="[
-        'w-full flex items-center justify-between text-left transition-colors border rounded-lg shadow-sm font-medium focus:outline-none focus:ring-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed',
+        'w-full flex items-center justify-between text-left transition-colors border rounded-[8px] font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed gh-surface-elevated',
         sizeClasses,
-        triggerThemeClasses,
+        isOpen ? 'gh-focus-border' : 'gh-border hover:gh-accent-border',
         triggerClass
       ]"
       :title="selectedOption?.label || placeholder"
     >
-      <!-- Left Content: Icon + Label + Sublabel -->
+      <!-- Left Content: Label -->
       <div class="flex items-center space-x-2 min-w-0 flex-1 mr-2">
-        <span v-if="selectedOption?.icon" class="text-base shrink-0">{{ selectedOption.icon }}</span>
+        <span v-if="selectedOption?.icon" class="text-sm shrink-0">{{ selectedOption.icon }}</span>
         <div class="min-w-0 truncate">
-          <span v-if="selectedOption" class="truncate font-medium text-slate-100">
+          <span v-if="selectedOption" class="truncate font-medium gh-text-primary">
             {{ selectedOption.label }}
           </span>
-          <span v-else class="text-slate-400 truncate">
+          <span v-else class="gh-text-muted truncate">
             {{ placeholder }}
           </span>
         </div>
       </div>
 
-      <!-- Right Content: Badge / Tag + Chevron -->
+      <!-- Right Content: Badge + Chevron -->
       <div class="flex items-center space-x-1.5 shrink-0">
         <span
           v-if="selectedOption?.badge"
-          :class="[
-            'text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border uppercase',
-            selectedOption.badgeColor || 'bg-slate-900 text-slate-300 border-slate-700'
-          ]"
+          class="text-[12px] font-mono font-medium px-1.5 py-0.5 rounded-[6px] border gh-border gh-surface-secondary gh-text-secondary"
         >
           {{ selectedOption.badge }}
         </span>
 
         <svg
-          class="w-4 h-4 text-slate-400 transition-transform duration-150"
-          :class="{
-            'rotate-180': isOpen,
-            'text-teal-400': isOpen && theme === 'teal',
-            'text-sky-400': isOpen && theme !== 'teal'
-          }"
+          class="w-4 h-4 transition-transform duration-150"
+          :class="isOpen ? 'rotate-180 gh-turquoise' : 'gh-text-muted'"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -54,22 +47,21 @@
       </div>
     </button>
 
-    <!-- Dropdown Popover Menu -->
+    <!-- Dropdown Popover Menu (8px radius, floating elevation) -->
     <div
       v-if="isOpen"
       :class="[
-        'absolute left-0 mt-1.5 w-full min-w-full rounded-lg shadow-2xl overflow-hidden z-50 flex flex-col animate-in fade-in duration-100 border',
-        popoverThemeClasses,
+        'absolute left-0 mt-1.5 w-full min-w-full rounded-[8px] gh-shadow overflow-hidden z-50 flex flex-col border gh-border gh-surface-elevated gh-text-primary',
         popoverClass
       ]"
     >
       <!-- Search Input Header -->
       <div
         v-if="searchable"
-        :class="['p-2 border-b shrink-0', searchHeaderThemeClasses]"
+        class="p-2 border-b gh-divider shrink-0 gh-surface-secondary"
       >
         <div class="relative">
-          <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-3.5 h-3.5 gh-text-muted absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
@@ -77,10 +69,7 @@
             v-model="searchQuery"
             type="text"
             :placeholder="searchPlaceholder"
-            :class="[
-              'w-full rounded-md pl-8 pr-7 py-1.5 text-xs font-medium focus:outline-none border',
-              searchInputThemeClasses
-            ]"
+            class="w-full gh-input pl-8 pr-7 py-1.5 text-[13px] font-medium"
             @keydown.down.prevent="navigateDown"
             @keydown.up.prevent="navigateUp"
             @keydown.enter.prevent="selectHighlighted"
@@ -89,22 +78,22 @@
             v-if="searchQuery"
             @click="searchQuery = ''"
             type="button"
-            class="absolute right-2 top-2 text-slate-400 hover:text-slate-200 text-xs p-0.5 rounded cursor-pointer"
+            class="absolute right-2 top-1.5 gh-text-muted hover:gh-text-primary text-xs p-0.5 rounded cursor-pointer"
             title="Clear search"
           >
             &times;
           </button>
         </div>
-        <div class="flex items-center justify-between mt-1 px-1 text-[10px] text-slate-400">
+        <div class="flex items-center justify-between mt-1 px-1 text-[12px] gh-text-muted">
           <span>{{ filteredOptions.length }} matching</span>
-          <span v-if="searchQuery" class="font-mono text-slate-500">Filter active</span>
+          <span v-if="searchQuery" class="font-mono">Filtered</span>
         </div>
       </div>
 
       <!-- Options List -->
       <div
         ref="listRef"
-        class="max-h-56 overflow-y-auto p-1 space-y-0.5 text-xs scrollbar-thin scrollbar-thumb-slate-700"
+        class="max-h-56 overflow-y-auto p-1 space-y-0.5 text-[13px]"
       >
         <template v-if="filteredOptions.length > 0">
           <div
@@ -113,19 +102,19 @@
             @click="selectOption(opt)"
             @mouseenter="highlightedIndex = idx"
             :class="[
-              'w-full flex items-center justify-between px-2.5 py-2 rounded-md transition-colors cursor-pointer text-left',
+              'w-full flex items-center justify-between px-2.5 py-2 rounded-[6px] transition-colors cursor-pointer text-left',
               getItemClasses(opt, idx),
               opt.disabled ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''
             ]"
           >
-            <!-- Left: Icon + Label + Sublabel -->
+            <!-- Left: Label + Sublabel -->
             <div class="min-w-0 flex-1 mr-2">
               <div class="flex items-center space-x-1.5 min-w-0">
                 <span v-if="opt.icon" class="text-sm shrink-0">{{ opt.icon }}</span>
                 <span class="truncate font-medium">{{ opt.label }}</span>
-                <span v-if="opt.category" class="text-[10px] text-slate-400 font-mono shrink-0">({{ opt.category }})</span>
+                <span v-if="opt.category" class="text-[12px] gh-text-muted font-mono shrink-0">({{ opt.category }})</span>
               </div>
-              <p v-if="opt.sublabel" class="text-[11px] text-slate-400 mt-0.5 truncate leading-tight">
+              <p v-if="opt.sublabel" class="text-[12px] gh-text-secondary mt-0.5 truncate leading-tight">
                 {{ opt.sublabel }}
               </p>
             </div>
@@ -134,17 +123,14 @@
             <div class="flex items-center space-x-1.5 shrink-0">
               <span
                 v-if="opt.badge"
-                :class="[
-                  'text-[9px] font-mono font-bold px-1.5 py-0.2 rounded border uppercase',
-                  opt.badgeColor || 'bg-slate-850 text-slate-400 border-slate-700'
-                ]"
+                class="text-[12px] font-mono font-medium px-1.5 py-0.5 rounded-[5px] border gh-border gh-surface-secondary gh-text-secondary"
               >
                 {{ opt.badge }}
               </span>
 
               <svg
                 v-if="opt.value === modelValue"
-                :class="['w-4 h-4 shrink-0', theme === 'teal' ? 'text-teal-300' : 'text-sky-400']"
+                class="w-4 h-4 shrink-0 gh-turquoise"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -156,13 +142,13 @@
         </template>
 
         <!-- Empty Results Message -->
-        <div v-else class="py-6 px-3 text-center text-slate-400 text-xs space-y-2">
-          <p class="font-medium text-slate-300">{{ emptyText }}</p>
+        <div v-else class="py-6 px-3 text-center gh-text-secondary text-[13px] space-y-2">
+          <p class="font-medium">{{ emptyText }}</p>
           <button
             v-if="searchQuery"
             type="button"
             @click="searchQuery = ''"
-            class="text-[11px] text-sky-400 hover:text-sky-300 underline font-medium cursor-pointer"
+            class="text-[12px] gh-accent underline font-medium cursor-pointer"
           >
             Clear search query
           </button>
@@ -230,68 +216,26 @@ const listRef = ref<HTMLElement | null>(null)
 const sizeClasses = computed(() => {
   switch (props.size) {
     case 'sm':
-      return 'px-2.5 py-1.5 text-xs'
+      return 'px-2.5 py-1.5 text-[13px]'
     case 'lg':
-      return 'px-3.5 py-2.5 text-sm'
+      return 'px-3.5 py-2.5 text-[14px]'
     case 'md':
     default:
-      return 'px-3 py-2 text-xs sm:text-sm'
+      return 'px-3 py-2 text-[13.5px]'
   }
-})
-
-const triggerThemeClasses = computed(() => {
-  if (props.theme === 'teal') {
-    return isOpen.value
-      ? 'bg-[#063037] border-teal-400 text-teal-100 ring-1 ring-teal-400/50 focus:ring-teal-400'
-      : 'bg-[#02181c] hover:bg-[#063037] border-[#0e5c66] text-teal-100'
-  }
-  return isOpen.value
-    ? 'bg-slate-800 border-sky-500 text-white ring-1 ring-sky-500/50 focus:ring-sky-500'
-    : 'bg-slate-800/90 hover:bg-slate-750 border-slate-700 text-slate-100'
-})
-
-const popoverThemeClasses = computed(() => {
-  if (props.theme === 'teal') {
-    return 'bg-[#031d22] border-[#0e5c66] text-teal-100'
-  }
-  return 'bg-slate-900 border-slate-700 text-slate-100'
-})
-
-const searchHeaderThemeClasses = computed(() => {
-  if (props.theme === 'teal') {
-    return 'border-[#0e5c66] bg-[#02181c]'
-  }
-  return 'border-slate-800 bg-slate-950/80'
-})
-
-const searchInputThemeClasses = computed(() => {
-  if (props.theme === 'teal') {
-    return 'bg-[#031d22] border-[#0e5c66] text-teal-100 placeholder-teal-600 focus:border-teal-400'
-  }
-  return 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-500 focus:border-sky-500'
 })
 
 function getItemClasses(opt: SelectOption, idx: number) {
   const isSelected = opt.value === props.modelValue
   const isHighlighted = idx === highlightedIndex.value
 
-  if (props.theme === 'teal') {
-    if (isSelected) {
-      return 'bg-[#0a464f] text-teal-100 font-semibold border border-teal-400/70 shadow-sm'
-    }
-    if (isHighlighted) {
-      return 'bg-[#063037] text-white'
-    }
-    return 'text-teal-200/90 hover:bg-[#063037] hover:text-white'
-  }
-
   if (isSelected) {
-    return 'bg-sky-950/80 text-sky-200 font-semibold border border-sky-800/80'
+    return 'gh-selected-bg gh-accent font-semibold'
   }
   if (isHighlighted) {
-    return 'bg-slate-800 text-white'
+    return 'gh-surface-secondary gh-text-primary'
   }
-  return 'text-slate-300 hover:bg-slate-800 hover:text-white'
+  return 'gh-text-primary hover:gh-surface-secondary'
 }
 
 const selectedOption = computed(() => {

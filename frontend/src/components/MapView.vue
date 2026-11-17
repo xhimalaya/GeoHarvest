@@ -1,60 +1,66 @@
 <template>
-  <div class="relative w-full h-full select-none overflow-hidden bg-slate-950">
+  <div class="relative w-full h-full select-none overflow-hidden gh-workspace-bg">
     <!-- Map Canvas Container -->
     <div ref="mapContainer" class="w-full h-full cursor-crosshair"></div>
 
-    <!-- Floating Unified GIS Layer Controller (Top-Left) -->
+    <!-- Floating Unified GIS Layer Controller (Bottom-Left) -->
     <div
-      :class="[
-        'absolute top-3.5 z-20 layer-menu-container transition-all duration-150',
-        props.isLeftPanelOpen ? 'left-3.5' : 'left-[140px]'
-      ]"
+      class="absolute bottom-4 left-4 z-20 layer-menu-container transition-all duration-150"
     >
       <div class="relative">
         <button
           @click="showLayersMenu = !showLayersMenu"
           :class="[
-            'flex items-center space-x-2 border rounded-xl px-3.5 py-2 text-xs font-semibold transition-colors cursor-pointer shadow-xl backdrop-blur',
+            'flex items-center space-x-2 border rounded-[8px] px-3 py-1.5 text-[13px] font-medium transition-colors cursor-pointer gh-surface-primary gh-shadow',
             showLayersMenu
-              ? 'bg-[#062c33] border-teal-500 text-teal-100 shadow-teal-950/50 ring-1 ring-teal-500/50'
-              : 'bg-slate-900/95 hover:bg-slate-850 border-slate-700/80 text-slate-200'
+              ? 'gh-active gh-focus-border'
+              : 'gh-border gh-text-secondary hover:gh-surface-elevated hover:gh-text-primary'
           ]"
           title="GIS Layer & Basemap Manager"
         >
-          <span>🥞</span>
-          <span class="font-mono">Layers</span>
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+          </svg>
+          <span>Layers</span>
           <span
             v-if="renderedImageryCount > 0 && harvestStore.showSatelliteImagery"
-            class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-800"
+            class="px-1.5 py-0.5 rounded-[5px] text-[12px] font-mono font-semibold gh-selected-bg gh-accent"
           >
             {{ renderedImageryCount }}
           </span>
-          <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          <svg
+            :class="['w-3.5 h-3.5 gh-text-muted transition-transform', showLayersMenu ? 'rotate-180' : '']"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
           </svg>
         </button>
 
-        <!-- GIS Layer Manager Popover (Spacious Solid Dark Turquoise Theme) -->
+        <!-- GIS Layer Manager Popover (opens upward from bottom-left) -->
         <div
           v-if="showLayersMenu"
-          class="absolute top-full left-0 mt-2 w-[92vw] sm:w-[540px] max-w-[calc(100vw-28rem)] max-h-[82vh] overflow-y-auto bg-[#042429] border border-[#0e5c66] rounded-2xl shadow-2xl p-5 text-xs z-30 space-y-4 animate-in fade-in duration-100 text-teal-100 scrollbar-thin scrollbar-thumb-teal-700"
+          class="absolute bottom-full left-0 mb-2 w-[92vw] sm:w-[520px] max-w-[calc(100vw-28rem)] max-h-[75vh] overflow-y-auto gh-surface-elevated border gh-border rounded-[10px] gh-shadow-dialog p-4 text-[13px] z-30 space-y-4 gh-text-primary"
         >
           <!-- Popover Top Header Bar -->
-          <div class="flex items-center justify-between pb-3 border-b border-[#0e5c66]">
+          <div class="flex items-center justify-between pb-2.5 border-b gh-divider">
             <div class="flex items-center space-x-2">
-              <span class="text-base">🥞</span>
-              <h3 class="font-bold text-sm text-teal-100 tracking-wide">GIS Layers & Basemap Manager</h3>
+              <svg class="w-4 h-4 gh-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+              </svg>
+              <h3 class="font-semibold text-[14px] gh-text-primary">Layers &amp; Basemap</h3>
             </div>
             <div class="flex items-center space-x-2">
               <span
                 v-if="renderedImageryCount > 0"
-                class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#021f24] text-teal-300 border border-teal-700"
+                class="px-2 py-0.5 rounded-[6px] text-[12px] font-mono font-semibold gh-selected-bg gh-accent"
               >
-                {{ renderedImageryCount }} Active
+                {{ renderedImageryCount }} active
               </span>
               <button
                 @click="showLayersMenu = false"
-                class="p-1 rounded-lg text-teal-400 hover:text-teal-100 hover:bg-[#063037] transition-colors cursor-pointer"
+                class="p-1 rounded-[6px] gh-btn-ghost cursor-pointer"
                 title="Close layers panel"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -64,48 +70,42 @@
             </div>
           </div>
 
-          <!-- 2-Column Spacious Grid Layout -->
+          <!-- 2-Column Layout -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <!-- Left Column: Imagery & Atmospheric Layers -->
             <div class="space-y-4">
-              <!-- Card 1: Satellite Scene Visual Overlays -->
-              <div class="bg-[#02181c]/80 border border-[#093c44] rounded-xl p-3.5 space-y-3">
-                <div class="flex items-center justify-between pb-2 border-b border-[#093c44]">
-                  <span class="font-bold text-teal-200 uppercase tracking-wider text-xs flex items-center space-x-1.5">
-                    <span>🛰️</span>
-                    <span>Scene Overlays</span>
-                  </span>
+              <!-- Section 1: Satellite Scene Overlays -->
+              <div class="gh-surface-primary border gh-border rounded-[8px] p-3 space-y-2.5">
+                <div class="flex items-center justify-between pb-1.5 border-b gh-divider">
+                  <span class="gh-label">Scene Overlays</span>
                   <span
                     v-if="renderedImageryCount > 0"
-                    class="px-2 py-0.5 rounded text-[10px] font-mono font-semibold"
-                    :class="harvestStore.showSatelliteImagery ? 'bg-[#021f24] text-teal-300 border border-teal-700' : 'bg-[#02181c] text-teal-400/80 border border-[#093c44]'"
+                    class="text-[12px] font-mono gh-accent"
                   >
                     {{ renderedImageryCount }} active
                   </span>
                 </div>
 
-                <!-- Master Satellite Imagery Toggle -->
                 <label class="flex items-center justify-between cursor-pointer py-0.5">
-                  <span class="text-xs text-teal-100 font-medium">Visual True-Color Imagery</span>
+                  <span class="text-[13px] gh-text-primary">True-Color Imagery</span>
                   <input
                     v-model="harvestStore.showSatelliteImagery"
                     type="checkbox"
-                    class="rounded border-[#0e5c66] bg-[#02181c] text-teal-500 focus:ring-0 cursor-pointer w-4 h-4"
+                    class="rounded cursor-pointer w-4 h-4"
                   />
                 </label>
 
-                <!-- Mode Selector (Selected vs All) -->
                 <div
                   v-if="harvestStore.showSatelliteImagery"
-                  class="grid grid-cols-2 gap-1.5 p-1 bg-[#02181c] rounded-lg border border-[#093c44] text-xs"
+                  class="grid grid-cols-2 gap-1 p-0.5 gh-surface-secondary rounded-[6px] border gh-border text-[12px]"
                 >
                   <button
                     @click="harvestStore.satelliteImageryMode = 'selected'"
                     :class="[
-                      'py-1.5 rounded-md font-semibold transition-colors text-center cursor-pointer',
+                      'py-1 rounded-[5px] font-medium transition-colors text-center cursor-pointer',
                       harvestStore.satelliteImageryMode === 'selected'
-                        ? 'bg-teal-600 text-white shadow-sm'
-                        : 'text-teal-300/80 hover:text-white'
+                        ? 'gh-surface-elevated gh-accent font-semibold'
+                        : 'gh-text-secondary hover:gh-text-primary'
                     ]"
                   >
                     Selected ({{ harvestStore.selectedSceneIds.size }})
@@ -113,21 +113,20 @@
                   <button
                     @click="harvestStore.satelliteImageryMode = 'all'"
                     :class="[
-                      'py-1.5 rounded-md font-semibold transition-colors text-center cursor-pointer',
+                      'py-1 rounded-[5px] font-medium transition-colors text-center cursor-pointer',
                       harvestStore.satelliteImageryMode === 'all'
-                        ? 'bg-teal-600 text-white shadow-sm'
-                        : 'text-teal-300/80 hover:text-white'
+                        ? 'gh-surface-elevated gh-accent font-semibold'
+                        : 'gh-text-secondary hover:gh-text-primary'
                     ]"
                   >
                     All ({{ harvestStore.searchResults.length }})
                   </button>
                 </div>
 
-                <!-- Imagery Opacity Slider -->
                 <div v-if="harvestStore.showSatelliteImagery" class="space-y-1 pt-1">
-                  <div class="flex items-center justify-between text-xs text-teal-300 font-medium">
+                  <div class="flex items-center justify-between text-[12px] gh-text-secondary">
                     <span>Imagery Opacity</span>
-                    <span class="font-mono text-teal-200 font-bold">
+                    <span class="font-mono gh-text-primary font-semibold">
                       {{ Math.round(harvestStore.satelliteImageryOpacity * 100) }}%
                     </span>
                   </div>
@@ -137,85 +136,73 @@
                     min="0.1"
                     max="1.0"
                     step="0.05"
-                    class="w-full accent-teal-400 cursor-pointer h-1.5 bg-[#02181c] rounded"
+                    class="w-full cursor-pointer h-1.5 rounded"
                   />
                 </div>
 
-                <!-- Footprint Outlines Toggle -->
-                <label class="flex items-center justify-between cursor-pointer py-0.5 pt-1 border-t border-[#093c44]">
-                  <span class="text-xs text-teal-100 font-medium">Footprint Wireframes</span>
+                <label class="flex items-center justify-between cursor-pointer py-0.5 pt-1.5 border-t gh-divider">
+                  <span class="text-[13px] gh-text-primary">Footprint Outlines</span>
                   <input
                     v-model="harvestStore.showFootprintOutlines"
                     type="checkbox"
-                    class="rounded border-[#0e5c66] bg-[#02181c] text-teal-500 focus:ring-0 cursor-pointer w-4 h-4"
+                    class="rounded cursor-pointer w-4 h-4"
                   />
                 </label>
               </div>
 
-              <!-- Card 2: Live Weather, Temperature & Clouds -->
-              <div class="bg-[#02181c]/80 border border-[#093c44] rounded-xl p-3.5 space-y-3">
-                <div class="flex items-center justify-between pb-2 border-b border-[#093c44]">
-                  <span class="font-bold text-teal-200 uppercase tracking-wider text-xs flex items-center space-x-1.5">
-                    <span>🌡️</span>
-                    <span>Weather & Thermal</span>
-                  </span>
+              <!-- Section 2: Weather & Thermal -->
+              <div class="gh-surface-primary border gh-border rounded-[8px] p-3 space-y-2.5">
+                <div class="flex items-center justify-between pb-1.5 border-b gh-divider">
+                  <span class="gh-label">Weather &amp; Thermal</span>
                   <span
                     v-if="harvestStore.showTemperatureRadar"
-                    class="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-amber-950/80 text-amber-300 border border-amber-800"
+                    class="text-[12px] font-mono gh-warning"
                   >
-                    Temp Live
+                    Active
                   </span>
                 </div>
 
-                <!-- Temperature Radar Toggle -->
                 <label class="flex items-center justify-between cursor-pointer py-0.5">
-                  <div class="flex items-center space-x-1.5">
-                    <span class="text-xs text-teal-100 font-medium">Temperature Radar</span>
-                    <span class="text-[10px] font-mono text-amber-400 font-semibold">(Thermal)</span>
-                  </div>
+                  <span class="text-[13px] gh-text-primary">Temperature Layer</span>
                   <input
                     v-model="harvestStore.showTemperatureRadar"
                     type="checkbox"
-                    class="rounded border-[#0e5c66] bg-[#02181c] text-amber-500 focus:ring-0 cursor-pointer w-4 h-4"
+                    class="rounded cursor-pointer w-4 h-4"
                   />
                 </label>
 
-                <!-- Temperature Mode Selector (Surface 1km vs Air Temp) -->
                 <div
                   v-if="harvestStore.showTemperatureRadar"
-                  class="grid grid-cols-2 gap-1.5 p-1 bg-[#02181c] rounded-lg border border-[#093c44] text-xs"
+                  class="grid grid-cols-2 gap-1 p-0.5 gh-surface-secondary rounded-[6px] border gh-border text-[12px]"
                 >
                   <button
                     @click="harvestStore.temperatureRadarMode = 'surface'"
                     :class="[
-                      'py-1.5 px-2 rounded-md font-semibold transition-colors text-center cursor-pointer',
+                      'py-1 px-2 rounded-[5px] font-medium transition-colors text-center cursor-pointer',
                       harvestStore.temperatureRadarMode === 'surface'
-                        ? 'bg-amber-600 text-white shadow-sm'
-                        : 'text-teal-300/80 hover:text-white'
+                        ? 'gh-surface-elevated gh-accent font-semibold'
+                        : 'gh-text-secondary hover:gh-text-primary'
                     ]"
-                    title="MODIS Terra Land Surface Temperature (1km Resolution)"
                   >
                     Surface (1km)
                   </button>
                   <button
                     @click="harvestStore.temperatureRadarMode = 'air'"
                     :class="[
-                      'py-1.5 px-2 rounded-md font-semibold transition-colors text-center cursor-pointer',
+                      'py-1 px-2 rounded-[5px] font-medium transition-colors text-center cursor-pointer',
                       harvestStore.temperatureRadarMode === 'air'
-                        ? 'bg-amber-600 text-white shadow-sm'
-                        : 'text-teal-300/80 hover:text-white'
+                        ? 'gh-surface-elevated gh-accent font-semibold'
+                        : 'gh-text-secondary hover:gh-text-primary'
                     ]"
-                    title="AIRS Surface Air Temperature"
                   >
                     Surface Air
                   </button>
                 </div>
 
-                <!-- Temperature Radar Opacity Slider -->
                 <div v-if="harvestStore.showTemperatureRadar" class="space-y-1 pt-1">
-                  <div class="flex items-center justify-between text-xs text-teal-300 font-medium">
-                    <span>Thermal Radar Opacity</span>
-                    <span class="font-mono text-amber-400 font-bold">
+                  <div class="flex items-center justify-between text-[12px] gh-text-secondary">
+                    <span>Thermal Opacity</span>
+                    <span class="font-mono gh-text-primary font-semibold">
                       {{ Math.round(harvestStore.temperatureRadarOpacity * 100) }}%
                     </span>
                   </div>
@@ -225,38 +212,23 @@
                     min="0.1"
                     max="1.0"
                     step="0.05"
-                    class="w-full accent-amber-500 cursor-pointer h-1.5 bg-[#02181c] rounded"
+                    class="w-full cursor-pointer h-1.5 rounded"
                   />
                 </div>
 
-                <!-- Thermal Color Scale Legend -->
-                <div v-if="harvestStore.showTemperatureRadar" class="p-2 bg-[#02181c] rounded-lg border border-[#093c44] space-y-1.5">
-                  <div class="flex items-center justify-between text-[10px] text-teal-300 font-mono font-semibold">
-                    <span class="text-sky-300">❄️ -30°C</span>
-                    <span class="text-amber-200">15°C</span>
-                    <span class="text-rose-400">🔥 +45°C</span>
-                  </div>
-                  <div class="h-2 w-full rounded-full bg-gradient-to-r from-blue-600 via-cyan-400 via-emerald-400 via-yellow-400 via-orange-500 to-rose-600 shadow-inner"></div>
-                </div>
-
-                <!-- Global Cloud Cover Mask Toggle (NASA GIBS) -->
-                <label class="flex items-center justify-between cursor-pointer py-0.5 pt-1 border-t border-[#093c44]">
-                  <div class="flex items-center space-x-1.5">
-                    <span class="text-xs text-teal-100 font-medium">Cloud Cover Mask</span>
-                    <span class="text-[10px] font-mono text-teal-300/80">(GIBS)</span>
-                  </div>
+                <label class="flex items-center justify-between cursor-pointer py-0.5 pt-1.5 border-t gh-divider">
+                  <span class="text-[13px] gh-text-primary">Cloud Cover Mask (GIBS)</span>
                   <input
                     v-model="harvestStore.showCloudCoverMap"
                     type="checkbox"
-                    class="rounded border-[#0e5c66] bg-[#02181c] text-teal-400 focus:ring-0 cursor-pointer w-4 h-4"
+                    class="rounded cursor-pointer w-4 h-4"
                   />
                 </label>
 
-                <!-- Cloud Mask Opacity Slider -->
                 <div v-if="harvestStore.showCloudCoverMap" class="space-y-1 pt-1">
-                  <div class="flex items-center justify-between text-xs text-teal-300 font-medium">
+                  <div class="flex items-center justify-between text-[12px] gh-text-secondary">
                     <span>Cloud Opacity</span>
-                    <span class="font-mono text-teal-200 font-bold">
+                    <span class="font-mono gh-text-primary font-semibold">
                       {{ Math.round(harvestStore.cloudCoverOpacity * 100) }}%
                     </span>
                   </div>
@@ -266,17 +238,16 @@
                     min="0.1"
                     max="1.0"
                     step="0.05"
-                    class="w-full accent-teal-400 cursor-pointer h-1.5 bg-[#02181c] rounded"
+                    class="w-full cursor-pointer h-1.5 rounded"
                   />
                 </div>
 
-                <!-- Weather Telemetry HUD Toggle -->
-                <label class="flex items-center justify-between cursor-pointer py-0.5 pt-1 border-t border-[#093c44]">
-                  <span class="text-xs text-teal-100 font-medium">Atmospheric Weather HUD</span>
+                <label class="flex items-center justify-between cursor-pointer py-0.5 pt-1.5 border-t gh-divider">
+                  <span class="text-[13px] gh-text-primary">Atmospheric Weather HUD</span>
                   <input
                     v-model="harvestStore.showWeatherHud"
                     type="checkbox"
-                    class="rounded border-[#0e5c66] bg-[#02181c] text-teal-400 focus:ring-0 cursor-pointer w-4 h-4"
+                    class="rounded cursor-pointer w-4 h-4"
                   />
                 </label>
               </div>
@@ -284,124 +255,91 @@
 
             <!-- Right Column: Basemaps & Reference Overlays -->
             <div class="space-y-4">
-              <!-- Card 3: Basemap Style -->
-              <div class="bg-[#02181c]/80 border border-[#093c44] rounded-xl p-3.5 space-y-3 relative z-20">
-                <div class="flex items-center justify-between pb-2 border-b border-[#093c44]">
-                  <span class="font-bold text-teal-200 uppercase tracking-wider text-xs flex items-center space-x-1.5">
-                    <span>🌍</span>
-                    <span>Basemap Style</span>
-                  </span>
-                  <span class="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-[#031d22] text-teal-300 border border-[#093c44]">
+              <!-- Section 3: Basemap Style -->
+              <div class="gh-surface-primary border gh-border rounded-[8px] p-3 space-y-2.5 relative z-20">
+                <div class="flex items-center justify-between pb-1.5 border-b gh-divider">
+                  <span class="gh-label">Basemap Style</span>
+                  <span class="text-[12px] font-mono gh-text-secondary">
                     {{ activeBasemapMeta.shortLabel }}
                   </span>
                 </div>
 
-                <div class="pt-0.5">
-                  <SearchableSelect
-                    :model-value="activeBasemap"
-                    :options="basemapSelectOptions"
-                    @change="(val) => selectBasemap(val as BasemapId)"
-                    placeholder="Choose basemap style..."
-                    search-placeholder="Filter basemap style..."
-                    size="sm"
-                    theme="teal"
-                    :searchable="false"
-                  />
-                </div>
+                <SearchableSelect
+                  :model-value="activeBasemap"
+                  :options="basemapSelectOptions"
+                  @change="(val) => selectBasemap(val as BasemapId)"
+                  placeholder="Choose basemap style..."
+                  search-placeholder="Filter basemap style..."
+                  size="sm"
+                  :searchable="false"
+                />
 
-                <!-- Active Basemap Summary & Attributions -->
-                <div class="bg-[#031d22]/90 border border-[#093c44] rounded-lg p-2.5 space-y-1 text-teal-200/90 text-xs">
+                <div class="gh-surface-secondary rounded-[6px] p-2 space-y-0.5 text-[12px]">
                   <div class="flex items-center justify-between">
-                    <span class="font-medium text-teal-100 text-[11px] flex items-center space-x-1">
-                      <span>{{ activeBasemapMeta.icon }}</span>
-                      <span>{{ activeBasemapMeta.shortLabel }}</span>
-                    </span>
-                    <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#02181c] text-teal-300 border border-[#0e5c66]">
-                      Max Zoom: {{ activeBasemapMeta.maxZoom }}
-                    </span>
+                    <span class="font-medium gh-text-primary">{{ activeBasemapMeta.shortLabel }}</span>
+                    <span class="font-mono gh-text-muted">Max zoom {{ activeBasemapMeta.maxZoom }}</span>
                   </div>
-                  <p class="text-[10px] text-teal-300/70 truncate">
-                    {{ activeBasemapMeta.description }}
-                  </p>
+                  <p class="gh-text-secondary truncate">{{ activeBasemapMeta.description }}</p>
                 </div>
               </div>
 
-              <!-- Card 4: Reference Overlays -->
-              <div class="bg-[#02181c]/80 border border-[#093c44] rounded-xl p-3.5 space-y-3 relative z-10">
-                <div class="pb-2 border-b border-[#093c44]">
-                  <span class="font-bold text-teal-200 uppercase tracking-wider text-xs flex items-center space-x-1.5">
-                    <span>📐</span>
-                    <span>Reference Overlays</span>
-                  </span>
+              <!-- Section 4: Reference Overlays -->
+              <div class="gh-surface-primary border gh-border rounded-[8px] p-3 space-y-2 relative z-10">
+                <div class="pb-1.5 border-b gh-divider">
+                  <span class="gh-label">Reference Overlays</span>
                 </div>
 
-                <div class="space-y-2 pt-0.5">
-                  <label class="flex items-center justify-between cursor-pointer py-1">
-                    <span class="text-xs text-teal-100 font-medium">Labels & Boundaries</span>
-                    <input
-                      v-model="harvestStore.showBoundariesLabels"
-                      type="checkbox"
-                      class="rounded border-[#0e5c66] bg-[#02181c] text-teal-400 focus:ring-0 cursor-pointer w-4 h-4"
-                    />
-                  </label>
+                <label class="flex items-center justify-between cursor-pointer py-0.5">
+                  <span class="text-[13px] gh-text-primary">Labels &amp; Boundaries</span>
+                  <input
+                    v-model="harvestStore.showBoundariesLabels"
+                    type="checkbox"
+                    class="rounded cursor-pointer w-4 h-4"
+                  />
+                </label>
 
-                  <label class="flex items-center justify-between cursor-pointer py-1">
-                    <span class="text-xs text-teal-100 font-medium">Lat/Lon Graticule Grid</span>
-                    <input
-                      v-model="harvestStore.showGraticule"
-                      type="checkbox"
-                      class="rounded border-[#0e5c66] bg-[#02181c] text-teal-400 focus:ring-0 cursor-pointer w-4 h-4"
-                    />
-                  </label>
+                <label class="flex items-center justify-between cursor-pointer py-0.5">
+                  <span class="text-[13px] gh-text-primary">Coordinate Graticule</span>
+                  <input
+                    v-model="harvestStore.showGraticule"
+                    type="checkbox"
+                    class="rounded cursor-pointer w-4 h-4"
+                  />
+                </label>
 
-                  <label class="flex items-center justify-between cursor-pointer py-1">
-                    <span class="text-xs text-teal-100 font-medium">Terrain Hillshade</span>
-                    <input
-                      v-model="harvestStore.showHillshade"
-                      type="checkbox"
-                      class="rounded border-[#0e5c66] bg-[#02181c] text-teal-400 focus:ring-0 cursor-pointer w-4 h-4"
-                    />
-                  </label>
-                </div>
+                <label class="flex items-center justify-between cursor-pointer py-0.5">
+                  <span class="text-[13px] gh-text-primary">Terrain Hillshade</span>
+                  <input
+                    v-model="harvestStore.showHillshade"
+                    type="checkbox"
+                    class="rounded cursor-pointer w-4 h-4"
+                  />
+                </label>
               </div>
 
-              <!-- Card 5: Aerial Distance Measurement -->
-              <div class="bg-[#02181c]/80 border border-[#093c44] rounded-xl p-3.5 space-y-2.5 relative z-10">
-                <div class="flex items-center justify-between pb-2 border-b border-[#093c44]">
-                  <span class="font-bold text-teal-200 uppercase tracking-wider text-xs flex items-center space-x-1.5">
-                    <span>📏</span>
-                    <span>Aerial Distance Tool</span>
-                  </span>
-                  <span
-                    v-if="activeMeasurement"
-                    class="text-[10px] font-mono px-2 py-0.5 rounded bg-[#021f24] text-amber-300 border border-amber-700 font-bold"
-                  >
+              <!-- Section 5: Geodesic Distance -->
+              <div class="gh-surface-primary border gh-border rounded-[8px] p-3 space-y-2 relative z-10">
+                <div class="flex items-center justify-between pb-1.5 border-b gh-divider">
+                  <span class="gh-label">Geodesic Distance</span>
+                  <span v-if="activeMeasurement" class="text-[12px] font-mono gh-accent font-semibold">
                     {{ activeMeasurement.formatted.summary }}
                   </span>
                 </div>
 
-                <p class="text-[11px] text-teal-300/80 leading-snug">
-                  Measure spherical great-circle aerial distance (WGS-84 geodesic) between points or multi-leg routes on the basemap.
-                </p>
-
-                <div class="flex items-center space-x-2 pt-0.5">
+                <div class="flex items-center space-x-2">
                   <button
                     @click="showLayersMenu = false; startMeasure()"
                     :class="[
-                      'flex-1 py-1.5 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 transition-colors cursor-pointer',
-                      activeDrawType === 'Measure'
-                        ? 'bg-amber-600 text-white shadow-sm ring-1 ring-amber-400/50'
-                        : 'bg-teal-700/80 hover:bg-teal-600 text-teal-100 shadow-sm'
+                      'flex-1 py-1.5 px-2.5 rounded-[7px] text-[12.5px] font-medium transition-colors cursor-pointer',
+                      activeDrawType === 'Measure' ? 'gh-btn-primary' : 'gh-btn-secondary'
                     ]"
                   >
-                    <span>📏</span>
-                    <span>{{ activeDrawType === 'Measure' ? 'Measuring on Map...' : activeMeasurement ? 'New Measurement' : 'Measure on Basemap' }}</span>
+                    {{ activeDrawType === 'Measure' ? 'Measuring...' : activeMeasurement ? 'New Measurement' : 'Measure Distance' }}
                   </button>
                   <button
                     v-if="activeMeasurement"
                     @click="clearMeasure"
-                    class="px-2.5 py-1.5 bg-rose-950/80 hover:bg-rose-900 border border-rose-800 text-rose-300 rounded-lg text-xs font-semibold cursor-pointer"
-                    title="Clear distance line"
+                    class="px-2.5 py-1.5 rounded-[7px] gh-btn-secondary text-[12.5px] gh-error cursor-pointer"
                   >
                     Clear
                   </button>
@@ -413,132 +351,115 @@
       </div>
     </div>
 
-    <!-- Floating AOI & GIS Drawing Toolbar (Top-Right) -->
-    <div class="absolute top-3.5 right-3.5 z-10 flex items-center space-x-1.5 bg-slate-900/95 backdrop-blur border border-slate-700/80 rounded-xl p-1.5 shadow-2xl">
-      <!-- Quick 1-Click Fast Imagery Toggle Button -->
+    <!-- Floating Map Controls Toolbar (Top-Right: #1A2521 in Night, #FBFAF6 in Day, Soft Surface) -->
+    <div class="absolute top-3.5 right-3.5 z-10 flex items-center space-x-0.5 gh-surface-primary border gh-border rounded-[8px] p-1 gh-shadow">
+      <!-- Imagery -->
       <button
         @click="toggleImagery"
-        :class="[
-          'px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center space-x-1.5 transition-colors cursor-pointer',
-          isImageryActive
-            ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm ring-1 ring-emerald-400/50'
-            : 'text-slate-300 hover:bg-slate-800'
-        ]"
-        :title="isImageryActive ? 'Disable Satellite Imagery' : 'Enable High-Resolution Satellite Imagery'"
+        :class="mapCtrlClass(isImageryActive)"
+        :title="isImageryActive ? 'Disable Satellite Imagery' : 'Enable Satellite Imagery'"
       >
-        <span>🛰️</span>
+        <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="3" stroke-width="2" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M19.07 4.93l-2.83 2.83M7.76 16.24l-2.83 2.83" />
+        </svg>
         <span class="hidden sm:inline">Imagery</span>
-        <span v-if="renderedImageryCount > 0" class="text-[10px] font-mono opacity-90">
+        <span v-if="renderedImageryCount > 0" class="text-[11.5px] font-mono">
           ({{ renderedImageryCount }})
         </span>
       </button>
 
-      <!-- Quick 1-Click Fast Temperature Radar Toggle Button -->
+      <!-- Temperature -->
       <button
         @click="harvestStore.showTemperatureRadar = !harvestStore.showTemperatureRadar"
-        :class="[
-          'px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center space-x-1.5 transition-colors cursor-pointer',
-          harvestStore.showTemperatureRadar
-            ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-sm'
-            : 'text-slate-300 hover:bg-slate-800'
-        ]"
-        title="Toggle Global Temperature Radar (NASA Thermal Map)"
+        :class="mapCtrlClass(harvestStore.showTemperatureRadar)"
+        title="Toggle Temperature Layer"
       >
-        <span>🌡️</span>
-        <span class="hidden sm:inline">Temp Radar</span>
+        <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 14.76V3.5a2.5 2.5 0 00-5 0v11.26a4.5 4.5 0 105 0z" />
+        </svg>
+        <span class="hidden sm:inline">Temperature</span>
       </button>
 
-      <div class="h-4 w-px bg-slate-750"></div>
+      <div class="h-4 w-px border-l gh-divider mx-1"></div>
 
-      <!-- Distance Measure Button -->
+      <!-- Distance -->
       <button
         @click="startMeasure"
-        :class="[
-          'px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center space-x-1.5 transition-colors cursor-pointer',
-          activeDrawType === 'Measure'
-            ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-sm ring-1 ring-amber-400/50'
-            : activeMeasurement
-              ? 'bg-amber-950/80 hover:bg-amber-900 border border-amber-700/80 text-amber-300'
-              : 'text-slate-300 hover:bg-slate-800'
-        ]"
-        title="Measure Aerial Distance on Basemap (Great-Circle Geodesic)"
+        :class="mapCtrlClass(activeDrawType === 'Measure' || Boolean(activeMeasurement))"
+        title="Measure Geodesic Distance"
       >
-        <span>📏</span>
+        <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 17l6-6 4 4 8-8" />
+        </svg>
         <span>Distance</span>
-        <span v-if="activeMeasurement" class="text-[10px] font-mono font-bold text-amber-200">
+        <span v-if="activeMeasurement" class="text-[11.5px] font-mono">
           ({{ activeMeasurement.formatted.summary }})
         </span>
       </button>
 
-      <div class="h-4 w-px bg-slate-750"></div>
+      <div class="h-4 w-px border-l gh-divider mx-1"></div>
 
-      <!-- Polygon Draw Button -->
+      <!-- Polygon -->
       <button
         @click="startDraw('Polygon')"
-        :class="[
-          'px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center space-x-1.5 transition-colors cursor-pointer',
-          activeDrawType === 'Polygon' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-300 hover:bg-slate-800'
-        ]"
-        title="Draw Polygon AOI (Click vertices, double-click to close)"
+        :class="mapCtrlClass(activeDrawType === 'Polygon')"
+        title="Draw Polygon AOI"
       >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7l6-4 9 4-3 10-9 4-3-10z" />
         </svg>
         <span>Polygon</span>
       </button>
 
-      <!-- Box / BBox Draw Button -->
+      <!-- Box -->
       <button
         @click="startDraw('Box')"
-        :class="[
-          'px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center space-x-1.5 transition-colors cursor-pointer',
-          activeDrawType === 'Box' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-300 hover:bg-slate-800'
-        ]"
-        title="Draw Bounding Box AOI (Drag rectangle)"
+        :class="mapCtrlClass(activeDrawType === 'Box')"
+        title="Draw Bounding Box AOI"
       >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <rect x="3" y="3" width="18" height="18" rx="2" stroke-width="2" />
         </svg>
         <span>Box</span>
       </button>
 
-      <div class="h-4 w-px bg-slate-750"></div>
+      <div class="h-4 w-px border-l gh-divider mx-1"></div>
 
-
-      <!-- Zoom to AOI -->
+      <!-- Fit AOI -->
       <button
         @click="zoomToAoi"
         :disabled="!harvestStore.hasAoi"
-        class="px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-300 hover:bg-slate-800 disabled:opacity-40 flex items-center space-x-1.5 transition-colors cursor-pointer"
-        title="Zoom and fit active AOI"
+        :class="mapCtrlClass(false)"
+        title="Fit Map to Active AOI"
       >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+        <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
         </svg>
         <span>Fit AOI</span>
       </button>
 
-      <!-- Download GeoJSON -->
+      <!-- GeoJSON -->
       <button
         v-if="harvestStore.hasAoi"
         @click="harvestStore.downloadAoiGeoJson()"
-        class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-700/90 hover:bg-emerald-600 text-white shadow-sm flex items-center space-x-1.5 transition-colors cursor-pointer ring-1 ring-emerald-500/50"
-        title="Download active Area of Interest as a .geojson file"
+        :class="mapCtrlClass(false)"
+        title="Download Active AOI as GeoJSON"
       >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
         </svg>
         <span>GeoJSON</span>
       </button>
 
-      <!-- Clear AOI -->
+      <!-- Clear -->
       <button
         v-if="harvestStore.hasAoi"
         @click="clearAoi"
-        class="px-3 py-1.5 text-xs font-semibold rounded-lg text-rose-400 hover:bg-rose-950/50 flex items-center space-x-1.5 transition-colors cursor-pointer"
+        class="px-2.5 py-1.5 text-[13px] font-medium rounded-[6px] gh-error hover:gh-error-soft-bg flex items-center space-x-1.5 transition-colors cursor-pointer"
         title="Clear Area of Interest"
       >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
         </svg>
         <span>Clear</span>
@@ -548,97 +469,79 @@
     <!-- Active Drawing Hint Indicator -->
     <div
       v-if="activeDrawType"
-      class="absolute top-16 left-1/2 -translate-x-1/2 z-10 bg-sky-950/95 backdrop-blur border border-sky-500/80 rounded-full px-4.5 py-1.5 text-xs text-sky-200 shadow-2xl flex items-center space-x-2.5 pointer-events-none"
+      class="absolute top-16 left-1/2 -translate-x-1/2 z-10 gh-surface-elevated border gh-focus-border rounded-[8px] px-4 py-1.5 text-[12.5px] gh-text-primary gh-shadow flex items-center space-x-2.5 pointer-events-none"
     >
-      <span class="w-2.5 h-2.5 rounded-full bg-sky-400 animate-ping"></span>
+      <span class="w-2 h-2 rounded-full gh-accent-bg"></span>
       <span class="font-medium">
         {{
           activeDrawType === 'Measure'
-            ? 'Click on basemap to start measuring. Click points to extend path. Double-click or Enter to finish.'
+            ? 'Click on map to start measuring. Click points to extend path. Double-click or Enter to finish.'
             : activeDrawType === 'Polygon'
               ? 'Click on map to draw polygon. Double-click to finish.'
               : 'Click and drag rectangle to set bounding box.'
         }}
       </span>
-      <button @click.stop="cancelDraw" class="text-xs font-bold text-slate-400 hover:text-white ml-2 pointer-events-auto cursor-pointer">Esc</button>
+      <button
+        @click.stop="cancelDraw"
+        class="text-[12px] font-mono gh-text-secondary hover:gh-text-primary ml-2 pointer-events-auto cursor-pointer"
+      >
+        Esc
+      </button>
     </div>
 
     <!-- Drawing Saved Notification & Instant Download Toast -->
-    <transition
-      enter-active-class="transform ease-out duration-300 transition"
-      enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:scale-95"
-      enter-to-class="translate-y-0 opacity-100 sm:scale-100"
-      leave-active-class="transition ease-in duration-200"
-      leave-from-class="opacity-100"
-      leave-to-class="opacity-0"
+    <div
+      v-if="harvestStore.lastSavedAoiToast"
+      class="absolute top-16 right-4 z-30 max-w-sm gh-surface-elevated border gh-accent-border rounded-[10px] p-3 gh-shadow-dialog flex items-center space-x-3 text-[12.5px]"
     >
-      <div
-        v-if="harvestStore.lastSavedAoiToast"
-        class="absolute top-16 right-4 z-30 max-w-sm bg-slate-900/95 backdrop-blur border border-emerald-500/80 rounded-xl p-3 shadow-2xl flex items-center space-x-3 text-xs"
-      >
-        <div class="w-8 h-8 rounded-lg bg-emerald-950/80 border border-emerald-700/60 flex items-center justify-center text-emerald-400 shrink-0">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-          </svg>
-        </div>
-        <div class="flex-1 min-w-0">
-          <div class="font-bold text-slate-100 flex items-center space-x-1.5">
-            <span>Polygon Saved</span>
-            <span class="text-[10px] font-normal text-emerald-400">● Auto-persisted</span>
-          </div>
-          <div class="text-slate-300 text-[11px] truncate">
-            {{ harvestStore.lastSavedAoiToast.message }}
-          </div>
-        </div>
-        <div class="flex items-center space-x-1.5 shrink-0">
-          <button
-            @click="harvestStore.downloadAoiGeoJson()"
-            class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg text-xs shadow-sm flex items-center space-x-1 cursor-pointer transition-colors"
-            title="Download GeoJSON"
-          >
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            <span>Download</span>
-          </button>
-          <button
-            @click="harvestStore.lastSavedAoiToast = null"
-            class="p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-md cursor-pointer transition-colors"
-            title="Dismiss"
-          >
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+      <div class="w-7 h-7 rounded-[6px] gh-selected-bg flex items-center justify-center gh-accent shrink-0">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="font-semibold gh-text-primary">Boundary Saved</div>
+        <div class="gh-text-secondary text-[12px] truncate">
+          {{ harvestStore.lastSavedAoiToast.message }}
         </div>
       </div>
-    </transition>
+      <div class="flex items-center space-x-1.5 shrink-0">
+        <button
+          @click="harvestStore.downloadAoiGeoJson()"
+          class="px-2.5 py-1 gh-btn-primary text-[12px] cursor-pointer"
+          title="Download GeoJSON"
+        >
+          Export
+        </button>
+        <button
+          @click="harvestStore.lastSavedAoiToast = null"
+          class="p-1 gh-btn-ghost cursor-pointer"
+          title="Dismiss"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
 
-    <!-- Floating Top-Right: Aerial Distance Measurement HUD -->
+    <!-- Floating Top-Right: Geodesic Distance Measurement HUD -->
     <div
       v-if="activeMeasurement || activeDrawType === 'Measure'"
-      class="absolute top-16 right-3.5 z-20 w-80 bg-slate-900/95 backdrop-blur border border-amber-500/80 rounded-xl p-3.5 shadow-2xl space-y-3 text-xs text-slate-200 animate-in fade-in duration-150"
+      class="absolute top-16 right-3.5 z-20 w-80 gh-surface-elevated border gh-border rounded-[10px] p-3.5 gh-shadow-dialog space-y-3 text-[12.5px] gh-text-primary"
     >
       <!-- HUD Header -->
-      <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+      <div class="flex items-center justify-between pb-2 border-b gh-divider">
         <div class="flex items-center space-x-2">
-          <span class="text-base">📏</span>
-          <h4 class="font-bold text-amber-300 text-xs tracking-wide">Aerial Distance</h4>
+          <h4 class="font-semibold gh-text-primary text-[13px]">Geodesic Distance</h4>
         </div>
         <div class="flex items-center space-x-1.5">
-          <span
-            :class="[
-              'px-2 py-0.5 rounded text-[10px] font-mono font-bold',
-              activeDrawType === 'Measure'
-                ? 'bg-amber-950 text-amber-400 border border-amber-700 animate-pulse'
-                : 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-            ]"
-          >
-            {{ activeDrawType === 'Measure' ? '● Drawing Path' : '✓ Measured' }}
+          <span class="px-2 py-0.5 rounded-[5px] text-[11.5px] font-mono gh-selected-bg gh-accent font-medium">
+            {{ activeDrawType === 'Measure' ? 'Drawing' : 'Measured' }}
           </span>
           <button
             @click="isMeasureHudCollapsed = !isMeasureHudCollapsed"
-            class="p-1 rounded text-slate-400 hover:text-slate-100 hover:bg-slate-800 cursor-pointer"
+            class="p-1 rounded-[5px] gh-btn-ghost cursor-pointer"
             :title="isMeasureHudCollapsed ? 'Expand Details' : 'Minimize'"
           >
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -648,7 +551,7 @@
           </button>
           <button
             @click="clearMeasure"
-            class="p-1 rounded text-slate-400 hover:text-rose-300 hover:bg-slate-800 cursor-pointer"
+            class="p-1 rounded-[5px] gh-btn-ghost hover:gh-error cursor-pointer"
             title="Clear measurement"
           >
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -658,98 +561,86 @@
         </div>
       </div>
 
-      <!-- Collapsed Minimal View -->
+      <!-- Collapsed View -->
       <div v-if="isMeasureHudCollapsed" class="flex items-center justify-between">
-        <span class="text-lg font-black font-mono text-amber-300">
+        <span class="text-[16px] font-semibold font-mono gh-accent">
           {{ activeMeasurement ? activeMeasurement.formatted.km : formatDistance(liveMeasureLength).km }}
         </span>
-        <span class="text-xs font-mono text-slate-400">
+        <span class="text-[12px] font-mono gh-text-secondary">
           {{ activeMeasurement ? activeMeasurement.formatted.mi : formatDistance(liveMeasureLength).mi }}
         </span>
       </div>
 
-      <!-- Expanded Detailed Telemetry View -->
+      <!-- Expanded View -->
       <template v-else>
-        <!-- Primary Display: Geodesic Length -->
-        <div class="bg-slate-950/80 border border-slate-800 rounded-lg p-2.5 space-y-1">
-          <div class="text-[10px] uppercase font-bold tracking-wider text-slate-400 flex items-center justify-between">
-            <span>Great-Circle Geodesic Distance</span>
-            <span class="font-mono text-amber-400 font-semibold text-[9px]">WGS-84 Sphere</span>
+        <div class="gh-surface-secondary border gh-border rounded-[8px] p-2.5 space-y-1">
+          <div class="text-[11.5px] gh-text-secondary flex items-center justify-between">
+            <span>Great-Circle Distance</span>
+            <span class="font-mono gh-text-muted">WGS-84</span>
           </div>
           <div class="flex items-baseline space-x-2">
-            <span class="text-2xl font-black font-mono text-amber-300">
+            <span class="text-[20px] font-semibold font-mono gh-accent">
               {{ activeMeasurement ? activeMeasurement.formatted.km : formatDistance(liveMeasureLength).km }}
             </span>
-            <span class="text-xs font-mono text-slate-400">
+            <span class="text-[12px] font-mono gh-text-secondary">
               ({{ activeMeasurement ? activeMeasurement.formatted.mi : formatDistance(liveMeasureLength).mi }})
             </span>
           </div>
         </div>
 
-        <!-- Imperial, Nautical, Metric Conversion Grid -->
-        <div class="grid grid-cols-3 gap-1.5 text-center font-mono">
-          <div class="bg-slate-950/60 border border-slate-800/80 rounded p-1.5">
-            <div class="text-[9px] text-slate-400 uppercase">Nautical</div>
-            <div class="text-[11px] font-bold text-sky-300 truncate">
+        <div class="grid grid-cols-3 gap-1.5 text-center font-mono text-[12px]">
+          <div class="gh-surface-secondary border gh-border rounded-[6px] p-1.5">
+            <div class="text-[11px] gh-text-muted">Nautical</div>
+            <div class="font-semibold gh-text-primary truncate">
               {{ activeMeasurement ? activeMeasurement.formatted.nm : formatDistance(liveMeasureLength).nm }}
             </div>
           </div>
-          <div class="bg-slate-950/60 border border-slate-800/80 rounded p-1.5">
-            <div class="text-[9px] text-slate-400 uppercase">Meters</div>
-            <div class="text-[11px] font-bold text-emerald-300 truncate">
+          <div class="gh-surface-secondary border gh-border rounded-[6px] p-1.5">
+            <div class="text-[11px] gh-text-muted">Meters</div>
+            <div class="font-semibold gh-text-primary truncate">
               {{ activeMeasurement ? Math.round(activeMeasurement.totalDistanceMeters).toLocaleString() + ' m' : Math.round(liveMeasureLength).toLocaleString() + ' m' }}
             </div>
           </div>
-          <div class="bg-slate-950/60 border border-slate-800/80 rounded p-1.5">
-            <div class="text-[9px] text-slate-400 uppercase">Feet</div>
-            <div class="text-[11px] font-bold text-amber-300 truncate">
+          <div class="gh-surface-secondary border gh-border rounded-[6px] p-1.5">
+            <div class="text-[11px] gh-text-muted">Feet</div>
+            <div class="font-semibold gh-text-primary truncate">
               {{ activeMeasurement ? activeMeasurement.formatted.ft : formatDistance(liveMeasureLength).ft }}
             </div>
           </div>
         </div>
 
-        <!-- Flight Heading / Bearing & Segment Telemetry -->
-        <div v-if="activeMeasurement" class="bg-slate-950/60 border border-slate-800/80 rounded-lg p-2 space-y-1.5 text-[11px]">
+        <div v-if="activeMeasurement" class="gh-surface-secondary border gh-border rounded-[8px] p-2 space-y-1 text-[12px]">
           <div v-if="activeMeasurement.bearing" class="flex items-center justify-between">
-            <span class="text-slate-400">Initial Bearing:</span>
-            <span class="font-mono font-semibold text-amber-200">
-              {{ activeMeasurement.bearing.degrees }}° {{ activeMeasurement.bearing.compass }}
+            <span class="gh-text-secondary">Initial Bearing</span>
+            <span class="font-mono font-semibold gh-text-primary">
+              {{ activeMeasurement.bearing.degrees }}&deg; {{ activeMeasurement.bearing.compass }}
             </span>
           </div>
           <div v-if="activeMeasurement.segmentCount > 1" class="flex items-center justify-between">
-            <span class="text-slate-400">Direct Straight Line:</span>
-            <span class="font-mono font-medium text-slate-300">
+            <span class="gh-text-secondary">Direct Line</span>
+            <span class="font-mono gh-text-primary">
               {{ activeMeasurement.straightLineFormatted.km }}
             </span>
           </div>
-          <div class="flex items-center justify-between text-[10px] text-slate-400">
-            <span>Waypoints:</span>
-            <span class="font-mono text-slate-300">
-              {{ activeMeasurement.pointCount }} points ({{ activeMeasurement.segmentCount }} leg{{ activeMeasurement.segmentCount > 1 ? 's' : '' }})
+          <div class="flex items-center justify-between gh-text-secondary">
+            <span>Waypoints</span>
+            <span class="font-mono gh-text-primary">
+              {{ activeMeasurement.pointCount }} pts ({{ activeMeasurement.segmentCount }} leg{{ activeMeasurement.segmentCount > 1 ? 's' : '' }})
             </span>
-          </div>
-          <div class="pt-1 border-t border-slate-800/80 flex items-center justify-between text-[9px] font-mono text-slate-500">
-            <span>Start: [{{ activeMeasurement.startCoord[0].toFixed(3) }}°, {{ activeMeasurement.startCoord[1].toFixed(3) }}°]</span>
-            <span>End: [{{ activeMeasurement.endCoord[0].toFixed(3) }}°, {{ activeMeasurement.endCoord[1].toFixed(3) }}°]</span>
           </div>
         </div>
 
-        <!-- Controls Toolbar -->
         <div class="flex items-center space-x-2 pt-1">
           <template v-if="activeDrawType === 'Measure'">
             <button
               @click="finishMeasure"
-              class="flex-1 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-xs transition-colors cursor-pointer flex items-center justify-center space-x-1 shadow-md shadow-amber-950/60"
+              class="flex-1 py-1.5 gh-btn-primary text-[12.5px] cursor-pointer"
             >
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-              </svg>
-              <span>Finish Line</span>
+              Finish Line
             </button>
             <button
               @click="removeLastMeasurePoint"
-              class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold cursor-pointer border border-slate-700"
-              title="Undo last point (Backspace)"
+              class="px-2.5 py-1.5 gh-btn-secondary text-[12.5px] cursor-pointer"
             >
               Undo
             </button>
@@ -757,22 +648,19 @@
           <template v-else>
             <button
               @click="startMeasure"
-              class="flex-1 py-1.5 bg-amber-600/90 hover:bg-amber-500 text-white rounded-lg font-bold text-xs transition-colors cursor-pointer flex items-center justify-center space-x-1 shadow-md"
+              class="flex-1 py-1.5 gh-btn-primary text-[12.5px] cursor-pointer"
             >
-              <span>📏</span>
-              <span>Measure New</span>
+              Measure New
             </button>
             <button
               @click="copyMeasurement"
-              class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold cursor-pointer border border-slate-700 flex items-center space-x-1"
-              :title="measureCopied ? 'Copied to clipboard!' : 'Copy measurement summary'"
+              class="px-2.5 py-1.5 gh-btn-secondary text-[12.5px] cursor-pointer"
             >
-              <span>{{ measureCopied ? '✓' : '📋' }}</span>
-              <span>{{ measureCopied ? 'Copied' : 'Copy' }}</span>
+              {{ measureCopied ? 'Copied' : 'Copy' }}
             </button>
             <button
               @click="clearMeasure"
-              class="px-2.5 py-1.5 bg-slate-800 hover:bg-rose-950/80 hover:text-rose-300 text-slate-300 rounded-lg text-xs font-semibold transition-colors cursor-pointer border border-slate-700 hover:border-rose-800"
+              class="px-2.5 py-1.5 gh-btn-secondary text-[12.5px] gh-error cursor-pointer"
             >
               Clear
             </button>
@@ -781,88 +669,55 @@
       </template>
     </div>
 
-    <!-- Floating Top-Left: Live Atmospheric Weather & Cloud HUD -->
+    <!-- Floating Top-Left: Live Atmospheric Weather HUD -->
     <div
       v-if="harvestStore.showWeatherHud && harvestStore.liveWeather"
       :class="[
-        'absolute top-16 z-10 bg-slate-900/95 backdrop-blur border border-slate-700/80 rounded-xl p-3.5 text-xs text-slate-200 shadow-2xl w-72 space-y-2.5 animate-in fade-in duration-150',
-        props.isLeftPanelOpen ? 'left-3.5' : 'left-[140px]'
+        'absolute top-16 z-10 gh-surface-elevated border gh-border rounded-[10px] p-3.5 text-[12.5px] gh-text-primary gh-shadow-dialog w-72 space-y-2.5',
+        props.isLeftPanelOpen ? 'left-3.5' : 'left-[132px]'
       ]"
     >
-      <div class="flex items-center justify-between pb-2 border-b border-slate-800">
-        <div class="flex items-center space-x-2 font-bold text-slate-100 text-xs">
-          <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></span>
-          <span>Live Atmospheric Weather</span>
+      <div class="flex items-center justify-between pb-2 border-b gh-divider">
+        <div class="flex items-center space-x-2 font-semibold gh-text-primary text-[13px]">
+          <span class="w-2 h-2 rounded-full gh-accent-bg"></span>
+          <span>Atmospheric Weather</span>
         </div>
         <button
           @click="refreshLiveWeather"
           :disabled="harvestStore.isLoadingWeather"
-          class="text-slate-400 hover:text-slate-100 disabled:opacity-50 p-1 rounded-md hover:bg-slate-800 cursor-pointer transition-colors"
+          class="gh-btn-ghost p-1 cursor-pointer"
           title="Refresh Weather Telemetry"
         >
-          <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': harvestStore.isLoadingWeather }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
         </button>
       </div>
 
-      <!-- Weather metrics grid -->
-      <div class="grid grid-cols-2 gap-2 text-xs">
-        <div class="p-2 bg-slate-950/70 rounded-lg border border-slate-800 flex items-center space-x-2">
-          <span class="text-base">☁️</span>
-          <div>
-            <div class="text-[10px] text-slate-400 font-medium">Cloud Cover</div>
-            <div class="font-bold font-mono text-cyan-300 text-xs">{{ harvestStore.liveWeather.cloud_cover_percent }}%</div>
-          </div>
+      <div class="grid grid-cols-2 gap-2 text-[12px]">
+        <div class="p-2 gh-surface-secondary rounded-[6px] border gh-border">
+          <div class="gh-text-muted">Cloud Cover</div>
+          <div class="font-semibold font-mono gh-text-primary">{{ harvestStore.liveWeather.cloud_cover_percent }}%</div>
         </div>
-
-        <div
-          class="p-2 bg-slate-950/70 rounded-lg border flex items-center space-x-2 transition-colors"
-          :class="harvestStore.showTemperatureRadar ? 'border-amber-600/80 bg-amber-950/40 shadow-sm' : 'border-slate-800'"
-        >
-          <span class="text-base">🌡️</span>
-          <div>
-            <div class="text-[10px] text-slate-400 flex items-center space-x-1 font-medium">
-              <span>Temp</span>
-              <span v-if="harvestStore.showTemperatureRadar" class="text-[9px] font-mono font-bold text-amber-400">● LIVE</span>
-            </div>
-            <div class="font-bold font-mono text-amber-300 text-xs">{{ harvestStore.liveWeather.temperature_c }}°C</div>
-          </div>
+        <div class="p-2 gh-surface-secondary rounded-[6px] border gh-border">
+          <div class="gh-text-muted">Temperature</div>
+          <div class="font-semibold font-mono gh-text-primary">{{ harvestStore.liveWeather.temperature_c }}&deg;C</div>
         </div>
-
-        <div class="p-2 bg-slate-950/70 rounded-lg border border-slate-800 flex items-center space-x-2">
-          <span class="text-base">💧</span>
-          <div>
-            <div class="text-[10px] text-slate-400 font-medium">Humidity</div>
-            <div class="font-bold font-mono text-sky-300 text-xs">{{ harvestStore.liveWeather.relative_humidity_percent }}%</div>
-          </div>
+        <div class="p-2 gh-surface-secondary rounded-[6px] border gh-border">
+          <div class="gh-text-muted">Humidity</div>
+          <div class="font-semibold font-mono gh-text-primary">{{ harvestStore.liveWeather.relative_humidity_percent }}%</div>
         </div>
-
-        <div class="p-2 bg-slate-950/70 rounded-lg border border-slate-800 flex items-center space-x-2">
-          <span class="text-base">💨</span>
-          <div>
-            <div class="text-[10px] text-slate-400 font-medium">Wind</div>
-            <div class="font-bold font-mono text-emerald-300 text-xs">{{ harvestStore.liveWeather.wind_speed_kmh }} km/h</div>
-          </div>
+        <div class="p-2 gh-surface-secondary rounded-[6px] border gh-border">
+          <div class="gh-text-muted">Wind</div>
+          <div class="font-semibold font-mono gh-text-primary">{{ harvestStore.liveWeather.wind_speed_kmh }} km/h</div>
         </div>
       </div>
 
-      <!-- Optical Harvest Viability Assessment -->
-      <div
-        class="p-2.5 rounded-lg border text-xs space-y-1"
-        :class="[
-          harvestStore.liveWeather.optical_viability === 'OPTIMAL'
-            ? 'bg-emerald-950/50 border-emerald-800/80 text-emerald-200'
-            : harvestStore.liveWeather.optical_viability === 'MODERATE'
-            ? 'bg-amber-950/50 border-amber-800/80 text-amber-200'
-            : 'bg-rose-950/50 border-rose-800/80 text-rose-200'
-        ]"
-      >
-        <div class="flex items-center space-x-1.5 font-bold font-mono text-xs uppercase tracking-wider">
-          <span>Viability:</span>
-          <span>{{ harvestStore.liveWeather.optical_viability }}</span>
+      <div class="p-2.5 rounded-[8px] border gh-border gh-surface-secondary text-[12px] space-y-1">
+        <div class="font-semibold font-mono gh-accent">
+          Optical Viability: {{ harvestStore.liveWeather.optical_viability }}
         </div>
-        <div class="text-xs leading-relaxed opacity-90">{{ harvestStore.liveWeather.recommendation }}</div>
+        <div class="gh-text-secondary leading-relaxed">{{ harvestStore.liveWeather.recommendation }}</div>
       </div>
     </div>
 
@@ -870,65 +725,65 @@
     <div
       v-if="hoveredScene"
       :style="{ left: `${hoverPos.x + 16}px`, top: `${hoverPos.y + 16}px` }"
-      class="absolute z-20 pointer-events-none bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg p-2 text-xs text-slate-200 shadow-2xl max-w-xs space-y-1"
+      class="absolute z-20 pointer-events-none gh-surface-elevated border gh-border rounded-[8px] p-2 text-[12px] gh-text-primary gh-shadow max-w-xs space-y-0.5"
     >
-      <div class="font-mono font-bold text-sky-400 truncate text-[11px]">{{ hoveredScene.id }}</div>
-      <div class="flex items-center space-x-2 text-[10px] text-slate-400 font-mono">
-        <span v-if="hoveredScene.cloud !== undefined && hoveredScene.cloud !== null">☁ {{ hoveredScene.cloud }}% Cloud</span>
-        <span v-else-if="harvestStore.discoveryMode === 'toposheet'" class="text-amber-300">🗺️ Topo Sheet Footprint</span>
-        <span>Click to toggle selection</span>
+      <div class="font-mono font-semibold gh-accent truncate">{{ hoveredScene.id }}</div>
+      <div class="flex items-center space-x-2 gh-text-secondary font-mono">
+        <span v-if="hoveredScene.cloud !== undefined && hoveredScene.cloud !== null">{{ hoveredScene.cloud }}% cloud</span>
+        <span v-else-if="harvestStore.discoveryMode === 'toposheet'">Topo Sheet</span>
+        <span>&middot; Click to select</span>
       </div>
     </div>
 
-    <!-- Floating Bottom-Left: Active AOI Info HUD -->
+    <!-- Floating Bottom-Left (above Layers button): Active AOI Info HUD -->
     <div
       v-if="harvestStore.aoiAnalysis?.valid"
-      class="absolute bottom-4 left-4 z-10 bg-slate-900/90 backdrop-blur border border-slate-700/80 rounded-lg p-2.5 text-xs text-slate-300 shadow-2xl max-w-xs"
+      class="absolute bottom-16 left-4 z-10 gh-surface-primary border gh-border rounded-[8px] p-2.5 text-[12px] gh-text-secondary gh-shadow max-w-xs"
     >
-      <div class="flex items-center justify-between mb-1.5">
-        <div class="flex items-center space-x-1.5 text-sky-400 font-semibold text-[11px]">
-          <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span>Target AOI</span>
+      <div class="flex items-center justify-between mb-1">
+        <div class="flex items-center space-x-1.5 gh-accent font-semibold">
+          <span class="inline-block w-1.5 h-1.5 rounded-full gh-accent-bg"></span>
+          <span>Active AOI</span>
         </div>
-        <span class="px-1.5 py-0.2 rounded text-[9px] font-mono bg-sky-950 text-sky-300 border border-sky-800">
+        <span class="px-1.5 py-0.5 rounded-[5px] text-[11.5px] font-mono gh-surface-secondary gh-text-secondary">
           {{ harvestStore.aoiAnalysis.geometry_type }}
         </span>
       </div>
 
-      <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-slate-400 text-[10px]">
+      <div class="grid grid-cols-2 gap-x-3 gap-y-0.5">
         <div>
           Area:
-          <span class="text-slate-100 font-mono font-medium ml-1">
-            {{ harvestStore.aoiAnalysis.area_km2.toLocaleString() }} km²
+          <span class="gh-text-primary font-mono font-medium ml-1">
+            {{ harvestStore.aoiAnalysis.area_km2.toLocaleString() }} km&sup2;
           </span>
         </div>
         <div>
           CRS:
-          <span class="text-slate-100 font-mono font-medium ml-1">
+          <span class="gh-text-primary font-mono font-medium ml-1">
             {{ harvestStore.aoiAnalysis.crs }}
           </span>
         </div>
-        <div class="col-span-2 text-[9px] text-slate-400 font-mono truncate mt-0.5 bg-slate-950/70 px-1.5 py-1 rounded border border-slate-800">
-          Bounds: [{{ harvestStore.aoiAnalysis.bbox.map(n => n.toFixed(2)).join(', ') }}]
+        <div class="col-span-2 text-[11.5px] gh-text-muted font-mono truncate mt-1">
+          [{{ harvestStore.aoiAnalysis.bbox.map(n => n.toFixed(2)).join(', ') }}]
         </div>
       </div>
     </div>
 
     <!-- Floating Bottom-Right: Mouse Coordinates & Zoom HUD -->
-    <div class="absolute bottom-4 right-4 z-10 flex items-center space-x-2 bg-slate-900/90 backdrop-blur border border-slate-700/80 rounded-md px-2.5 py-1 text-[10px] font-mono text-slate-400 shadow-xl pointer-events-none">
+    <div class="absolute bottom-4 right-4 z-10 flex items-center space-x-2.5 gh-surface-primary border gh-border rounded-[8px] px-3 py-1.5 text-[12px] font-mono gh-text-secondary gh-shadow pointer-events-none">
       <div class="flex items-center space-x-1">
-        <span class="text-slate-500">Lon:</span>
-        <span class="text-slate-200">{{ mouseLon !== null ? mouseLon.toFixed(4) + '°' : '--' }}</span>
+        <span class="gh-text-muted">Lon</span>
+        <span class="gh-saffron font-semibold">{{ mouseLon !== null ? mouseLon.toFixed(4) + '°' : '--' }}</span>
       </div>
-      <div class="w-px h-2.5 bg-slate-750"></div>
+      <div class="w-px h-3 border-l gh-divider"></div>
       <div class="flex items-center space-x-1">
-        <span class="text-slate-500">Lat:</span>
-        <span class="text-slate-200">{{ mouseLat !== null ? mouseLat.toFixed(4) + '°' : '--' }}</span>
+        <span class="gh-text-muted">Lat</span>
+        <span class="gh-saffron font-semibold">{{ mouseLat !== null ? mouseLat.toFixed(4) + '°' : '--' }}</span>
       </div>
-      <div class="w-px h-2.5 bg-slate-750"></div>
+      <div class="w-px h-3 border-l gh-divider"></div>
       <div class="flex items-center space-x-1">
-        <span class="text-slate-500">Zoom:</span>
-        <span class="text-sky-400">{{ currentZoom.toFixed(1) }}</span>
+        <span class="gh-text-muted">Zoom</span>
+        <span class="gh-accent font-semibold">{{ currentZoom.toFixed(1) }}</span>
       </div>
     </div>
   </div>
@@ -936,7 +791,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import Map from 'ol/Map'
+import OlMap from 'ol/Map'
 import View from 'ol/View'
 import TileLayer from 'ol/layer/Tile'
 import VectorLayer from 'ol/layer/Vector'
@@ -971,34 +826,51 @@ const props = withDefaults(defineProps<Props>(), {
   isLeftPanelOpen: true
 })
 
+function mapCtrlClass(isActive: boolean) {
+  if (isActive) {
+    return 'px-2.5 py-1.5 text-[12.5px] font-semibold rounded-[6px] flex items-center space-x-1.5 transition-colors cursor-pointer gh-active border gh-focus-border'
+  }
+  return 'px-2.5 py-1.5 text-[12.5px] font-medium rounded-[6px] flex items-center space-x-1.5 transition-colors cursor-pointer gh-text-secondary hover:gh-surface-elevated hover:gh-text-primary disabled:opacity-40'
+}
+
 // 100% Free Basemaps - Zero API Key, Zero Watermarks
-type BasemapId = 'dark' | 'satellite' | 'osm' | 'topo' | 'gibs'
+type BasemapId = 'light' | 'dark' | 'satellite' | 'osm' | 'topo' | 'gibs'
 
 interface BasemapOption {
   id: BasemapId
   label: string
   shortLabel: string
-  icon: string
+  icon?: string
   description: string
   maxZoom: number
   badge: string
-  badgeColor?: string
   baseSource: any
 }
 
 const showLayersMenu = ref(false)
-const activeBasemap = ref<BasemapId>('dark')
+const activeBasemap = ref<BasemapId>('satellite')
 
 const basemaps: BasemapOption[] = [
+  {
+    id: 'light',
+    label: 'Light Canvas (Free ESRI)',
+    shortLabel: 'Light Canvas',
+    description: 'Esri Cartographic World Light Gray Base',
+    maxZoom: 16,
+    badge: 'Day Base',
+    baseSource: new XYZ({
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+      attributions: '© Esri, HERE, Garmin, © OpenStreetMap',
+      maxZoom: 16,
+    }),
+  },
   {
     id: 'dark',
     label: 'Dark Canvas (Free ESRI)',
     shortLabel: 'Dark Canvas',
-    icon: '🌑',
     description: 'Esri Cartographic World Dark Gray Base',
     maxZoom: 16,
-    badge: 'Vector/Raster',
-    badgeColor: 'bg-slate-900 text-slate-300 border-slate-700',
+    badge: 'Night Base',
     baseSource: new XYZ({
       url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
       attributions: '© Esri, HERE, Garmin, © OpenStreetMap',
@@ -1009,11 +881,9 @@ const basemaps: BasemapOption[] = [
     id: 'satellite',
     label: 'Satellite (Free ESRI)',
     shortLabel: 'Satellite',
-    icon: '🛰️',
     description: 'High-Resolution Esri World Imagery (Maxar/Earthstar)',
     maxZoom: 19,
-    badge: 'Aerial High-Res',
-    badgeColor: 'bg-emerald-950 text-emerald-300 border-emerald-800',
+    badge: 'High-Res',
     baseSource: new XYZ({
       url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
       attributions: '© Esri, Maxar, Earthstar Geographics',
@@ -1024,22 +894,18 @@ const basemaps: BasemapOption[] = [
     id: 'osm',
     label: 'OpenStreetMap (100% Free)',
     shortLabel: 'OpenStreetMap',
-    icon: '🗺️',
     description: 'Global Crowdsourced Street and Humanitarian Map',
     maxZoom: 19,
     badge: 'Open Data',
-    badgeColor: 'bg-sky-950 text-sky-300 border-sky-800',
     baseSource: new OSM(),
   },
   {
     id: 'topo',
     label: 'OpenTopo (Free Terrain)',
     shortLabel: 'OpenTopo',
-    icon: '🏔️',
     description: 'Topographic Contours, Elevation & Shaded Relief',
     maxZoom: 17,
-    badge: 'Elevation',
-    badgeColor: 'bg-amber-950 text-amber-300 border-amber-800',
+    badge: 'Terrain',
     baseSource: new XYZ({
       url: 'https://tile.opentopomap.org/{z}/{x}/{y}.png',
       attributions: '© OpenTopoMap, © OpenStreetMap',
@@ -1050,11 +916,9 @@ const basemaps: BasemapOption[] = [
     id: 'gibs',
     label: 'NASA Daily TrueColor (VIIRS)',
     shortLabel: 'NASA TrueColor',
-    icon: '🛰️',
     description: 'NASA EOSDIS VIIRS SNPP Daily TrueColor Composite',
     maxZoom: 9,
     badge: 'NASA GIBS',
-    badgeColor: 'bg-indigo-950 text-indigo-300 border-indigo-800',
     baseSource: new XYZ({
       url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_SNPP_CorrectedReflectance_TrueColor/default/default/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg',
       attributions: '© NASA GIBS / EOSDIS',
@@ -1068,9 +932,7 @@ const basemapSelectOptions = computed<SelectOption[]>(() =>
     value: bm.id,
     label: bm.shortLabel,
     sublabel: bm.description,
-    icon: bm.icon,
     badge: bm.badge,
-    badgeColor: bm.badgeColor,
   }))
 )
 
@@ -1079,7 +941,7 @@ const activeBasemapMeta = computed(() => {
 })
 
 // OpenLayers Map and Layers
-let olMap: Map | null = null
+let olMap: OlMap | null = null
 let baseTileLayer: TileLayer | null = null
 let hillshadeTileLayer: TileLayer | null = null
 let sceneImageGroup: Group | null = null
@@ -1139,20 +1001,20 @@ const currentZoom = ref<number>(7)
 const hoveredScene = ref<{ id: string; cloud?: number } | null>(null)
 const hoverPos = ref<{ x: number; y: number }>({ x: 0, y: 0 })
 
-// Layer vector styles
+// Maroon AOIs and gold scene footprints stay clear on either theme.
 const aoiStyle = new Style({
-  stroke: new Stroke({ color: '#0ea5e9', width: 2.5 }),
-  fill: new Fill({ color: 'rgba(14, 165, 233, 0.15)' }),
+  stroke: new Stroke({ color: '#A32B50', width: 2.5 }),
+  fill: new Fill({ color: 'rgba(125, 33, 66, 0.16)' }),
 })
 
 const sceneNormalStyle = new Style({
-  stroke: new Stroke({ color: '#10b981', width: 1.5, lineDash: [4, 4] }),
-  fill: new Fill({ color: 'rgba(16, 185, 129, 0.08)' }),
+  stroke: new Stroke({ color: '#D6A12B', width: 1.5, lineDash: [4, 4] }),
+  fill: new Fill({ color: 'rgba(214, 161, 43, 0.08)' }),
 })
 
 const sceneSelectedStyle = new Style({
-  stroke: new Stroke({ color: '#f59e0b', width: 2.5 }),
-  fill: new Fill({ color: 'rgba(245, 158, 11, 0.22)' }),
+  stroke: new Stroke({ color: '#F0C453', width: 2.5 }),
+  fill: new Fill({ color: 'rgba(240, 196, 83, 0.22)' }),
 })
 
 // Scenes that should have georeferenced raster imagery rendered
@@ -1288,7 +1150,7 @@ onMounted(() => {
     zIndex: 15,
   })
 
-  olMap = new Map({
+  olMap = new OlMap({
     target: mapContainer.value,
     layers: [
       baseTileLayer,
@@ -1415,7 +1277,16 @@ function selectBasemap(id: BasemapId) {
   }
 }
 
-const previousBasemap = ref<BasemapId>('dark')
+const previousBasemap = ref<BasemapId>(harvestStore.uiTheme === 'day' ? 'light' : 'dark')
+
+watch(
+  () => harvestStore.uiTheme,
+  (theme) => {
+    if (activeBasemap.value === 'light' || activeBasemap.value === 'dark') {
+      selectBasemap(theme === 'day' ? 'light' : 'dark')
+    }
+  }
+)
 
 const isImageryActive = computed(() => {
   return activeBasemap.value === 'satellite' || (harvestStore.showSatelliteImagery && renderedImageryCount.value > 0)
@@ -1423,7 +1294,8 @@ const isImageryActive = computed(() => {
 
 function toggleImagery() {
   if (isImageryActive.value) {
-    selectBasemap(previousBasemap.value === 'satellite' ? 'dark' : previousBasemap.value)
+    const fallback: BasemapId = harvestStore.uiTheme === 'day' ? 'light' : 'dark'
+    selectBasemap(previousBasemap.value === 'satellite' ? fallback : previousBasemap.value)
     harvestStore.showSatelliteImagery = false
   } else {
     if (activeBasemap.value !== 'satellite') {
@@ -1555,16 +1427,16 @@ function getMeasureStyles(feature: any) {
     }),
     new Style({
       stroke: new Stroke({
-        color: '#f59e0b',
+        color: '#E5AF35',
         width: 3.5,
         lineDash: [8, 6],
       }),
       text: new Text({
-        text: `📏 ${formatted.km} (${formatted.mi})`,
+        text: `${formatted.km} (${formatted.mi})`,
         font: 'bold 12px "JetBrains Mono", ui-monospace, monospace',
         placement: 'line',
-        fill: new Fill({ color: '#fef3c7' }),
-        stroke: new Stroke({ color: '#78350f', width: 4 }),
+        fill: new Fill({ color: '#FFF8E8' }),
+        stroke: new Stroke({ color: '#641832', width: 4 }),
         offsetY: -12,
       }),
     }),
@@ -1579,7 +1451,7 @@ function getMeasureStyles(feature: any) {
         image: new CircleStyle({
           radius: isStart || isEnd ? 6.5 : 4.5,
           fill: new Fill({
-            color: isStart ? '#10b981' : isEnd ? '#ef4444' : '#f59e0b',
+            color: isStart ? '#10b981' : isEnd ? '#ef4444' : '#E5AF35',
           }),
           stroke: new Stroke({
             color: '#ffffff',
@@ -1634,16 +1506,16 @@ function startMeasure() {
           }),
           new Style({
             stroke: new Stroke({
-              color: '#f59e0b',
+              color: '#E5AF35',
               width: 3,
               lineDash: [6, 6],
             }),
             text: new Text({
-              text: `📏 ${formatted.summary}`,
+              text: formatted.summary,
               font: 'bold 12px "JetBrains Mono", ui-monospace, monospace',
               placement: 'line',
-              fill: new Fill({ color: '#fef3c7' }),
-              stroke: new Stroke({ color: '#78350f', width: 4 }),
+              fill: new Fill({ color: '#FFF8E8' }),
+              stroke: new Stroke({ color: '#641832', width: 4 }),
               offsetY: -12,
             }),
           }),
@@ -1654,7 +1526,7 @@ function startMeasure() {
               geometry: new Point(c),
               image: new CircleStyle({
                 radius: i === 0 ? 6 : 4,
-                fill: new Fill({ color: i === 0 ? '#10b981' : '#f59e0b' }),
+                fill: new Fill({ color: i === 0 ? '#10b981' : '#E5AF35' }),
                 stroke: new Stroke({ color: '#ffffff', width: 2 }),
               }),
             })
@@ -1666,7 +1538,7 @@ function startMeasure() {
         return new Style({
           image: new CircleStyle({
             radius: 6,
-            fill: new Fill({ color: '#f59e0b' }),
+            fill: new Fill({ color: '#E5AF35' }),
             stroke: new Stroke({ color: '#ffffff', width: 2 }),
           }),
         })
@@ -1872,7 +1744,9 @@ watch(
               featureProjection: 'EPSG:3857',
             }
           )
-          scenesSource.addFeature(feature)
+          if (feature && !Array.isArray(feature)) {
+            scenesSource.addFeature(feature)
+          }
         }
       } catch (e) {
         // Skip malformed geometry
@@ -2115,10 +1989,10 @@ watch(
         zoomToAoi()
         break
       case 'ZoomToBBox':
-        if (map && Array.isArray(cmd.payload) && cmd.payload.length === 4) {
+        if (olMap && Array.isArray(cmd.payload) && cmd.payload.length === 4) {
           try {
             const ext3857 = transformExtent(cmd.payload, 'EPSG:4326', 'EPSG:3857')
-            map.getView().fit(ext3857, { padding: [50, 50, 50, 50], duration: 500, maxZoom: 14 })
+            olMap.getView().fit(ext3857, { padding: [50, 50, 50, 50], duration: 500, maxZoom: 14 })
           } catch (e) {
             console.warn('Could not fit bbox:', e)
           }

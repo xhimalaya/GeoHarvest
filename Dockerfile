@@ -56,10 +56,10 @@ COPY backend/ ./backend/
 COPY resources/ ./resources/
 COPY geoharvest.py pyproject.toml ./
 
-# Seed required data directories and STAC catalog metadata
-COPY data/catalog/ ./data/catalog/
-COPY data/aois/ ./data/aois/
-RUN mkdir -p data/downloads data/processed data/credentials
+# Create base data directories without failing if host data subfolders are absent
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh && \
+    mkdir -p data/catalog/collections data/catalog/toposheets data/aois data/downloads data/processed data/credentials data/custom
 
 # Copy compiled frontend from frontend-builder stage
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
@@ -75,5 +75,6 @@ EXPOSE 9009
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD curl -f http://localhost:9009/api/health || exit 1
 
-# Launch GeoHarvest server
+# Initialize required runtime directories and launch GeoHarvest server
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["python3", "geoharvest.py", "--host", "0.0.0.0", "--port", "9009", "--no-browser"]

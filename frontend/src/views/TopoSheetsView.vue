@@ -1,103 +1,111 @@
 <template>
-  <div class="h-full overflow-y-auto bg-slate-950 text-slate-100 p-5 lg:p-8 select-none">
+  <div class="h-full overflow-y-auto gh-workspace-bg gh-text-primary p-6 lg:p-8 select-none">
     <div class="max-w-6xl mx-auto space-y-6">
       <!-- Header -->
-      <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 border-b border-slate-800 pb-5">
-        <div>
+      <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 border-b gh-divider pb-5">
+        <div class="space-y-1">
           <div class="flex items-center space-x-2">
-            <span class="text-xs font-bold tracking-[0.2em] uppercase text-amber-400">Survey of India · Data Source</span>
-            <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-950/60 text-amber-300 border border-amber-800/80">Assisted Acquisition</span>
+            <span class="gh-label gh-accent">Survey of India</span>
+            <span class="px-2 py-0.5 rounded-[6px] text-[12px] font-mono gh-surface-secondary border gh-border gh-text-secondary">
+              OSM &amp; Degree Index
+            </span>
           </div>
-          <h1 class="text-2xl md:text-3xl font-bold mt-2 text-slate-100 flex items-center space-x-2.5">
-            <span>🗺️</span>
-            <span>Topo-Sheet Discovery</span>
+          <h1 class="text-[22px] font-semibold gh-text-primary tracking-tight flex items-center space-x-2.5">
+            <Grid class="w-5 h-5 gh-accent" />
+            <span>Topographic Sheets Catalogue</span>
           </h1>
-          <p class="text-sm text-slate-400 mt-2 max-w-3xl">
-            Find official Survey of India (SOI) map-sheet footprints intersecting your Area of Interest, then acquire verified Open Series Maps (OSM), raster TIFFs, or vector datasets through the official national portal.
+          <p class="text-[13.5px] gh-text-secondary max-w-3xl">
+            Identify Survey of India (SOI) Open Series Map footprints intersecting your study boundary and acquire verified PDFs or georeferenced TIFF sheets.
           </p>
         </div>
         <div class="flex flex-wrap gap-2 shrink-0">
+          <router-link
+            to="/catalog"
+            class="px-3 py-1.5 rounded-[8px] gh-btn-secondary text-[13px] flex items-center space-x-1.5"
+          >
+            <Orbit class="w-3.5 h-3.5 gh-accent" />
+            <span>Satellite Missions</span>
+          </router-link>
           <a
             :href="status?.official_urls?.free_osm_pdf || freeMapUrl"
             target="_blank"
             rel="noreferrer"
-            class="px-3 py-2 rounded-lg border border-amber-700/60 bg-amber-950/40 text-amber-200 hover:bg-amber-900/50 text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer"
+            class="px-3 py-1.5 rounded-[8px] gh-btn-secondary text-[13px] flex items-center space-x-1.5"
           >
-            <span>📄</span>
-            <span>Free OSM Portal ↗</span>
+            <ExternalLink class="w-3.5 h-3.5 gh-accent" />
+            <span>Free OSM Portal</span>
           </a>
           <a
             :href="status?.official_urls?.digital_catalogue || catalogueUrl"
             target="_blank"
             rel="noreferrer"
-            class="px-3 py-2 rounded-lg border border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800 text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer"
+            class="px-3 py-1.5 rounded-[8px] gh-btn-secondary text-[13px] flex items-center space-x-1.5"
           >
-            <span>🛒</span>
-            <span>Product Catalogue ↗</span>
+            <ExternalLink class="w-3.5 h-3.5 gh-text-secondary" />
+            <span>Digital Catalogue</span>
           </a>
         </div>
       </div>
 
-      <!-- Main Controls (2-Column Grid) -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <!-- 1. AOI Selector -->
-        <section class="rounded-xl border border-slate-800 bg-slate-900/70 p-5 space-y-4 shadow-sm">
-          <div class="flex items-center justify-between gap-3">
-            <h2 class="font-bold text-sm text-slate-200 flex items-center space-x-2">
-              <span class="w-5 h-5 rounded-full bg-sky-950 text-sky-400 border border-sky-800 flex items-center justify-center text-xs font-bold">1</span>
+      <!-- Main Controls (2-Column Configuration) -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- 1. AOI Selector & Search Filters -->
+        <section class="rounded-[10px] border gh-border gh-surface-primary p-5 space-y-4">
+          <div class="flex items-center justify-between gap-3 pb-2 border-b gh-divider">
+            <h2 class="text-[15px] font-semibold gh-text-primary flex items-center space-x-2">
+              <MapPin class="w-4 h-4 gh-accent" />
               <span>Study Area (AOI)</span>
             </h2>
-            <span v-if="aoiName" class="text-xs text-emerald-300 font-mono font-medium truncate max-w-[200px]">{{ aoiName }}</span>
+            <span v-if="aoiName" class="text-[12.5px] gh-accent font-mono font-medium truncate max-w-[200px]">
+              {{ aoiName }}
+            </span>
           </div>
-          <p class="text-xs text-slate-400">
-            Upload custom GeoJSON boundary or use the active study area (Leh, Hemis National Park, or your drawn polygon).
+          <p class="text-[13px] gh-text-secondary">
+            Upload a GeoJSON boundary or use your active map study area to compute intersecting topographic sheets.
           </p>
 
-          <!-- Quick Action Buttons -->
-          <div class="flex items-center gap-2">
+          <div class="flex flex-wrap items-center gap-2">
             <button
               v-if="harvestStore.hasAoi"
               @click="useCurrentActiveAoi"
               type="button"
-              class="px-3 py-1.5 rounded-lg border border-sky-700/80 bg-sky-950/50 text-sky-300 hover:bg-sky-900/60 text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer"
+              class="px-3 py-1.5 rounded-[7px] gh-btn-secondary text-[12.5px] flex items-center space-x-1.5 cursor-pointer"
             >
-              <span>📍</span>
+              <MapPin class="w-3.5 h-3.5 gh-accent" />
               <span>Use Active Map AOI</span>
             </button>
             <button
               @click="loadSampleLadakhAoi"
               type="button"
-              class="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800/80 text-slate-300 hover:bg-slate-750 text-xs font-medium flex items-center space-x-1.5 transition-colors cursor-pointer"
+              class="px-3 py-1.5 rounded-[7px] gh-btn-secondary text-[12.5px] flex items-center space-x-1.5 cursor-pointer"
             >
-              <span>🏔️</span>
-              <span>Load Ladakh Sample (Leh)</span>
+              <Mountain class="w-3.5 h-3.5 gh-text-secondary" />
+              <span>Load Ladakh Sample</span>
             </button>
           </div>
 
-          <!-- File Upload Box -->
-          <label class="block rounded-lg border border-dashed border-slate-700 bg-slate-950/60 p-3.5 hover:border-sky-600 cursor-pointer transition-colors">
+          <label class="block rounded-[8px] border border-dashed gh-border gh-surface-secondary p-3.5 hover:gh-accent-border cursor-pointer transition-colors">
             <input type="file" accept=".geojson,.json,application/geo+json,application/json" class="hidden" @change="onAoiFile" />
-            <div class="flex items-center space-x-2.5">
-              <span class="text-xl">📁</span>
+            <div class="flex items-center space-x-3">
+              <FolderUp class="w-4 h-4 gh-accent shrink-0" />
               <div>
-                <span class="text-xs font-medium text-slate-200">{{ aoiFile ? aoiFile.name : 'Choose AOI GeoJSON file' }}</span>
-                <span class="block text-[10px] text-slate-500 mt-0.5">Polygon or MultiPolygon · EPSG:4326</span>
+                <span class="text-[13px] font-medium gh-text-primary">{{ aoiFile ? aoiFile.name : 'Choose AOI GeoJSON file' }}</span>
+                <span class="block text-[12px] gh-text-muted mt-0.5">Polygon or MultiPolygon · EPSG:4326</span>
               </div>
             </div>
           </label>
 
-          <!-- Filter & Search Button -->
-          <div class="space-y-2">
+          <div class="space-y-2.5">
             <div class="flex gap-2">
               <input
                 v-model="sheetQuery"
                 type="text"
-                placeholder="Filter by sheet (e.g. 52F, 52G/12, H42W12)..."
-                class="flex-1 min-w-0 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs outline-none focus:border-sky-500 text-slate-100 placeholder-slate-500 font-medium"
+                placeholder="Filter sheet number (e.g. 52F, 52G/12, H42W12)..."
+                class="flex-1 min-w-0 gh-input px-3 py-1.5 text-[13px] font-mono"
               />
               <select
                 v-model="scaleFilter"
-                class="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-2 text-xs outline-none focus:border-sky-500 text-slate-200 cursor-pointer font-medium"
+                class="gh-input px-2.5 py-1.5 text-[13px] cursor-pointer"
               >
                 <option value="">All Scales</option>
                 <option value="1:50,000">1:50,000 Only</option>
@@ -108,65 +116,54 @@
             <button
               @click="searchSheets"
               :disabled="!aoiGeometry || searching"
-              class="w-full py-2.5 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-bold text-white shadow-sm flex items-center justify-center space-x-2 transition-colors cursor-pointer"
+              class="w-full py-2.5 rounded-[8px] gh-btn-primary text-[13.5px] flex items-center justify-center space-x-2 cursor-pointer"
             >
-              <span>🔍</span>
-              <span>{{ searching ? 'Searching intersecting sheets…' : 'Find Intersecting Topo Sheets' }}</span>
+              <Search class="w-4 h-4" />
+              <span>{{ searching ? 'Searching Intersecting Sheets...' : 'Find Intersecting Topo Sheets' }}</span>
             </button>
           </div>
-          <p v-if="aoiError" class="text-xs text-rose-300">{{ aoiError }}</p>
+          <p v-if="aoiError" class="text-[12.5px] gh-error">{{ aoiError }}</p>
         </section>
 
         <!-- 2. Sheet Index Management -->
-        <section class="rounded-xl border border-slate-800 bg-slate-900/70 p-5 space-y-4 shadow-sm">
-          <div class="flex items-center justify-between gap-3">
-            <h2 class="font-bold text-sm text-slate-200 flex items-center space-x-2">
-              <span class="w-5 h-5 rounded-full bg-amber-950 text-amber-400 border border-amber-800 flex items-center justify-center text-xs font-bold">2</span>
+        <section class="rounded-[10px] border gh-border gh-surface-primary p-5 space-y-4">
+          <div class="flex items-center justify-between gap-3 pb-2 border-b gh-divider">
+            <h2 class="text-[15px] font-semibold gh-text-primary flex items-center space-x-2">
+              <Layers class="w-4 h-4 gh-accent" />
               <span>Survey of India Grid Index</span>
             </h2>
-            <span
-              :class="status?.index_loaded ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800/80' : 'bg-amber-950/60 text-amber-300 border-amber-800/80'"
-              class="text-[10px] font-mono font-bold px-2 py-0.5 rounded border"
-            >
-              {{ status?.index_loaded ? `${status.index_feature_count} Footprints Indexed` : 'Built-in Auto Grid' }}
+            <span class="text-[12px] font-mono px-2 py-0.5 rounded-[6px] gh-selected-bg gh-accent font-medium">
+              {{ status?.index_loaded ? `${status.index_feature_count} Indexed` : 'Auto Grid' }}
             </span>
           </div>
 
-          <p class="text-xs text-slate-400">
-            GeoHarvest includes mathematical generation for the authoritative Survey of India grid (1:250k & 1:50k OSM sheets). You can also upload a verified custom index GeoJSON anytime.
+          <p class="text-[13px] gh-text-secondary">
+            Includes mathematical grid generation for SOI 1:250k Degree and 1:50k Open Series Maps, or upload a custom GeoJSON footprint index.
           </p>
 
-          <!-- 1-Click Generate Standard Grid -->
-          <div class="p-3 bg-slate-950/70 rounded-lg border border-slate-800 space-y-2">
+          <div class="p-3.5 gh-surface-secondary rounded-[8px] border gh-border space-y-2.5">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-semibold text-slate-200 flex items-center space-x-1.5">
-                <span>⚡</span>
-                <span>Generate Official SOI Grid (Ladakh & India)</span>
-              </span>
-              <span class="text-[10px] font-mono text-slate-400">1:50k & 1:250k</span>
+              <span class="text-[13px] font-semibold gh-text-primary">Official SOI Grid (Ladakh &amp; North India)</span>
+              <span class="text-[12px] font-mono gh-text-muted">1:50k &amp; 1:250k</span>
             </div>
-            <p class="text-[11px] text-slate-400">
-              Instantly builds standard Survey of India Open Series Map footprints covering Ladakh, Himachal, and North India.
-            </p>
             <button
               @click="generateGrid"
               :disabled="generatingGrid"
               type="button"
-              class="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-slate-950 font-bold text-xs transition-colors cursor-pointer flex items-center space-x-1.5"
+              class="px-3.5 py-1.5 rounded-[7px] gh-btn-secondary text-[12.5px] font-medium cursor-pointer"
             >
-              <span>{{ generatingGrid ? 'Generating standard grid…' : '⚡ Install Standard Grid Index' }}</span>
+              {{ generatingGrid ? 'Generating standard grid...' : 'Install Standard Grid Index' }}
             </button>
           </div>
 
-          <!-- Upload Custom GeoJSON Index -->
           <div class="space-y-2">
-            <label class="block rounded-lg border border-dashed border-slate-700 bg-slate-950/60 p-3.5 hover:border-amber-600 cursor-pointer transition-colors">
+            <label class="block rounded-[8px] border border-dashed gh-border gh-surface-secondary p-3.5 hover:gh-accent-border cursor-pointer transition-colors">
               <input type="file" accept=".geojson,.json,application/geo+json,application/json" class="hidden" @change="onIndexFile" />
-              <div class="flex items-center space-x-2.5">
-                <span class="text-xl">📥</span>
+              <div class="flex items-center space-x-3">
+                <FolderUp class="w-4 h-4 gh-text-secondary shrink-0" />
                 <div>
-                  <span class="text-xs font-medium text-slate-200">{{ indexFile ? indexFile.name : 'Choose custom sheet index GeoJSON' }}</span>
-                  <span class="block text-[10px] text-slate-500 mt-0.5">FeatureCollection of Polygon footprints</span>
+                  <span class="text-[13px] font-medium gh-text-primary">{{ indexFile ? indexFile.name : 'Choose custom sheet index GeoJSON' }}</span>
+                  <span class="block text-[12px] gh-text-muted mt-0.5">FeatureCollection of Polygon footprints</span>
                 </div>
               </div>
             </label>
@@ -175,239 +172,170 @@
               v-if="indexFile"
               @click="uploadIndex"
               :disabled="!indexFile || uploadingIndex"
-              class="w-full py-2 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-xs font-bold text-white transition-colors cursor-pointer"
+              class="w-full py-2 rounded-[8px] gh-btn-primary text-[13px] cursor-pointer"
             >
-              {{ uploadingIndex ? 'Importing index…' : 'Import Custom Sheet Index' }}
+              {{ uploadingIndex ? 'Importing index...' : 'Import Custom Sheet Index' }}
             </button>
           </div>
 
-          <p v-if="indexMessage" class="text-xs text-emerald-300 font-medium">{{ indexMessage }}</p>
-          <p v-if="indexError" class="text-xs text-rose-300">{{ indexError }}</p>
+          <p v-if="indexMessage" class="text-[12.5px] gh-success font-medium">{{ indexMessage }}</p>
+          <p v-if="indexError" class="text-[12.5px] gh-error">{{ indexError }}</p>
         </section>
       </div>
 
-      <!-- 3. Intersecting Sheets Results Table -->
-      <section class="rounded-xl border border-slate-800 bg-slate-900/70 overflow-hidden shadow-sm">
-        <div class="px-5 py-4 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-900/90">
+      <!-- 3. Intersecting Sheets Table -->
+      <section class="rounded-[10px] border gh-border gh-surface-primary overflow-hidden">
+        <div class="px-5 py-3.5 border-b gh-divider flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
-            <h2 class="font-bold text-sm text-slate-100 flex items-center space-x-2">
-              <span>📋</span>
-              <span>Intersecting Survey of India Sheets</span>
-              <span v-if="results.length" class="text-xs font-mono font-bold px-2 py-0.5 rounded bg-sky-950 text-sky-300 border border-sky-800">
+            <h2 class="font-semibold text-[15px] gh-text-primary flex items-center space-x-2">
+              <span>Intersecting Topographic Sheets</span>
+              <span v-if="results.length" class="text-[12px] font-mono font-semibold px-2 py-0.5 rounded-[6px] gh-selected-bg gh-accent">
                 {{ filteredResults.length }} / {{ results.length }}
               </span>
             </h2>
-            <p class="text-xs text-slate-400 mt-0.5">
-              Showing {{ filteredResults.length }} of {{ results.length }} matching footprint{{ results.length === 1 ? '' : 's' }} intersecting active AOI · EPSG:4326
-              <span v-if="selectedSheetIds.size" class="text-emerald-400 font-semibold">
-                · {{ selectedSheetIds.size }} sheet{{ selectedSheetIds.size === 1 ? '' : 's' }} selected
+            <p class="text-[12.5px] gh-text-secondary mt-0.5">
+              {{ filteredResults.length }} matching sheet{{ filteredResults.length === 1 ? '' : 's' }} in EPSG:4326
+              <span v-if="selectedSheetIds.size" class="gh-accent font-medium">
+                &middot; {{ selectedSheetIds.size }} selected
               </span>
             </p>
           </div>
 
-          <!-- Destination and Batch Harvest Toolbar -->
           <div v-if="results.length" class="flex flex-wrap items-center gap-2">
-            <div class="flex items-center space-x-1.5 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs">
-              <span class="text-slate-400 text-[11px]">Save to:</span>
+            <div class="flex items-center space-x-1.5 gh-surface-secondary border gh-border rounded-[7px] px-2.5 py-1 text-[12.5px]">
+              <span class="gh-text-muted">Save to:</span>
               <input
                 v-model="destinationDir"
                 type="text"
-                class="bg-transparent text-xs text-slate-200 outline-none w-48 md:w-60 font-mono"
+                class="bg-transparent text-[12.5px] gh-text-primary outline-none w-44 md:w-56 font-mono border-0"
+                style="box-shadow: none !important;"
                 placeholder="/path/to/destination"
-                title="Download destination directory"
               />
             </div>
 
             <button
               @click="harvestFilteredOrSelected(['pdf'])"
               :disabled="harvestingBatch || !downloadablePdfCount"
-              class="px-2.5 py-1 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-xs font-semibold text-white transition-colors cursor-pointer flex items-center space-x-1"
-              :title="downloadablePdfCount ? `Download ${downloadablePdfCount} verified sheet(s) as PDFs` : 'No direct Open Series Map PDFs available for current selection'"
+              class="px-3 py-1.5 rounded-[7px] gh-btn-secondary text-[12.5px] flex items-center space-x-1.5 cursor-pointer"
             >
-              <span>📥</span>
+              <Download class="w-3.5 h-3.5 gh-accent" />
               <span>{{ harvestingBatch ? 'Starting...' : `Harvest PDFs (${downloadablePdfCount})` }}</span>
             </button>
 
             <button
               @click="harvestFilteredOrSelected(['tif'])"
               :disabled="harvestingBatch || !downloadableTifCount"
-              class="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-xs font-semibold text-white transition-colors cursor-pointer flex items-center space-x-1"
-              :title="downloadableTifCount ? `Download ${downloadableTifCount} verified sheet(s) as GeoTIFFs` : 'No direct GeoTIFFs available for current selection'"
+              class="px-3 py-1.5 rounded-[7px] gh-btn-primary text-[12.5px] flex items-center space-x-1.5 cursor-pointer"
             >
-              <span>🗺️</span>
+              <Download class="w-3.5 h-3.5" />
               <span>Harvest GeoTIFFs ({{ downloadableTifCount }})</span>
             </button>
 
             <button
               @click="results = []; selectedSheetIds.clear()"
-              class="text-xs text-slate-400 hover:text-white px-2 py-1 rounded border border-slate-700 bg-slate-800 transition-colors cursor-pointer"
+              class="px-2.5 py-1.5 rounded-[7px] gh-btn-ghost text-[12.5px] cursor-pointer"
             >
               Clear
             </button>
           </div>
         </div>
 
-        <!-- Filter by All Parameters Toolbar -->
-        <div v-if="results.length" class="px-5 py-3.5 bg-slate-950/80 border-b border-slate-800 space-y-3">
-          <div class="flex items-center justify-between text-xs font-semibold text-slate-300">
-            <div class="flex items-center space-x-2">
-              <span>🔍</span>
-              <span>Filter by All Parameters</span>
-              <span v-if="activeFilterCount" class="px-1.5 py-0.2 rounded-full text-[10px] bg-sky-600 text-white font-mono font-bold">
+        <!-- Multi-Parameter Filter Bar -->
+        <div v-if="results.length" class="px-5 py-3 gh-surface-secondary border-b gh-divider space-y-2.5">
+          <div class="flex items-center justify-between text-[12.5px]">
+            <div class="flex items-center space-x-2 font-medium gh-text-secondary">
+              <Search class="w-3.5 h-3.5" />
+              <span>Filter Sheets</span>
+              <span v-if="activeFilterCount" class="px-1.5 py-0.5 rounded-[5px] text-[12px] gh-selected-bg gh-accent font-mono">
                 {{ activeFilterCount }} active
               </span>
             </div>
             <button
               v-if="hasActiveFilters"
               @click="resetFilters"
-              class="text-[11px] text-amber-400 hover:text-amber-300 underline cursor-pointer"
+              class="text-[12px] gh-accent hover:underline cursor-pointer"
             >
-              Reset All Filters
+              Reset Filters
             </button>
           </div>
 
-          <!-- Controls Grid: Search, Scale, Million, Degree, Format, Sort -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 text-xs">
-            <!-- 1. Text Filter (Sheet, Name, Keyword) -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 text-[12.5px]">
             <div class="relative">
               <input
                 v-model="filterQuery"
                 type="text"
-                placeholder="Search sheet, name, ID..."
-                class="w-full bg-slate-900 border border-slate-700 rounded-lg pl-2.5 pr-6 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-sky-500"
+                placeholder="Search sheet, name..."
+                class="w-full gh-input px-2.5 py-1.5 text-[12.5px]"
               />
-              <button
-                v-if="filterQuery"
-                @click="filterQuery = ''"
-                class="absolute right-2 top-1.5 text-slate-400 hover:text-white text-xs cursor-pointer"
-              >
-                ✕
-              </button>
             </div>
 
-            <!-- 2. Scale Filter -->
-            <select
-              v-model="filterScale"
-              class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-sky-500 cursor-pointer"
-            >
-              <option value="all">Scale: All Scales</option>
-              <option value="1:50,000">Scale: 1:50,000 (OSM)</option>
-              <option value="1:250,000">Scale: 1:250,000 (Degree)</option>
+            <select v-model="filterScale" class="gh-input px-2.5 py-1.5 text-[12.5px] cursor-pointer">
+              <option value="all">Scale: All</option>
+              <option value="1:50,000">1:50,000 (OSM)</option>
+              <option value="1:250,000">1:250,000 (Degree)</option>
             </select>
 
-            <!-- 3. Million Sheet Filter -->
-            <select
-              v-model="filterMillion"
-              class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-sky-500 cursor-pointer"
-            >
+            <select v-model="filterMillion" class="gh-input px-2.5 py-1.5 text-[12.5px] cursor-pointer">
               <option value="all">Million Sheet: All</option>
               <option v-for="m in availableMillionSheets" :key="m" :value="m">
-                Million Sheet: {{ m }}
+                Million {{ m }}
               </option>
             </select>
 
-            <!-- 4. Degree Sheet Filter -->
-            <select
-              v-model="filterDegree"
-              class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-sky-500 cursor-pointer"
-            >
+            <select v-model="filterDegree" class="gh-input px-2.5 py-1.5 text-[12.5px] cursor-pointer">
               <option value="all">Degree Sheet: All</option>
               <option v-for="d in availableDegreeSheets" :key="d" :value="d">
-                Degree Sheet: {{ d }}
+                Degree {{ d }}
               </option>
             </select>
 
-            <!-- 5. Format & Direct Download Availability -->
-            <select
-              v-model="filterFormat"
-              class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-sky-500 cursor-pointer"
-            >
-              <option value="all">Availability: All Sheets</option>
-              <option value="direct">Direct Open Release Available</option>
-              <option value="pdf">Direct PDF Available</option>
-              <option value="tif">Direct GeoTIFF Available</option>
-              <option value="portal">SOI Portal Only (Restricted/Degree)</option>
+            <select v-model="filterFormat" class="gh-input px-2.5 py-1.5 text-[12.5px] cursor-pointer">
+              <option value="all">Format: All</option>
+              <option value="direct">Direct Open Release</option>
+              <option value="pdf">Direct PDF</option>
+              <option value="tif">Direct GeoTIFF</option>
+              <option value="portal">SOI Portal Only</option>
             </select>
 
-            <!-- 6. Sort Order -->
-            <select
-              v-model="sortBy"
-              class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-sky-500 cursor-pointer"
-            >
-              <option value="sheet_asc">Sort: Sheet (Ascending)</option>
-              <option value="sheet_desc">Sort: Sheet (Descending)</option>
-              <option value="scale_50k">Sort: Scale (1:50k First)</option>
-              <option value="scale_250k">Sort: Scale (1:250k First)</option>
-              <option value="lat_desc">Sort: Latitude (North → South)</option>
-              <option value="lat_asc">Sort: Latitude (South → North)</option>
-              <option value="lon_asc">Sort: Longitude (West → East)</option>
-              <option value="lon_desc">Sort: Longitude (East → West)</option>
+            <select v-model="sortBy" class="gh-input px-2.5 py-1.5 text-[12.5px] cursor-pointer">
+              <option value="sheet_asc">Sort: Sheet (Asc)</option>
+              <option value="sheet_desc">Sort: Sheet (Desc)</option>
+              <option value="scale_50k">Sort: 1:50k First</option>
+              <option value="scale_250k">Sort: 1:250k First</option>
+              <option value="lat_desc">North to South</option>
+              <option value="lat_asc">South to North</option>
+              <option value="lon_asc">West to East</option>
+              <option value="lon_desc">East to West</option>
             </select>
-          </div>
-
-          <!-- Active Filter Chips -->
-          <div v-if="hasActiveFilters" class="flex flex-wrap items-center gap-1.5 pt-1 text-[11px]">
-            <span class="text-slate-400">Active filters:</span>
-            <span v-if="filterQuery" class="px-2 py-0.5 rounded-full bg-slate-800 text-sky-300 border border-slate-700 flex items-center space-x-1">
-              <span>Text: "{{ filterQuery }}"</span>
-              <button @click="filterQuery = ''" class="hover:text-white cursor-pointer ml-1">✕</button>
-            </span>
-            <span v-if="filterScale !== 'all'" class="px-2 py-0.5 rounded-full bg-slate-800 text-sky-300 border border-slate-700 flex items-center space-x-1">
-              <span>Scale: {{ filterScale }}</span>
-              <button @click="filterScale = 'all'" class="hover:text-white cursor-pointer ml-1">✕</button>
-            </span>
-            <span v-if="filterMillion !== 'all'" class="px-2 py-0.5 rounded-full bg-slate-800 text-amber-300 border border-slate-700 flex items-center space-x-1">
-              <span>Million: {{ filterMillion }}</span>
-              <button @click="filterMillion = 'all'" class="hover:text-white cursor-pointer ml-1">✕</button>
-            </span>
-            <span v-if="filterDegree !== 'all'" class="px-2 py-0.5 rounded-full bg-slate-800 text-indigo-300 border border-slate-700 flex items-center space-x-1">
-              <span>Degree: {{ filterDegree }}</span>
-              <button @click="filterDegree = 'all'" class="hover:text-white cursor-pointer ml-1">✕</button>
-            </span>
-            <span v-if="filterFormat !== 'all'" class="px-2 py-0.5 rounded-full bg-slate-800 text-emerald-300 border border-slate-700 flex items-center space-x-1">
-              <span>Format: {{ filterFormat === 'direct' ? 'Direct Available' : filterFormat === 'pdf' ? 'Direct PDF' : filterFormat === 'tif' ? 'Direct GeoTIFF' : 'Portal Only' }}</span>
-              <button @click="filterFormat = 'all'" class="hover:text-white cursor-pointer ml-1">✕</button>
-            </span>
-            <span v-if="sortBy !== 'sheet_asc'" class="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 flex items-center space-x-1">
-              <span>Sorted</span>
-              <button @click="sortBy = 'sheet_asc'" class="hover:text-white cursor-pointer ml-1">✕</button>
-            </span>
           </div>
         </div>
 
         <!-- Notification Banner -->
-        <div v-if="harvestMessage" class="px-5 py-2.5 bg-emerald-950/70 border-b border-emerald-800/80 text-xs text-emerald-200 flex items-center justify-between">
-          <div class="flex items-center space-x-2">
-            <span>✅</span>
-            <span>{{ harvestMessage }}</span>
-          </div>
-          <router-link to="/jobs" class="font-bold underline text-emerald-300 hover:text-emerald-100 text-xs">
-            Open Jobs Dashboard ↗
+        <div v-if="harvestMessage" class="px-5 py-2.5 gh-success-soft-bg border-b gh-success-border text-[13px] gh-success flex items-center justify-between">
+          <span>{{ harvestMessage }}</span>
+          <router-link to="/jobs" class="font-semibold underline">
+            Open Downloads &rarr;
           </router-link>
         </div>
-        <div v-if="harvestError" class="px-5 py-2 bg-rose-950/70 border-b border-rose-800/80 text-xs text-rose-200">
-          ⚠️ {{ harvestError }}
+        <div v-if="harvestError" class="px-5 py-2 gh-error-soft-bg border-b gh-error-border text-[13px] gh-error">
+          {{ harvestError }}
         </div>
 
-        <!-- Empty state when no search executed -->
-        <div v-if="!results.length" class="p-10 text-center space-y-2">
-          <div class="text-3xl">🏔️</div>
-          <div class="text-sm font-semibold text-slate-200">No sheets searched yet</div>
-          <p class="text-xs text-slate-400 max-w-md mx-auto">
-            Select your AOI above (or click "Load Ladakh Sample") and select "Find Intersecting Topo Sheets" to compute all covering Survey of India sheets.
+        <!-- Empty States -->
+        <div v-if="!results.length" class="p-12 text-center space-y-2 gh-text-secondary">
+          <Grid class="w-8 h-8 mx-auto gh-text-muted opacity-60" />
+          <div class="text-[14px] font-semibold gh-text-primary">No sheets queried yet</div>
+          <p class="text-[13px] max-w-md mx-auto">
+            Select a study boundary above and click Find Intersecting Topo Sheets to compute Survey of India footprints.
           </p>
         </div>
 
-        <!-- Empty state when filters exclude all results -->
-        <div v-else-if="!filteredResults.length" class="p-10 text-center space-y-2">
-          <div class="text-3xl">🔍</div>
-          <div class="text-sm font-semibold text-slate-200">No sheets match current filter criteria</div>
-          <p class="text-xs text-slate-400 max-w-md mx-auto">
-            Try adjusting your search query, scale filter, or degree sheet dropdowns.
-          </p>
+        <div v-else-if="!filteredResults.length" class="p-12 text-center space-y-2 gh-text-secondary">
+          <Search class="w-7 h-7 mx-auto gh-text-muted opacity-60" />
+          <div class="text-[14px] font-semibold gh-text-primary">No sheets match current filters</div>
           <button
             @click="resetFilters"
-            class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-sky-300 border border-slate-700 transition-colors cursor-pointer"
+            class="px-3 py-1.5 rounded-[7px] gh-btn-secondary text-[12.5px] cursor-pointer"
           >
             Reset Filters
           </button>
@@ -415,8 +343,8 @@
 
         <!-- Results Table -->
         <div v-else class="overflow-x-auto">
-          <table class="w-full text-xs text-left">
-            <thead class="bg-slate-950/80 text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-800">
+          <table class="w-full text-[13px] text-left border-collapse">
+            <thead class="gh-surface-secondary text-[12px] gh-text-secondary border-b gh-divider">
               <tr>
                 <th class="w-10 px-4 py-3 text-center">
                   <input
@@ -424,129 +352,96 @@
                     :checked="selectedSheetIds.size > 0 && selectedSheetIds.size === filteredResults.length"
                     :indeterminate="selectedSheetIds.size > 0 && selectedSheetIds.size < filteredResults.length"
                     @change="toggleSelectAll"
-                    class="rounded bg-slate-900 border-slate-700 text-sky-600 focus:ring-0 cursor-pointer"
-                    title="Select / Deselect all filtered sheets"
+                    class="rounded cursor-pointer w-3.5 h-3.5"
+                    title="Select all filtered sheets"
                   />
                 </th>
-                <th class="px-5 py-3 font-semibold">Sheet / OSM Number</th>
-                <th class="px-5 py-3 font-semibold">Scale</th>
-                <th class="px-5 py-3 font-semibold">Grid Hierarchy</th>
-                <th class="px-5 py-3 font-semibold">Spatial Extent</th>
-                <th class="px-5 py-3 font-semibold">Available Formats</th>
-                <th class="px-5 py-3 font-semibold text-right">Acquisition & Harvest</th>
+                <th class="px-4 py-3 font-semibold">Sheet Number</th>
+                <th class="px-4 py-3 font-semibold">Scale</th>
+                <th class="px-4 py-3 font-semibold">Grid Hierarchy</th>
+                <th class="px-4 py-3 font-semibold">Spatial Extent</th>
+                <th class="px-4 py-3 font-semibold">Formats</th>
+                <th class="px-4 py-3 font-semibold text-right">Actions</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-800">
+            <tbody class="divide-y gh-divide">
               <tr
                 v-for="item in filteredResults"
                 :key="item.id"
                 :class="[
                   'transition-colors',
-                  selectedSheetIds.has(item.id) ? 'bg-sky-950/20 hover:bg-sky-950/30' : 'hover:bg-slate-800/50'
+                  selectedSheetIds.has(item.id) ? 'gh-selected-bg' : 'hover:gh-surface-secondary'
                 ]"
               >
-                <td class="w-10 px-4 py-3.5 text-center">
+                <td class="w-10 px-4 py-3 text-center">
                   <input
                     type="checkbox"
                     :checked="selectedSheetIds.has(item.id)"
                     @change="toggleSelectSheet(item.id)"
-                    class="rounded bg-slate-900 border-slate-700 text-sky-600 focus:ring-0 cursor-pointer"
+                    class="rounded cursor-pointer w-3.5 h-3.5"
                   />
                 </td>
-                <td class="px-5 py-3.5">
-                  <div class="font-bold text-sky-300 font-mono text-sm flex items-center space-x-2">
-                    <span>{{ item.sheet_number }}</span>
-                    <span v-if="item.properties?.scale === '1:50,000'" class="px-1.5 py-0.2 rounded text-[10px] font-mono bg-emerald-950 text-emerald-300 border border-emerald-800">OSM 1:50k</span>
-                    <span v-else class="px-1.5 py-0.2 rounded text-[10px] font-mono bg-indigo-950 text-indigo-300 border border-indigo-800">Degree 1:250k</span>
+                <td class="px-4 py-3">
+                  <div class="font-semibold gh-accent font-mono text-[13.5px]">
+                    {{ item.sheet_number }}
                   </div>
-                  <div class="text-[11px] text-slate-400 mt-0.5">
+                  <div class="text-[12px] gh-text-secondary mt-0.5">
                     {{ item.properties?.name || item.id }}
                   </div>
                 </td>
-                <td class="px-5 py-3.5 text-slate-300 font-medium">
+                <td class="px-4 py-3 font-mono text-[12.5px] gh-text-primary">
                   {{ item.properties?.scale || '1:50,000' }}
                 </td>
-                <td class="px-5 py-3.5 text-slate-400 font-mono text-[11px]">
-                  <div class="flex items-center space-x-1.5">
-                    <span v-if="item.properties?.million_sheet" class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 text-[10px]" title="1:1,000,000 Million Sheet">
-                      Million: {{ item.properties.million_sheet }}
-                    </span>
-                    <span v-if="item.properties?.degree_sheet" class="px-1.5 py-0.5 rounded bg-indigo-950/60 border border-indigo-800/80 text-indigo-300 text-[10px]" title="1:250,000 Degree Sheet">
-                      Degree: {{ item.properties.degree_sheet }}
-                    </span>
-                  </div>
+                <td class="px-4 py-3 gh-text-secondary font-mono text-[12px]">
+                  <span v-if="item.properties?.million_sheet">M: {{ item.properties.million_sheet }}</span>
+                  <span v-if="item.properties?.million_sheet && item.properties?.degree_sheet"> &middot; </span>
+                  <span v-if="item.properties?.degree_sheet">D: {{ item.properties.degree_sheet }}</span>
                 </td>
-                <td class="px-5 py-3.5 font-mono text-[11px] text-slate-400">
+                <td class="px-4 py-3 font-mono text-[12px] gh-text-secondary">
                   <div v-if="item.properties?.lat_extent && item.properties?.lon_extent">
-                    {{ item.properties.lat_extent }} • {{ item.properties.lon_extent }}
+                    {{ item.properties.lat_extent }} &middot; {{ item.properties.lon_extent }}
                   </div>
                   <div v-else-if="item.bbox">
-                    [{{ item.bbox[0].toFixed(2) }}°, {{ item.bbox[1].toFixed(2) }}°] to [{{ item.bbox[2].toFixed(2) }}°, {{ item.bbox[3].toFixed(2) }}°]
+                    [{{ item.bbox[0].toFixed(2) }}, {{ item.bbox[1].toFixed(2) }}] – [{{ item.bbox[2].toFixed(2) }}, {{ item.bbox[3].toFixed(2) }}]
                   </div>
                 </td>
-                <td class="px-5 py-3.5 text-slate-400">
-                  <div class="flex flex-wrap items-center gap-1.5">
-                    <span
-                      v-if="item.direct_download_pdf_url"
-                      class="px-1.5 py-0.5 rounded bg-sky-950/80 text-sky-300 font-mono text-[10px] border border-sky-800"
-                      title="Direct Open Series Map PDF available"
-                    >
-                      PDF <span v-if="item.pdf_size" class="text-sky-400/80 font-normal">({{ formatFileSize(item.pdf_size) }})</span>
-                    </span>
-                    <span
-                      v-if="item.direct_download_georef_url"
-                      class="px-1.5 py-0.5 rounded bg-emerald-950/80 text-emerald-300 font-mono text-[10px] border border-emerald-800"
-                      title="Direct Georeferenced GeoTIFF available"
-                    >
-                      GeoTIFF <span v-if="item.georef_size" class="text-emerald-400/80 font-normal">({{ formatFileSize(item.georef_size) }})</span>
-                    </span>
-                    <span
-                      v-if="!item.direct_download_pdf_url && !item.direct_download_georef_url"
-                      class="px-1.5 py-0.5 rounded bg-amber-950/60 text-amber-300 font-mono text-[10px] border border-amber-800/80"
-                      title="Degree sheet or border area: portal declaration/assisted acquisition required on official SOI portal"
-                    >
-                      🏛️ SOI Portal Only
-                    </span>
-                  </div>
+                <td class="px-4 py-3 text-[12px] font-mono">
+                  <span v-if="item.direct_download_pdf_url" class="gh-accent mr-2">
+                    PDF {{ item.pdf_size ? `(${formatFileSize(item.pdf_size)})` : '' }}
+                  </span>
+                  <span v-if="item.direct_download_georef_url" class="gh-success mr-2">
+                    GeoTIFF {{ item.georef_size ? `(${formatFileSize(item.georef_size)})` : '' }}
+                  </span>
+                  <span v-if="!item.direct_download_pdf_url && !item.direct_download_georef_url" class="gh-text-muted">
+                    SOI Portal Only
+                  </span>
                 </td>
-                <td class="px-5 py-3.5 text-right">
+                <td class="px-4 py-3 text-right whitespace-nowrap">
                   <div class="inline-flex items-center space-x-1.5">
-                    <!-- Direct PDF Download Button (Only when verified release exists) -->
                     <button
                       v-if="item.direct_download_pdf_url"
                       @click="harvestSheet(item, ['pdf'])"
                       :disabled="harvestingSheetId === item.id"
-                      class="px-2 py-1 rounded bg-sky-950 hover:bg-sky-900 border border-sky-700 text-sky-200 text-xs font-semibold transition-colors cursor-pointer"
-                      :title="`Run download job to save Open Series Map PDF (${formatFileSize(item.pdf_size)})`"
+                      class="px-2.5 py-1 rounded-[6px] gh-btn-secondary text-[12px] cursor-pointer"
                     >
-                      <span>📥 PDF</span>
+                      PDF
                     </button>
-
-                    <!-- Direct GeoTIFF Download Button (Only when verified release exists) -->
                     <button
                       v-if="item.direct_download_georef_url"
                       @click="harvestSheet(item, ['tif'])"
                       :disabled="harvestingSheetId === item.id"
-                      class="px-2 py-1 rounded bg-emerald-950 hover:bg-emerald-900 border border-emerald-700 text-emerald-200 text-xs font-semibold transition-colors cursor-pointer"
-                      :title="`Run download job to save Georeferenced GeoTIFF (${formatFileSize(item.georef_size)})`"
+                      class="px-2.5 py-1 rounded-[6px] gh-btn-primary text-[12px] cursor-pointer"
                     >
-                      <span>🗺️ GeoTIFF</span>
+                      GeoTIFF
                     </button>
-
-                    <!-- Official Survey of India Portal Button -->
                     <a
                       :href="item.official_pdf_url"
                       target="_blank"
                       rel="noreferrer"
-                      :class="[
-                        'px-2 py-1 rounded text-xs font-medium transition-colors cursor-pointer inline-flex items-center space-x-1',
-                        !item.direct_download_pdf_url && !item.direct_download_georef_url
-                          ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/50'
-                          : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
-                      ]"
-                      :title="!item.direct_download_pdf_url ? 'Direct open release not available; click to acquire free from official Survey of India portal' : 'Open in official Survey of India portal'"
+                      class="px-2.5 py-1 rounded-[6px] gh-btn-secondary text-[12px] inline-flex items-center space-x-1"
                     >
-                      <span>🏛️ SOI Portal ↗</span>
+                      <span>Portal</span>
+                      <ExternalLink class="w-3 h-3" />
                     </a>
                   </div>
                 </td>
@@ -554,50 +449,26 @@
             </tbody>
           </table>
         </div>
-        <p v-if="results.length" class="px-5 py-3 border-t border-slate-800 text-[11px] text-slate-400 bg-slate-950/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <span>* Direct Harvest creates active background download jobs saving files to the specified destination. Official portal links open Survey of India for official verification and downloads.</span>
-          <span class="text-slate-500 font-mono text-[10px]">Showing {{ filteredResults.length }} of {{ results.length }} total sheets</span>
-        </p>
       </section>
 
-      <!-- 4. Survey of India Products Overview -->
-      <section class="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4 space-y-1.5">
-          <h3 class="text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center space-x-1.5">
-            <span>📄</span>
-            <span>Free Open Series Maps</span>
-          </h3>
-          <p class="text-xs text-slate-400">
-            PDF sheets at 1:50,000 scale available freely for public use through the online maps portal subject to portal verification.
-          </p>
-        </div>
-        <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4 space-y-1.5">
-          <h3 class="text-xs font-bold text-sky-300 uppercase tracking-wider flex items-center space-x-1.5">
-            <span>🗺️</span>
-            <span>GIS-Ready Rasters</span>
-          </h3>
-          <p class="text-xs text-slate-400">
-            Georeferenced colour TIFF rasters in UTM / Everest projection for GIS workflows and remote sensing baseline mapping.
-          </p>
-        </div>
-        <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4 space-y-1.5">
-          <h3 class="text-xs font-bold text-emerald-300 uppercase tracking-wider flex items-center space-x-1.5">
-            <span>⛰️</span>
-            <span>Digital Terrain Models</span>
-          </h3>
-          <p class="text-xs text-slate-400">
-            High-precision DTM elevation models covering Indian terrain and mountain ranges, listed in the SOI digital catalogue.
-          </p>
-        </div>
-      </section>
-
-      <p v-if="globalError" class="text-xs text-rose-300 font-medium">{{ globalError }}</p>
+      <p v-if="globalError" class="text-[13px] gh-error font-medium">{{ globalError }}</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
+import {
+  Grid,
+  Orbit,
+  ExternalLink,
+  MapPin,
+  Mountain,
+  FolderUp,
+  Search,
+  Layers,
+  Download,
+} from 'lucide-vue-next'
 import { api } from '../services/api'
 import { useHarvestStore } from '../stores/harvestStore'
 

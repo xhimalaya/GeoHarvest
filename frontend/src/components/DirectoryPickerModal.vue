@@ -1,84 +1,81 @@
 <template>
   <div
     v-if="modelValue"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 overflow-y-auto"
+    class="fixed inset-0 z-50 flex items-center justify-center gh-overlay backdrop-blur-sm p-4 overflow-y-auto"
     @click.self="close"
     @keydown.esc="close"
   >
     <div
-      class="bg-slate-900 border border-slate-800 rounded-xl max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[88vh] animate-in fade-in duration-150"
+      class="gh-surface-elevated border gh-border rounded-[14px] max-w-2xl w-full gh-shadow-dialog overflow-hidden flex flex-col max-h-[88vh] gh-text-primary"
     >
       <!-- Header -->
-      <div class="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-850/80">
-        <div class="flex items-center space-x-2.5">
-          <div class="w-8 h-8 rounded-lg bg-teal-950/80 border border-teal-700/80 flex items-center justify-center text-teal-400 shadow-sm">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-            </svg>
+      <div class="px-5 py-3.5 border-b gh-divider flex items-center justify-between gh-surface-primary">
+        <div class="flex items-center space-x-3">
+          <div class="w-8 h-8 rounded-[8px] gh-selected-bg border gh-accent-border flex items-center justify-center gh-accent">
+            <FolderOpen class="w-4 h-4" />
           </div>
           <div>
-            <h2 class="text-sm font-bold text-slate-100 flex items-center space-x-2">
-              <span>{{ title || 'Choose Download Destination' }}</span>
+            <h2 class="text-[15px] font-semibold gh-text-primary">
+              {{ title || 'Choose Download Destination' }}
             </h2>
-            <p class="text-[11px] text-slate-400">
-              {{ subtitle || 'Browse filesystem, create folders, or select target directory for harvested data' }}
+            <p class="text-[12.5px] gh-text-secondary">
+              {{ subtitle || 'Browse filesystem, create folders, or select target directory' }}
             </p>
           </div>
         </div>
 
         <button
           @click="close"
-          class="p-1 rounded text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors cursor-pointer"
+          class="p-1.5 rounded-[6px] gh-btn-ghost cursor-pointer"
           title="Close (Esc)"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          <X class="w-4 h-4" />
         </button>
       </div>
 
       <!-- Modal Body -->
-      <div class="p-4 overflow-y-auto space-y-3 flex-1 scrollbar-thin scrollbar-thumb-slate-700">
+      <div class="p-4 overflow-y-auto space-y-3 flex-1">
         <!-- 1. Shortcuts Bar -->
         <div v-if="browseData?.shortcuts && browseData.shortcuts.length > 0" class="flex flex-wrap gap-1.5 items-center">
-          <span class="text-[10px] uppercase font-bold text-slate-500 mr-1 tracking-wider">Quick:</span>
+          <span class="text-[12px] gh-text-muted mr-1 font-medium">Quick:</span>
           <button
             v-for="sc in browseData.shortcuts"
             :key="sc.path"
             @click="navigateTo(sc.path)"
-            :class="browseData.current_path === sc.path
-              ? 'bg-teal-900/60 border-teal-500 text-teal-200'
-              : 'bg-slate-950/70 border-slate-800 text-slate-300 hover:border-slate-700 hover:text-slate-100'"
-            class="px-2.5 py-1 rounded-md border text-[11px] font-medium flex items-center space-x-1.5 transition-all cursor-pointer shadow-xs"
+            :class="[
+              'px-2.5 py-1 rounded-[6px] border text-[12.5px] font-medium flex items-center space-x-1.5 transition-colors cursor-pointer',
+              browseData.current_path === sc.path
+                ? 'gh-active gh-focus-border'
+                : 'gh-surface-secondary gh-border gh-text-secondary hover:gh-text-primary'
+            ]"
           >
-            <span>{{ getShortcutEmoji(sc.name) }}</span>
+            <Folder class="w-3.5 h-3.5" />
             <span>{{ sc.name }}</span>
           </button>
         </div>
 
         <!-- 2. Path Bar & Breadcrumbs -->
-        <div class="bg-slate-950 border border-slate-800 rounded-lg p-2 space-y-1.5">
+        <div class="gh-surface-primary border gh-border rounded-[8px] p-2.5 space-y-2">
           <div class="flex items-center justify-between gap-2">
-            <!-- Breadcrumbs or manual input -->
-            <div v-if="!isManualEdit" class="flex items-center gap-1 overflow-x-auto py-0.5 scrollbar-none flex-1 text-xs">
+            <div v-if="!isManualEdit" class="flex items-center gap-1 overflow-x-auto py-0.5 flex-1 text-[12.5px]">
               <button
                 v-if="browseData?.parent_path"
                 @click="navigateTo(browseData.parent_path)"
-                class="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 hover:bg-slate-800 text-slate-300 font-mono text-[11px] transition-colors flex items-center space-x-1 cursor-pointer shrink-0"
+                class="px-2 py-0.5 rounded-[6px] gh-btn-secondary font-mono text-[12px] flex items-center space-x-1 cursor-pointer shrink-0"
                 title="Go to parent directory"
               >
-                <span>⬆️</span>
+                <ArrowUp class="w-3 h-3" />
                 <span>Up</span>
               </button>
 
               <template v-for="(crumb, idx) in (browseData?.breadcrumbs || [])" :key="crumb.path">
-                <span v-if="idx > 0" class="text-slate-600 font-mono text-xs select-none">/</span>
+                <span v-if="idx > 0" class="gh-text-muted font-mono select-none">/</span>
                 <button
                   @click="navigateTo(crumb.path)"
                   :class="idx === (browseData?.breadcrumbs.length || 0) - 1
-                    ? 'font-bold text-teal-300 bg-teal-950/40 border border-teal-800/80 px-1.5 py-0.5 rounded'
-                    : 'text-slate-400 hover:text-slate-100 hover:underline px-1 py-0.5'"
-                  class="font-mono text-[11px] transition-colors truncate max-w-[140px] cursor-pointer shrink-0"
+                    ? 'font-semibold gh-accent gh-selected-bg px-1.5 py-0.5 rounded-[5px]'
+                    : 'gh-text-secondary hover:gh-text-primary hover:underline px-1 py-0.5'"
+                  class="font-mono text-[12px] transition-colors truncate max-w-[140px] cursor-pointer shrink-0"
                   :title="crumb.path"
                 >
                   {{ crumb.name === '/' ? 'root' : crumb.name }}
@@ -86,72 +83,62 @@
               </template>
             </div>
 
-            <!-- Manual path input mode -->
             <form v-else @submit.prevent="onManualSubmit" class="flex-1 flex gap-1.5">
               <input
                 v-model="manualPathInput"
                 type="text"
                 placeholder="/absolute/path/to/folder"
-                class="w-full bg-slate-900 border border-teal-500 rounded px-2.5 py-1 text-slate-100 font-mono text-xs focus:outline-none"
+                class="w-full gh-input px-2.5 py-1 font-mono text-[12.5px]"
                 ref="manualInputRef"
               />
-              <button
-                type="submit"
-                class="px-3 py-1 bg-teal-600 hover:bg-teal-500 text-white rounded text-xs font-semibold shrink-0 cursor-pointer"
-              >
+              <button type="submit" class="px-3 py-1 gh-btn-primary text-[12.5px] shrink-0 cursor-pointer">
                 Go
               </button>
               <button
                 type="button"
                 @click="isManualEdit = false"
-                class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs shrink-0 cursor-pointer"
+                class="px-2.5 py-1 gh-btn-secondary text-[12.5px] shrink-0 cursor-pointer"
               >
                 Cancel
               </button>
             </form>
 
-            <!-- Actions: Toggle manual input & refresh -->
             <div v-if="!isManualEdit" class="flex items-center space-x-1 shrink-0">
               <button
                 @click="enableManualEdit"
-                class="p-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-750 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                class="p-1.5 rounded-[6px] gh-btn-ghost cursor-pointer"
                 title="Enter custom path manually"
               >
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
+                <Pencil class="w-3.5 h-3.5" />
               </button>
               <button
                 @click="refreshCurrent"
                 :disabled="isLoading"
-                class="p-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-750 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer disabled:opacity-50"
+                class="p-1.5 rounded-[6px] gh-btn-ghost cursor-pointer disabled:opacity-50"
                 title="Refresh current folder"
               >
-                <svg :class="isLoading ? 'animate-spin' : ''" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
+                <RefreshCw :class="isLoading ? 'animate-spin' : ''" class="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
 
-          <!-- Current status bar -->
-          <div class="flex items-center justify-between text-[11px] pt-1 border-t border-slate-900 font-mono">
+          <div class="flex items-center justify-between text-[12px] pt-1.5 border-t gh-divider font-mono">
             <div class="flex items-center space-x-3">
-              <span class="flex items-center space-x-1">
+              <span class="flex items-center space-x-1.5">
                 <span
                   class="w-2 h-2 rounded-full"
-                  :class="browseData?.is_writable ? 'bg-emerald-400 shadow-xs shadow-emerald-500' : 'bg-rose-500'"
+                  :style="{ backgroundColor: browseData?.is_writable ? 'var(--success)' : 'var(--error)' }"
                 ></span>
-                <span :class="browseData?.is_writable ? 'text-emerald-400' : 'text-rose-400 font-semibold'">
+                <span :class="browseData?.is_writable ? 'gh-success' : 'gh-error font-semibold'">
                   {{ browseData?.is_writable ? 'Writable' : 'Permission Denied' }}
                 </span>
               </span>
-              <span class="text-slate-500">|</span>
-              <span class="text-slate-400">
-                Disk Free: <span class="text-teal-300 font-semibold">{{ browseData?.formatted_free || '--' }}</span>
+              <span class="gh-text-muted">|</span>
+              <span class="gh-text-secondary">
+                Disk Free: <span class="gh-accent font-semibold">{{ browseData?.formatted_free || '--' }}</span>
               </span>
             </div>
-            <div class="text-slate-500 text-[10px]">
+            <div class="gh-text-muted">
               {{ filteredDirectories.length }} {{ filteredDirectories.length === 1 ? 'folder' : 'folders' }}
             </div>
           </div>
@@ -159,90 +146,78 @@
 
         <!-- 3. Folder Filter and New Folder Creator -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <!-- Filter search box -->
           <div class="relative">
             <input
               v-model="folderFilter"
               type="text"
               placeholder="Filter subfolders..."
-              class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-7 pr-2.5 py-1.5 text-slate-200 placeholder-slate-600 text-xs focus:outline-none focus:border-teal-500 font-mono"
+              class="w-full gh-input pl-8 pr-2.5 py-1.5 text-[12.5px] font-mono"
             />
-            <svg class="w-3.5 h-3.5 text-slate-500 absolute left-2 top-2.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+            <Search class="w-3.5 h-3.5 gh-text-muted absolute left-2.5 top-2.5 pointer-events-none" />
           </div>
 
-          <!-- New folder inline creator -->
           <form @submit.prevent="handleCreateFolder" class="flex gap-1.5">
             <input
               v-model="newFolderName"
               type="text"
               placeholder="New folder name..."
               :disabled="!browseData?.is_writable || isCreatingFolder"
-              class="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-slate-200 placeholder-slate-600 text-xs focus:outline-none focus:border-teal-500 font-mono disabled:opacity-50"
+              class="flex-1 gh-input px-2.5 py-1.5 text-[12.5px] font-mono disabled:opacity-50"
             />
             <button
               type="submit"
               :disabled="!browseData?.is_writable || !newFolderName.trim() || isCreatingFolder"
-              class="px-3 py-1.5 bg-slate-800 hover:bg-teal-700 text-slate-200 hover:text-white rounded-lg text-xs font-semibold flex items-center space-x-1 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0 border border-slate-700"
+              class="px-3 py-1.5 gh-btn-secondary text-[12.5px] flex items-center space-x-1 cursor-pointer disabled:opacity-50 shrink-0"
             >
-              <span>+</span>
-              <span>Create</span>
+              <span>+ Create</span>
             </button>
           </form>
         </div>
 
-        <div v-if="errorMessage" class="p-2 rounded bg-rose-950/50 border border-rose-800 text-rose-300 text-xs font-mono">
-          ⚠ {{ errorMessage }}
+        <div v-if="errorMessage" class="p-2.5 rounded-[7px] gh-error-soft-bg border gh-error-border gh-error text-[12.5px] font-mono">
+          {{ errorMessage }}
         </div>
 
         <!-- 4. Subdirectories Explorer Container -->
-        <div class="bg-slate-950/80 border border-slate-800/90 rounded-lg overflow-hidden min-h-[190px] max-h-[260px] flex flex-col">
-          <!-- Loading State -->
-          <div v-if="isLoading" class="flex-1 flex flex-col items-center justify-center p-8 space-y-2 text-slate-400">
-            <svg class="w-6 h-6 animate-spin text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            <span class="text-xs">Reading directories...</span>
+        <div class="gh-surface-primary border gh-border rounded-[8px] overflow-hidden min-h-[190px] max-h-[260px] flex flex-col">
+          <div v-if="isLoading" class="flex-1 flex flex-col items-center justify-center p-8 space-y-2 gh-text-secondary">
+            <RefreshCw class="w-5 h-5 animate-spin gh-accent" />
+            <span class="text-[12.5px]">Reading directories...</span>
           </div>
 
-          <!-- Directory Items List -->
-          <div v-else-if="filteredDirectories.length > 0" class="overflow-y-auto flex-1 divide-y divide-slate-850 p-1">
+          <div v-else-if="filteredDirectories.length > 0" class="overflow-y-auto flex-1 divide-y gh-divide p-1">
             <div
               v-for="dir in filteredDirectories"
               :key="dir.path"
               @click="navigateTo(dir.path)"
-              class="flex items-center justify-between px-3 py-2 rounded-md hover:bg-slate-900 group cursor-pointer transition-colors"
+              class="flex items-center justify-between px-3 py-2 rounded-[6px] hover:gh-surface-secondary group cursor-pointer transition-colors"
             >
               <div class="flex items-center space-x-2.5 min-w-0">
-                <span class="text-base text-amber-400 group-hover:scale-110 transition-transform">📁</span>
-                <span class="text-xs font-mono text-slate-200 group-hover:text-teal-300 truncate font-medium">
+                <Folder class="w-4 h-4 gh-accent shrink-0" />
+                <span class="text-[13px] font-mono gh-text-primary group-hover:gh-accent truncate font-medium">
                   {{ dir.name }}
                 </span>
               </div>
               <div class="flex items-center space-x-2 shrink-0">
                 <span
                   v-if="!dir.is_writable"
-                  class="text-[9px] uppercase px-1.5 py-0.5 rounded bg-rose-950/70 text-rose-400 border border-rose-900 font-mono"
+                  class="text-[11.5px] px-1.5 py-0.5 rounded-[5px] gh-error-soft-bg gh-error border gh-error-border font-mono"
                 >
                   Locked
                 </span>
-                <span class="text-[10px] text-slate-500 font-mono group-hover:text-slate-400">
+                <span class="text-[12px] gh-text-muted font-mono">
                   {{ formatDate(dir.modified_at) }}
                 </span>
-                <svg class="w-3.5 h-3.5 text-slate-600 group-hover:text-teal-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                </svg>
+                <ChevronRight class="w-3.5 h-3.5 gh-text-muted group-hover:gh-accent" />
               </div>
             </div>
           </div>
 
-          <!-- Empty Folders State -->
-          <div v-else class="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-1 text-slate-500">
-            <span class="text-2xl opacity-60">📂</span>
-            <p class="text-xs font-medium text-slate-400">No subdirectories found</p>
-            <p class="text-[11px] text-slate-500">
-              {{ folderFilter ? 'No folders match the search filter.' : 'You can create a new folder above or select this current folder.' }}
+          <div v-else class="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-1 gh-text-secondary">
+            <FolderOpen class="w-7 h-7 gh-text-muted opacity-60" />
+            <p class="text-[13px] font-medium gh-text-primary">No subdirectories found</p>
+            <p class="text-[12px] gh-text-muted">
+              {{ folderFilter ? 'No folders match the search filter.' : 'Create a new folder above or select the current folder.' }}
             </p>
           </div>
         </div>
@@ -250,23 +225,23 @@
         <!-- 5. Target Structure Preview -->
         <div
           v-if="!hideDestinationPreview"
-          class="p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-[11px] font-mono space-y-1"
+          class="p-2.5 rounded-[8px] gh-surface-secondary border gh-border text-[12px] font-mono space-y-1"
         >
-          <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center justify-between">
-            <span>Storage Hierarchy Preview</span>
-            <span class="text-teal-400 font-semibold">Active Destination</span>
+          <div class="flex items-center justify-between gh-text-muted">
+            <span class="font-medium">Storage Hierarchy Preview</span>
+            <span class="gh-accent font-semibold">Active Destination</span>
           </div>
-          <div class="text-slate-300 break-all leading-relaxed">
-            <span class="text-teal-300 font-semibold">{{ browseData?.current_path || '...' }}</span>/<span class="text-amber-300 font-medium">{{ taskName || 'task_name' }}</span>/<span class="text-emerald-300">YYYY</span>/<span class="text-emerald-300">MM</span>/<span class="text-indigo-300">scene_name</span>/
+          <div class="gh-text-primary break-all leading-relaxed">
+            <span class="gh-accent font-semibold">{{ browseData?.current_path || '...' }}</span>/<span class="gh-text-secondary">{{ taskName || 'task_name' }}</span>/YYYY/MM/scene_name/
           </div>
         </div>
       </div>
 
       <!-- Footer Actions -->
-      <div class="px-5 py-3 border-t border-slate-800 bg-slate-850/80 flex items-center justify-between">
+      <div class="px-5 py-3 border-t gh-divider gh-surface-secondary flex items-center justify-between">
         <button
           @click="close"
-          class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-semibold cursor-pointer transition-colors"
+          class="px-3.5 py-1.5 gh-btn-secondary text-[13px] cursor-pointer"
         >
           Cancel
         </button>
@@ -274,12 +249,10 @@
         <button
           @click="selectCurrentFolder"
           :disabled="!browseData?.current_path || (!allowReadOnly && !browseData?.is_writable)"
-          class="px-4 py-2 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-all shadow-md shadow-teal-950/60 flex items-center space-x-1.5 cursor-pointer disabled:cursor-not-allowed"
+          class="px-4 py-2 gh-btn-primary text-[13px] flex items-center space-x-1.5 cursor-pointer"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-          </svg>
-          <span>{{ confirmLabel || 'Select This Destination' }}</span>
+          <Check class="w-4 h-4" />
+          <span>{{ confirmLabel || 'Select Destination' }}</span>
         </button>
       </div>
     </div>
@@ -288,6 +261,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
+import { FolderOpen, Folder, X, ArrowUp, Pencil, RefreshCw, Search, ChevronRight, Check } from 'lucide-vue-next'
 import { api } from '../services/api'
 import type { DirectoryBrowseResponse } from '../types'
 
@@ -413,15 +387,6 @@ const filteredDirectories = computed(() => {
   const q = folderFilter.value.toLowerCase().trim()
   return browseData.value.directories.filter((d) => d.name.toLowerCase().includes(q))
 })
-
-function getShortcutEmoji(name: string): string {
-  if (name.includes('Default')) return '📥'
-  if (name.includes('Home')) return '🏠'
-  if (name.includes('Downloads')) return '⬇️'
-  if (name.includes('Desktop')) return '🖥️'
-  if (name.includes('Documents')) return '📄'
-  return '📁'
-}
 
 function formatDate(isoStr?: string): string {
   if (!isoStr) return '--'

@@ -137,14 +137,14 @@ class RasterDatasetAdapter(DatasetAdapter):
         item_id = raw_item.get("id") or ""
         if not thumb_url or "creodias.eu" in str(thumb_url) or "odata/v1/Assets" in str(thumb_url):
             import re
-            m = re.search(r'(S2[AB])_.*?_T(\d{2})([A-Z])([A-Z]{2})_(\d{4})(\d{2})(\d{2})', item_id)
+            m = re.search(r'(S2[A-Z])_.*?_T(\d{2})([A-Z])([A-Z]{2})_(\d{4})(\d{2})(\d{2})', item_id)
             if m:
                 sat, utm, band_code, sq, year, month, day = m.groups()
                 month_int = str(int(month))
                 aws_id = f"{sat}_{utm}{band_code}{sq}_{year}{month}{day}_0_L2A"
                 thumb_url = f"https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/{utm}/{band_code}/{sq}/{year}/{month_int}/{aws_id}/thumbnail.jpg"
             else:
-                m2 = re.search(r'(S2[AB])_(\d{2})([A-Z])([A-Z]{2})_(\d{4})(\d{2})(\d{2})', item_id)
+                m2 = re.search(r'(S2[A-Z])_(\d{2})([A-Z])([A-Z]{2})_(\d{4})(\d{2})(\d{2})', item_id)
                 if m2:
                     sat, utm, band_code, sq, year, month, day = m2.groups()
                     month_int = str(int(month))

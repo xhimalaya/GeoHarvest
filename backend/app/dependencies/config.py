@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     qdrant_host: str = "localhost"
     qdrant_port: int = 6333
     qdrant_api_key: Optional[str] = None
+    mcp_server_port: int = 8099
 
     # Copernicus Data Space Ecosystem (CDSE) Credentials
     cdse_s3_access_key: Optional[str] = None

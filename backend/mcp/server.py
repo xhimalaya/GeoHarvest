@@ -28,10 +28,6 @@ mcp = MCPServer(
 )
 
 
-# =============================================================================
-# 1. GEOGRAPHIC & AOI RESOLUTION TOOLS (TAS §6.1.4, §9.3)
-# =============================================================================
-
 @mcp.tool()
 def geo_resolve_aoi(name: str) -> Dict[str, Any]:
     """
@@ -73,10 +69,6 @@ def geo_resolve_aoi(name: str) -> Dict[str, Any]:
         }
     }
 
-
-# =============================================================================
-# 2. DATASET DISCOVERY TOOLS (TAS §3.1, §6.1.5, §8)
-# =============================================================================
 
 @mcp.tool()
 async def geo_search_datasets(
@@ -130,10 +122,6 @@ async def geo_search_datasets(
     except Exception as e:
         return {"error": f"Dataset discovery failed: {str(e)}", "scenes_found": 0, "scenes": []}
 
-
-# =============================================================================
-# 3. GEOPROCESSING & ML TOOLS (TAS §4.5, §5.1, §9.5, §10)
-# =============================================================================
 
 @mcp.tool()
 def geo_execute_kmeans(
@@ -226,11 +214,6 @@ def geo_change_detection(
     except Exception as e:
         return {"error": f"Change detection failed: {str(e)}"}
 
-
-# =============================================================================
-# 4. SCIENTIFIC VALIDATION & KNOWLEDGE TOOLS (TAS §6, §12)
-# =============================================================================
-
 @mcp.tool()
 def geo_validate_raster(
     raster_path: str,
@@ -260,20 +243,22 @@ def geo_list_algorithms(category: Optional[str] = None) -> List[Dict[str, Any]]:
 
 @mcp.tool()
 def geo_vector_search(query: str, limit: int = 5) -> Dict[str, Any]:
-    """
-    Searches the Qdrant vector database for scientific literature, sensor documentation,
-    and mathematical specifications.
-    """
     import hashlib
     if not qdrant_service.is_available():
-        return {"available": False, "results": [], "message": "Qdrant vector database is offline."}
+        return {
+            "available": False,
+            "results": [],
+            "message": "Qdrant vector database is offline.",
+        }
 
     hasher = hashlib.sha256(query.encode("utf-8"))
     digest = hasher.digest()
     raw_floats = [((b / 255.0) * 2.0 - 1.0) for b in digest]
     vector = (raw_floats * (384 // len(raw_floats) + 1))[:384]
 
-    results = qdrant_service.search("geospatial_algorithms", vector, limit=limit)
+    results = qdrant_service.search(
+        "geospatial_algorithms", vector, limit=limit
+    )
     return {
         "available": True,
         "query": query,
@@ -284,9 +269,6 @@ def geo_vector_search(query: str, limit: int = 5) -> Dict[str, Any]:
 
 @mcp.tool()
 def geo_get_system_status() -> Dict[str, Any]:
-    """
-    Returns hardware telemetry (CPU, RAM, Disk) and active Job Engine worker statistics.
-    """
     import psutil
     disk = psutil.disk_usage(str(settings.data_dir))
     mem = psutil.virtual_memory()
@@ -316,7 +298,10 @@ def run_standalone():
     parser.add_argument("--port", type=int, default=9010, help="MCP SSE port")
     args = parser.parse_args()
 
-    print(f"Starting GeoHarvest MCP Server on http://{args.host}:{args.port}/sse ...")
+    print(
+        f"Starting GeoHarvest MCP Server on "
+        f"http://{args.host}:{args.port}/sse ..."
+    )
     uvicorn.run(mcp_app, host=args.host, port=args.port)
 
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
+import { Globe, X, Search, Download, FolderUp } from 'lucide-vue-next'
 import { api } from '../services/api'
 import { useHarvestStore } from '../stores/harvestStore'
 
@@ -439,73 +440,76 @@ onMounted(() => {
 <template>
   <div
     v-if="modelValue"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
+    class="fixed inset-0 z-50 flex items-center justify-center gh-overlay backdrop-blur-sm p-4"
     @click.self="close"
   >
-    <div class="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
+    <div class="gh-surface-elevated border gh-border rounded-[14px] gh-shadow-dialog w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden gh-text-primary">
       <!-- Header -->
-      <div class="px-5 py-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
+      <div class="px-5 py-3.5 gh-surface-primary border-b gh-divider flex items-center justify-between shrink-0">
         <div class="flex items-center space-x-3">
-          <span class="text-xl">🌐</span>
+          <div class="w-8 h-8 rounded-[8px] gh-selected-bg border gh-accent-border flex items-center justify-center gh-accent">
+            <Globe class="w-4 h-4" />
+          </div>
           <div>
-            <h2 class="text-sm font-bold text-white tracking-wide">
-              OGC WMS Smart Endpoint & Layer Manager
+            <h2 class="text-[15px] font-semibold gh-text-primary">
+              OGC WMS Endpoint &amp; Layer Manager
             </h2>
-            <p class="text-[11px] text-slate-400">
-              Paste any full WMS GetMap or GetCapabilities URL to auto-detect Layer, Style, CRS &amp; BBox — or select/upload an AOI from your AOI Library
+            <p class="text-[12.5px] gh-text-secondary">
+              Connect GetMap or GetCapabilities URLs, preview curated services, or export clipped GeoTIFFs.
             </p>
           </div>
         </div>
         <button
           @click="close"
-          class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 cursor-pointer"
+          class="p-1.5 rounded-[6px] gh-btn-ghost cursor-pointer"
+          title="Close"
         >
-          ✕ Close
+          <X class="w-4 h-4" />
         </button>
       </div>
 
       <!-- Sub-navigation Tabs -->
-      <div class="px-5 pt-2 bg-slate-950 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2 shrink-0">
+      <div class="px-5 gh-surface-secondary border-b gh-divider flex flex-wrap items-center justify-between gap-2 shrink-0">
         <div class="flex space-x-2">
           <button
             @click="activeTab = 'custom'"
             :class="[
-              'px-3.5 py-2 text-xs font-semibold border-b-2 transition-colors cursor-pointer',
+              'px-3 py-2.5 text-[13px] font-medium border-b-2 transition-colors cursor-pointer',
               activeTab === 'custom'
-                ? 'border-emerald-400 text-emerald-300 bg-slate-900/60'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
+                ? 'gh-focus-border gh-accent font-semibold'
+                : 'border-transparent gh-text-secondary hover:gh-text-primary'
             ]"
           >
-            ⚡ Smart URL Auto-Detect &amp; Custom WMS
+            Smart URL &amp; Custom WMS
           </button>
           <button
             @click="activeTab = 'presets'"
             :class="[
-              'px-3.5 py-2 text-xs font-semibold border-b-2 transition-colors cursor-pointer',
+              'px-3 py-2.5 text-[13px] font-medium border-b-2 transition-colors cursor-pointer',
               activeTab === 'presets'
-                ? 'border-emerald-400 text-emerald-300 bg-slate-900/60'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
+                ? 'gh-focus-border gh-accent font-semibold'
+                : 'border-transparent gh-text-secondary hover:gh-text-primary'
             ]"
           >
-            🛰️ Curated Global &amp; ISRO WMS ({{ presets.length }})
+            Curated Services ({{ presets.length }})
           </button>
           <button
             @click="activeTab = 'active'"
             :class="[
-              'px-3.5 py-2 text-xs font-semibold border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer',
+              'px-3 py-2.5 text-[13px] font-medium border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer',
               activeTab === 'active'
-                ? 'border-emerald-400 text-emerald-300 bg-slate-900/60'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
+                ? 'gh-focus-border gh-accent font-semibold'
+                : 'border-transparent gh-text-secondary hover:gh-text-primary'
             ]"
           >
-            <span>🥞 Active Map WMS Layers</span>
-            <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-800 text-white font-bold">
+            <span>Active Map Layers</span>
+            <span class="px-1.5 py-0.5 rounded-[5px] text-[11.5px] font-mono gh-surface-primary border gh-border gh-text-primary">
               {{ harvestStore.activeWmsLayers.length }}
             </span>
           </button>
         </div>
 
-        <div class="text-[11px] text-slate-400 pb-1.5 font-mono">
+        <div class="text-[12px] gh-text-muted font-mono">
           Extent: [{{ activeExportBbox.map((n) => Number(n).toFixed(3)).join(', ') }}]
         </div>
       </div>
@@ -513,125 +517,113 @@ onMounted(() => {
       <!-- Status Toast Banner -->
       <div
         v-if="exportMessage || exportError || aoiStatusMessage || aoiUploadError"
-        class="px-5 py-2 bg-slate-950 border-b border-slate-800 flex items-center justify-between gap-2 shrink-0"
+        class="px-5 py-2 gh-surface-secondary border-b gh-divider flex items-center justify-between gap-2 shrink-0 text-[12.5px]"
       >
         <div class="flex flex-col gap-0.5">
-          <div v-if="exportMessage" class="text-xs text-emerald-300 flex items-center space-x-2">
-            <span>✅ {{ exportMessage }}</span>
+          <div v-if="exportMessage" class="gh-success flex items-center space-x-2">
+            <span>{{ exportMessage }}</span>
             <a
               v-if="exportDownloadUrl"
               :href="exportDownloadUrl"
               target="_blank"
-              class="underline font-bold text-white px-2 py-0.5 rounded bg-emerald-700 hover:bg-emerald-600"
+              class="underline font-semibold gh-accent"
             >
-              ⬇ Download GeoTIFF
+              Download GeoTIFF &darr;
             </a>
           </div>
-          <div v-if="aoiStatusMessage" class="text-xs text-sky-300">
-            📐 {{ aoiStatusMessage }}
+          <div v-if="aoiStatusMessage" class="gh-accent">
+            {{ aoiStatusMessage }}
           </div>
-          <div v-if="exportError || aoiUploadError" class="text-xs text-red-400">
-            ⚠️ {{ exportError || aoiUploadError }}
+          <div v-if="exportError || aoiUploadError" class="gh-error">
+            {{ exportError || aoiUploadError }}
           </div>
         </div>
         <button
           @click="exportMessage = null; exportError = null; aoiStatusMessage = null; aoiUploadError = null"
-          class="text-[10px] text-slate-400 hover:text-white cursor-pointer"
+          class="text-[12px] gh-text-muted hover:gh-text-primary cursor-pointer"
         >
           Dismiss
         </button>
       </div>
 
       <!-- Body -->
-      <div class="p-5 overflow-y-auto flex-1 space-y-4">
-        <!-- =================================================================== -->
-        <!-- SHARED AOI & EXTENT SELECTOR (Library / Upload / URL BBox / Map)     -->
-        <!-- =================================================================== -->
-        <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
+      <div class="p-5 overflow-y-auto flex-1 space-y-4 text-[13px]">
+        <!-- SHARED AOI & EXTENT SELECTOR -->
+        <div class="p-3.5 rounded-[10px] gh-surface-primary border gh-border space-y-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b gh-divider pb-2.5">
             <div>
-              <div class="text-xs font-bold text-white flex items-center space-x-2">
-                <span>📐 Target Area of Interest (AOI) &amp; Export Extent</span>
-                <span class="text-[10px] px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-emerald-400 font-mono">
+              <div class="font-semibold gh-text-primary flex items-center space-x-2">
+                <span>Export Extent &amp; AOI Boundary</span>
+                <span class="text-[12px] px-2 py-0.5 rounded-[5px] gh-surface-secondary border gh-border gh-accent font-mono">
                   {{
                     aoiSourceMode === 'url_bbox'
-                      ? 'Using URL BBox'
+                      ? 'URL BBox'
                       : aoiSourceMode === 'library'
-                        ? `AOI Library: ${harvestStore.aoiName}`
+                        ? `Library: ${harvestStore.aoiName}`
                         : aoiSourceMode === 'upload'
                           ? `Uploaded: ${harvestStore.aoiName}`
                           : harvestStore.hasAoi
-                            ? `Active Map AOI: ${harvestStore.aoiName}`
+                            ? `Map AOI: ${harvestStore.aoiName}`
                             : 'Custom Bounds'
                   }}
                 </span>
               </div>
-              <p class="text-[11px] text-slate-400 mt-0.5">
-                Choose the bounding box or polygon mask for WMS preview and GeoTIFF export: use the URL's auto-detected BBox, pick from your Saved AOI Library, or upload a GeoJSON/KML file.
+              <p class="text-[12px] gh-text-secondary mt-0.5">
+                Define the bounding extent or polygon mask for WMS map overlays and GeoTIFF exports.
               </p>
             </div>
 
-            <!-- 4 Mode Switcher Pills -->
             <div class="flex flex-wrap gap-1 shrink-0">
               <button
                 @click="aoiSourceMode = 'url_bbox'"
                 :class="[
-                  'px-2.5 py-1 rounded text-[11px] font-semibold border cursor-pointer transition-colors',
-                  aoiSourceMode === 'url_bbox'
-                    ? 'bg-emerald-600 text-white border-emerald-500 bw-primary-btn'
-                    : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                  'px-2.5 py-1 rounded-[6px] text-[12px] font-medium cursor-pointer transition-colors',
+                  aoiSourceMode === 'url_bbox' ? 'gh-btn-primary' : 'gh-btn-secondary'
                 ]"
               >
-                🔗 URL Detected BBox
+                URL BBox
               </button>
               <button
                 @click="aoiSourceMode = 'library'; harvestStore.loadSavedAois()"
                 :class="[
-                  'px-2.5 py-1 rounded text-[11px] font-semibold border cursor-pointer transition-colors',
-                  aoiSourceMode === 'library'
-                    ? 'bg-emerald-600 text-white border-emerald-500 bw-primary-btn'
-                    : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                  'px-2.5 py-1 rounded-[6px] text-[12px] font-medium cursor-pointer transition-colors',
+                  aoiSourceMode === 'library' ? 'gh-btn-primary' : 'gh-btn-secondary'
                 ]"
               >
-                📚 Select AOI Library ({{ harvestStore.savedAois.length }})
+                Library ({{ harvestStore.savedAois.length }})
               </button>
               <button
                 @click="aoiSourceMode = 'upload'"
                 :class="[
-                  'px-2.5 py-1 rounded text-[11px] font-semibold border cursor-pointer transition-colors',
-                  aoiSourceMode === 'upload'
-                    ? 'bg-emerald-600 text-white border-emerald-500 bw-primary-btn'
-                    : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                  'px-2.5 py-1 rounded-[6px] text-[12px] font-medium cursor-pointer transition-colors',
+                  aoiSourceMode === 'upload' ? 'gh-btn-primary' : 'gh-btn-secondary'
                 ]"
               >
-                📤 Upload AOI File
+                Upload
               </button>
               <button
                 @click="aoiSourceMode = 'active_aoi'"
                 :class="[
-                  'px-2.5 py-1 rounded text-[11px] font-semibold border cursor-pointer transition-colors',
-                  aoiSourceMode === 'active_aoi'
-                    ? 'bg-emerald-600 text-white border-emerald-500 bw-primary-btn'
-                    : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                  'px-2.5 py-1 rounded-[6px] text-[12px] font-medium cursor-pointer transition-colors',
+                  aoiSourceMode === 'active_aoi' ? 'gh-btn-primary' : 'gh-btn-secondary'
                 ]"
               >
-                🗺️ Active Map AOI
+                Map AOI
               </button>
             </div>
           </div>
 
-          <!-- Mode 1: Select Existing AOI from AOI Library -->
           <div v-if="aoiSourceMode === 'library'" class="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center pt-1">
             <div class="md:col-span-7">
-              <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">
-                Saved Polygons in AOI Library ({{ harvestStore.savedAois.length }} available)
+              <label class="block gh-label mb-1">
+                Saved AOI Polygons ({{ harvestStore.savedAois.length }})
               </label>
               <select
                 v-model="selectedLibraryAoiId"
                 @change="selectSavedAoiFromLibrary"
-                class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-white"
+                class="w-full gh-input px-3 py-1.5 text-[12.5px]"
               >
-                <option value="">-- Choose a saved AOI polygon from library --</option>
+                <option value="">Choose a saved AOI polygon...</option>
                 <option v-for="item in harvestStore.savedAois" :key="item.id" :value="item.id">
                   {{ item.name }} — {{ Math.round(item.area_km2 || 0).toLocaleString() }} km² ({{ item.crs || 'EPSG:4326' }})
                 </option>
@@ -640,31 +632,31 @@ onMounted(() => {
             <div class="md:col-span-5 flex items-end gap-2 pt-3 md:pt-4">
               <button
                 @click="harvestStore.loadLadakhSample().then(() => { aoiSourceMode = 'active_aoi'; aoiStatusMessage = 'Loaded Ladakh Regional Study Area AOI.' })"
-                class="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 border border-slate-700 cursor-pointer"
+                class="px-3 py-1.5 gh-btn-secondary text-[12px] cursor-pointer"
               >
-                🏔️ Load Ladakh Sample
+                Load Ladakh Sample
               </button>
               <button
                 @click="harvestStore.loadSavedAois()"
-                class="px-2.5 py-1.5 rounded bg-slate-900 hover:bg-slate-800 text-xs text-slate-300 border border-slate-700 cursor-pointer"
+                class="px-2.5 py-1.5 gh-btn-secondary text-[12px] cursor-pointer"
               >
-                🔄 Refresh
+                Refresh
               </button>
             </div>
           </div>
 
-          <!-- Mode 2: Upload AOI File (.geojson, .json, .kml, .wkt) -->
           <div v-if="aoiSourceMode === 'upload'" class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
             <div class="flex-1">
-              <div class="text-xs font-semibold text-slate-200">
-                Upload GeoJSON (`.geojson`, `.json`), KML (`.kml`), or WKT (`.wkt`) Boundary File
+              <div class="text-[13px] font-medium gh-text-primary">
+                Upload GeoJSON, KML, or WKT Boundary
               </div>
-              <div class="text-[11px] text-slate-400">
-                Automatically validates geometry, computes geodesic area, saves to your AOI Library, and sets the WMS export extent.
+              <div class="text-[12px] gh-text-secondary">
+                Validates geometry, computes area, and sets WMS export extent.
               </div>
             </div>
-            <label class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold border border-emerald-500 cursor-pointer text-center shrink-0 bw-primary-btn">
-              <span>{{ isUploadingAoi ? '⏳ Uploading...' : '📤 Choose AOI File (.geojson / .kml)' }}</span>
+            <label class="px-3.5 py-2 gh-btn-primary text-[12.5px] cursor-pointer text-center shrink-0 flex items-center space-x-1.5">
+              <FolderUp class="w-3.5 h-3.5" />
+              <span>{{ isUploadingAoi ? 'Uploading...' : 'Choose AOI File' }}</span>
               <input
                 type="file"
                 accept=".geojson,.json,.kml,.wkt"
@@ -675,77 +667,55 @@ onMounted(() => {
             </label>
           </div>
 
-          <!-- Editable Bounding Box Coordinates & Clip Checkbox -->
+          <!-- Editable Bounding Box Coordinates -->
           <div class="grid grid-cols-2 sm:grid-cols-6 gap-2 pt-1 items-end">
             <div>
-              <label class="block text-[10px] text-slate-400 font-mono">Min Lon (West)</label>
-              <input
-                v-model.number="customBbox[0]"
-                type="number"
-                step="0.01"
-                class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white font-mono"
-              />
+              <label class="block text-[11.5px] gh-text-muted font-mono">Min Lon</label>
+              <input v-model.number="customBbox[0]" type="number" step="0.01" class="w-full gh-input px-2 py-1 text-[12px] font-mono" />
             </div>
             <div>
-              <label class="block text-[10px] text-slate-400 font-mono">Min Lat (South)</label>
-              <input
-                v-model.number="customBbox[1]"
-                type="number"
-                step="0.01"
-                class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white font-mono"
-              />
+              <label class="block text-[11.5px] gh-text-muted font-mono">Min Lat</label>
+              <input v-model.number="customBbox[1]" type="number" step="0.01" class="w-full gh-input px-2 py-1 text-[12px] font-mono" />
             </div>
             <div>
-              <label class="block text-[10px] text-slate-400 font-mono">Max Lon (East)</label>
-              <input
-                v-model.number="customBbox[2]"
-                type="number"
-                step="0.01"
-                class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white font-mono"
-              />
+              <label class="block text-[11.5px] gh-text-muted font-mono">Max Lon</label>
+              <input v-model.number="customBbox[2]" type="number" step="0.01" class="w-full gh-input px-2 py-1 text-[12px] font-mono" />
             </div>
             <div>
-              <label class="block text-[10px] text-slate-400 font-mono">Max Lat (North)</label>
-              <input
-                v-model.number="customBbox[3]"
-                type="number"
-                step="0.01"
-                class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white font-mono"
-              />
+              <label class="block text-[11.5px] gh-text-muted font-mono">Max Lat</label>
+              <input v-model.number="customBbox[3]" type="number" step="0.01" class="w-full gh-input px-2 py-1 text-[12px] font-mono" />
             </div>
             <div class="col-span-2 flex items-center gap-2">
               <button
                 @click="applyUrlBboxAsMapAoi"
-                class="flex-1 py-1.5 px-2.5 rounded bg-slate-800 hover:bg-slate-700 text-emerald-300 text-[11px] font-semibold border border-slate-700 cursor-pointer"
-                title="Save this BBox to AOI Library and set as Active Map AOI"
+                class="flex-1 py-1.5 px-2.5 gh-btn-secondary text-[12px] cursor-pointer"
+                title="Save BBox to AOI Library & Set on Map"
               >
-                📌 Save BBox to AOI Library &amp; Map
+                Save BBox as Map AOI
               </button>
             </div>
           </div>
 
-          <div v-if="aoiSourceMode !== 'url_bbox' && harvestStore.hasAoi" class="flex items-center space-x-2 pt-1">
-            <input id="wms-clip-poly" v-model="clipToAoiPolygon" type="checkbox" class="rounded" />
-            <label for="wms-clip-poly" class="text-[11px] text-emerald-300 cursor-pointer">
-              ✂️ Clip / Mask exported GeoTIFF to exact AOI polygon boundary ({{ harvestStore.aoiName }})
-            </label>
-          </div>
+          <label v-if="aoiSourceMode !== 'url_bbox' && harvestStore.hasAoi" class="flex items-center space-x-2 pt-1 cursor-pointer">
+            <input v-model="clipToAoiPolygon" type="checkbox" class="rounded w-3.5 h-3.5" />
+            <span class="text-[12px] gh-accent">
+              Clip exported GeoTIFF to exact AOI polygon ({{ harvestStore.aoiName }})
+            </span>
+          </label>
         </div>
 
-        <!-- =================================================================== -->
-        <!-- TAB 1: SMART WMS URL AUTO-DETECT & GETCAPABILITIES                   -->
-        <!-- =================================================================== -->
+        <!-- TAB 1: SMART WMS URL AUTO-DETECT -->
         <div v-if="activeTab === 'custom'" class="space-y-4">
-          <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+          <div class="p-4 rounded-[10px] gh-surface-primary border gh-border space-y-3">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <label class="block text-xs font-bold text-slate-200">
-                Paste OGC WMS URL (Full `GetMap` Link or Base Service Endpoint)
+              <label class="block font-semibold gh-text-primary text-[13px]">
+                OGC WMS URL (GetMap or Service Endpoint)
               </label>
               <button
                 @click="loadSampleVedasUrl"
-                class="text-[11px] text-emerald-400 hover:text-emerald-300 underline font-mono cursor-pointer text-left"
+                class="text-[12px] gh-accent hover:underline font-mono cursor-pointer text-left"
               >
-                🇮🇳 Load Sample VEDAS SAC India DSM GetMap URL
+                Load Sample ISRO VEDAS DSM URL
               </button>
             </div>
 
@@ -753,184 +723,145 @@ onMounted(() => {
               <input
                 v-model="customUrl"
                 type="text"
-                placeholder="Paste https://vedas.sac.gov.in/geoserver/vedas/wms?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=..."
-                class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
+                placeholder="Paste WMS URL..."
+                class="flex-1 gh-input px-3 py-1.5 text-[12.5px] font-mono"
                 @keyup.enter="connectCustomWms"
               />
-              <select
-                v-model="customVersion"
-                class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white"
-              >
+              <select v-model="customVersion" class="gh-input px-2.5 py-1.5 text-[12.5px]">
                 <option value="1.1.1">WMS 1.1.1</option>
                 <option value="1.3.0">WMS 1.3.0</option>
               </select>
               <button
                 @click="connectCustomWms"
                 :disabled="isFetchingCapabilities"
-                class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold border border-slate-600 disabled:opacity-50 cursor-pointer shrink-0"
+                class="px-3.5 py-1.5 gh-btn-secondary text-[12.5px] cursor-pointer shrink-0 flex items-center space-x-1.5"
               >
-                {{ isFetchingCapabilities ? '⏳ Scanning...' : '🔍 Fetch Server Layers' }}
+                <Search class="w-3.5 h-3.5 gh-accent" />
+                <span>{{ isFetchingCapabilities ? 'Scanning...' : 'Fetch Layers' }}</span>
               </button>
             </div>
 
-            <!-- ⚡ AUTO-DETECTED CONFIGURATION CARD (Shown immediately when URL is pasted) -->
-            <div
-              v-if="detectedConfig"
-              class="mt-3 p-3.5 rounded-lg bg-slate-900/90 border border-emerald-500/40 space-y-3"
-            >
-              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2">
+            <!-- Auto-detected configuration -->
+            <div v-if="detectedConfig" class="mt-3 pt-3 border-t gh-divider space-y-3">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div class="flex items-center space-x-2">
-                  <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-600 text-white uppercase">
-                    ⚡ Auto-Detected Configuration
+                  <span class="px-2 py-0.5 rounded-[5px] text-[11.5px] font-semibold gh-selected-bg gh-accent">
+                    Auto-Detected
                   </span>
-                  <span class="text-xs font-mono text-slate-300 truncate max-w-md">
+                  <span class="text-[12px] font-mono gh-text-secondary truncate max-w-md">
                     {{ configBaseUrl }}
                   </span>
                 </div>
-                <span class="text-[11px] font-mono text-emerald-400">
-                  {{ detectedConfig.is_getmap ? 'Full GetMap Parameters Detected' : 'WMS Service Endpoint' }}
+                <span class="text-[12px] font-mono gh-text-muted">
+                  {{ detectedConfig.is_getmap ? 'GetMap Parameters' : 'Service Endpoint' }}
                 </span>
               </div>
 
-              <!-- Editable Detected Parameters Grid -->
               <div class="grid grid-cols-2 sm:grid-cols-6 gap-2.5">
                 <div class="col-span-2">
-                  <label class="block text-[10px] text-slate-400 uppercase font-bold mb-0.5">Layer Name (`LAYERS`)</label>
-                  <input
-                    v-model="configLayer"
-                    type="text"
-                    placeholder="e.g. vedas:INDIA_500KDSM2018_19"
-                    class="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono"
-                  />
+                  <label class="block text-[11.5px] gh-text-muted font-medium mb-0.5">Layer (`LAYERS`)</label>
+                  <input v-model="configLayer" type="text" class="w-full gh-input px-2.5 py-1.5 text-[12.5px] font-mono" />
                 </div>
                 <div class="col-span-2">
-                  <label class="block text-[10px] text-slate-400 uppercase font-bold mb-0.5">Style / SLD (`STYLES`)</label>
-                  <input
-                    v-model="configStyles"
-                    type="text"
-                    placeholder="e.g. VEDAS_DSM_SLD_2011_13 (or blank)"
-                    class="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono"
-                  />
+                  <label class="block text-[11.5px] gh-text-muted font-medium mb-0.5">Style / SLD</label>
+                  <input v-model="configStyles" type="text" class="w-full gh-input px-2.5 py-1.5 text-[12.5px] font-mono" />
                 </div>
                 <div>
-                  <label class="block text-[10px] text-slate-400 uppercase font-bold mb-0.5">SRS / CRS</label>
-                  <input
-                    v-model="configCrs"
-                    type="text"
-                    class="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono"
-                  />
+                  <label class="block text-[11.5px] gh-text-muted font-medium mb-0.5">CRS</label>
+                  <input v-model="configCrs" type="text" class="w-full gh-input px-2.5 py-1.5 text-[12.5px] font-mono" />
                 </div>
                 <div>
-                  <label class="block text-[10px] text-slate-400 uppercase font-bold mb-0.5">Format</label>
-                  <input
-                    v-model="configFormat"
-                    type="text"
-                    class="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono"
-                  />
+                  <label class="block text-[11.5px] gh-text-muted font-medium mb-0.5">Format</label>
+                  <input v-model="configFormat" type="text" class="w-full gh-input px-2.5 py-1.5 text-[12.5px] font-mono" />
                 </div>
               </div>
 
               <div class="grid grid-cols-2 sm:grid-cols-6 gap-2.5 items-end">
                 <div>
-                  <label class="block text-[10px] text-slate-400 uppercase font-bold mb-0.5">Width (px)</label>
-                  <input
-                    v-model.number="exportWidth"
-                    type="number"
-                    min="128"
-                    max="4096"
-                    class="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono"
-                  />
+                  <label class="block text-[11.5px] gh-text-muted font-medium mb-0.5">Width (px)</label>
+                  <input v-model.number="exportWidth" type="number" min="128" max="4096" class="w-full gh-input px-2.5 py-1.5 text-[12.5px] font-mono" />
                 </div>
                 <div>
-                  <label class="block text-[10px] text-slate-400 uppercase font-bold mb-0.5">Height (px)</label>
-                  <input
-                    v-model.number="exportHeight"
-                    type="number"
-                    min="128"
-                    max="4096"
-                    class="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono"
-                  />
+                  <label class="block text-[11.5px] gh-text-muted font-medium mb-0.5">Height (px)</label>
+                  <input v-model.number="exportHeight" type="number" min="128" max="4096" class="w-full gh-input px-2.5 py-1.5 text-[12.5px] font-mono" />
                 </div>
 
-                <!-- Direct Action Buttons for Detected Layer -->
                 <div class="col-span-2 sm:col-span-4 flex flex-wrap gap-2 justify-end">
                   <button
                     @click="addLayerToMap(configBaseUrl, configLayer, configLayer, customVersion, configStyles, configFormat, activeExportBbox)"
                     :disabled="!configLayer"
-                    class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold cursor-pointer bw-primary-btn"
+                    class="px-3.5 py-2 gh-btn-primary text-[12.5px] cursor-pointer"
                   >
-                    {{ isLayerOnMap(configBaseUrl, configLayer) ? '✓ Active on Map (Zoom)' : '+ Add Detected Layer to Map & Zoom' }}
+                    {{ isLayerOnMap(configBaseUrl, configLayer) ? 'Active on Map (Zoom)' : '+ Add Layer to Map' }}
                   </button>
                   <button
                     @click="exportLayerToGeoTiff(configBaseUrl, configLayer, configLayer, customVersion, configStyles, configFormat)"
                     :disabled="!configLayer || exportingLayerKey === `${configBaseUrl.split('?')[0]}__${configLayer}`"
-                    class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white text-xs font-bold border border-slate-600 cursor-pointer"
+                    class="px-3.5 py-2 gh-btn-secondary text-[12.5px] flex items-center space-x-1.5 cursor-pointer"
                   >
-                    {{
-                      exportingLayerKey === `${configBaseUrl.split('?')[0]}__${configLayer}`
-                        ? '⏳ Exporting GeoTIFF...'
-                        : '⬇ Export GeoTIFF Over Selected AOI'
-                    }}
+                    <Download class="w-3.5 h-3.5 gh-accent" />
+                    <span>
+                      {{ exportingLayerKey === `${configBaseUrl.split('?')[0]}__${configLayer}` ? 'Exporting...' : 'Export GeoTIFF' }}
+                    </span>
                   </button>
                 </div>
               </div>
             </div>
           </div>
 
-          <div v-if="capabilitiesError" class="p-3 rounded bg-red-950/50 border border-red-800 text-xs text-red-300">
+          <div v-if="capabilitiesError" class="p-3 rounded-[8px] gh-error-soft-bg border gh-error-border text-[12.5px] gh-error">
             {{ capabilitiesError }}
           </div>
 
-          <div v-if="capabilitiesResult" class="space-y-3">
-            <div class="p-3 rounded bg-slate-950 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div v-if="capabilitiesResult" class="border gh-border rounded-[10px] overflow-hidden gh-surface-primary">
+            <div class="px-4 py-2.5 gh-surface-secondary border-b gh-divider flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
-                <div class="text-xs font-bold text-white">{{ capabilitiesResult.service_title }}</div>
-                <div class="text-[11px] text-slate-400">
-                  Discovered {{ capabilitiesResult.layer_count }} layers • Version {{ capabilitiesResult.version }}
+                <div class="text-[13px] font-semibold gh-text-primary">{{ capabilitiesResult.service_title }}</div>
+                <div class="text-[12px] gh-text-secondary">
+                  {{ capabilitiesResult.layer_count }} layers &middot; WMS {{ capabilitiesResult.version }}
                 </div>
               </div>
               <input
                 v-model="layerFilterQuery"
                 type="text"
-                placeholder="Filter discovered layers..."
-                class="bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-white w-full sm:w-64"
+                placeholder="Filter layers..."
+                class="gh-input px-3 py-1 text-[12.5px] w-full sm:w-60"
               />
             </div>
 
-            <div class="max-h-72 overflow-y-auto space-y-1.5 pr-1">
+            <div class="max-h-72 overflow-y-auto divide-y gh-divide">
               <div
                 v-for="layer in filteredCustomLayers"
                 :key="layer.name"
-                class="p-2.5 rounded bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-3 hover:border-slate-700"
+                class="px-4 py-2.5 flex items-center justify-between gap-3 hover:gh-surface-secondary"
               >
                 <div class="min-w-0 flex-1">
                   <div class="flex items-center space-x-2">
-                    <span class="text-xs font-semibold text-white truncate">{{ layer.title }}</span>
+                    <span class="text-[13px] font-medium gh-text-primary truncate">{{ layer.title }}</span>
                     <span
                       v-if="layer.auto_detected"
-                      class="px-1.5 py-0.5 rounded bg-emerald-900/80 text-emerald-300 text-[10px] font-bold"
+                      class="px-1.5 py-0.5 rounded-[5px] gh-selected-bg gh-accent text-[11px] font-medium"
                     >
-                      URL Match
+                      Match
                     </span>
                   </div>
-                  <div class="text-[10px] font-mono text-slate-400 truncate">
-                    Layer: {{ layer.name }}
-                    <span v-if="layer.styles"> • Style: {{ layer.styles }}</span>
+                  <div class="text-[12px] font-mono gh-text-muted truncate">
+                    {{ layer.name }}<span v-if="layer.styles"> &middot; Style: {{ layer.styles }}</span>
                   </div>
                 </div>
                 <div class="flex items-center space-x-1.5 shrink-0">
                   <button
                     @click="addLayerToMap(capabilitiesResult.service_url, layer.name, layer.title, capabilitiesResult.version, layer.styles || '', layer.format || 'image/png', layer.bbox)"
-                    class="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold cursor-pointer bw-primary-btn"
+                    class="px-2.5 py-1 gh-btn-primary text-[12px] cursor-pointer"
                   >
-                    {{ isLayerOnMap(capabilitiesResult.service_url, layer.name) ? '✓ On Map' : '+ Add to Map' }}
+                    {{ isLayerOnMap(capabilitiesResult.service_url, layer.name) ? 'On Map' : '+ Map' }}
                   </button>
                   <button
                     @click="exportLayerToGeoTiff(capabilitiesResult.service_url, layer.name, layer.title, capabilitiesResult.version, layer.styles || '', layer.format || 'image/png')"
                     :disabled="exportingLayerKey === `${capabilitiesResult.service_url}__${layer.name}`"
-                    class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] border border-slate-700 cursor-pointer"
+                    class="px-2.5 py-1 gh-btn-secondary text-[12px] cursor-pointer"
                   >
-                    {{ exportingLayerKey === `${capabilitiesResult.service_url}__${layer.name}` ? '⏳...' : '⬇ GeoTIFF' }}
+                    {{ exportingLayerKey === `${capabilitiesResult.service_url}__${layer.name}` ? '...' : 'GeoTIFF' }}
                   </button>
                 </div>
               </div>
@@ -938,34 +869,32 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- =================================================================== -->
-        <!-- TAB 2: CURATED PRESETS                                               -->
-        <!-- =================================================================== -->
+        <!-- TAB 2: CURATED PRESETS -->
         <div v-if="activeTab === 'presets'" class="space-y-4">
-          <div v-if="loadingPresets" class="text-center py-8 text-xs text-slate-400">
+          <div v-if="loadingPresets" class="text-center py-8 text-[13px] gh-text-secondary">
             Loading curated OGC WMS endpoints...
           </div>
           <div
             v-for="service in presets"
             :key="service.id"
-            class="p-4 rounded-lg bg-slate-950/70 border border-slate-800 space-y-3"
+            class="p-4 rounded-[10px] gh-surface-primary border gh-border space-y-3"
           >
             <div class="flex items-start justify-between">
               <div>
                 <div class="flex items-center space-x-2">
-                  <h3 class="text-xs font-bold text-white">{{ service.name }}</h3>
-                  <span class="px-2 py-0.5 text-[10px] rounded bg-slate-800 text-slate-300 border border-slate-700">
+                  <h3 class="text-[14px] font-semibold gh-text-primary">{{ service.name }}</h3>
+                  <span class="px-2 py-0.5 text-[11.5px] rounded-[5px] gh-surface-secondary gh-text-secondary border gh-border">
                     {{ service.category }}
                   </span>
                 </div>
-                <p class="text-[11px] text-slate-400 mt-0.5">{{ service.description }}</p>
-                <p class="text-[10px] font-mono text-slate-500 mt-0.5">{{ service.url }}</p>
+                <p class="text-[12.5px] gh-text-secondary mt-0.5">{{ service.description }}</p>
+                <p class="text-[12px] font-mono gh-text-muted mt-0.5">{{ service.url }}</p>
               </div>
               <button
                 @click="customUrl = service.url; customVersion = service.version || '1.1.1'; activeTab = 'custom'; connectCustomWms()"
-                class="px-2.5 py-1 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 shrink-0 cursor-pointer"
+                class="px-2.5 py-1 gh-btn-secondary text-[12px] shrink-0 cursor-pointer"
               >
-                🔍 Inspect Server
+                Inspect Server
               </button>
             </div>
 
@@ -973,36 +902,32 @@ onMounted(() => {
               <div
                 v-for="layer in service.default_layers"
                 :key="layer.name"
-                class="p-2.5 rounded bg-slate-900 border border-slate-800 flex items-center justify-between gap-2"
+                class="p-2.5 rounded-[8px] gh-surface-secondary border gh-border flex items-center justify-between gap-2"
               >
                 <div class="min-w-0">
-                  <div class="text-xs font-semibold text-slate-200 truncate" :title="layer.title">
+                  <div class="text-[12.5px] font-medium gh-text-primary truncate" :title="layer.title">
                     {{ layer.title }}
                   </div>
-                  <div class="text-[10px] font-mono text-slate-400 truncate">
-                    {{ layer.name }}
-                    <span v-if="layer.styles"> ({{ layer.styles }})</span>
+                  <div class="text-[11.5px] font-mono gh-text-muted truncate">
+                    {{ layer.name }}<span v-if="layer.styles"> ({{ layer.styles }})</span>
                   </div>
                 </div>
                 <div class="flex items-center space-x-1.5 shrink-0">
                   <button
                     @click="addLayerToMap(service.url, layer.name, layer.title, service.version, layer.styles || '', layer.format || 'image/png', layer.bbox)"
                     :class="[
-                      'px-2.5 py-1 rounded text-[11px] font-semibold border transition-colors cursor-pointer',
-                      isLayerOnMap(service.url, layer.name)
-                        ? 'bg-emerald-950/60 border-emerald-600 text-emerald-300'
-                        : 'bg-emerald-600 hover:bg-emerald-500 border-emerald-500 text-white bw-primary-btn'
+                      'px-2.5 py-1 rounded-[6px] text-[12px] cursor-pointer',
+                      isLayerOnMap(service.url, layer.name) ? 'gh-btn-secondary gh-accent' : 'gh-btn-primary'
                     ]"
                   >
-                    {{ isLayerOnMap(service.url, layer.name) ? '✓ On Map' : '+ Map' }}
+                    {{ isLayerOnMap(service.url, layer.name) ? 'On Map' : '+ Map' }}
                   </button>
                   <button
                     @click="exportLayerToGeoTiff(service.url, layer.name, layer.title, service.version, layer.styles || '', layer.format || 'image/png')"
                     :disabled="exportingLayerKey === `${service.url}__${layer.name}`"
-                    class="px-2 py-1 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 disabled:opacity-50 cursor-pointer"
-                    title="Harvest GeoTIFF over selected AOI"
+                    class="px-2 py-1 gh-btn-secondary text-[12px] cursor-pointer"
                   >
-                    {{ exportingLayerKey === `${service.url}__${layer.name}` ? '⏳...' : '⬇ GeoTIFF' }}
+                    {{ exportingLayerKey === `${service.url}__${layer.name}` ? '...' : 'GeoTIFF' }}
                   </button>
                 </div>
               </div>
@@ -1010,21 +935,19 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- =================================================================== -->
-        <!-- TAB 3: ACTIVE WMS LAYERS                                             -->
-        <!-- =================================================================== -->
-        <div v-if="activeTab === 'active'" class="space-y-3">
+        <!-- TAB 3: ACTIVE WMS LAYERS -->
+        <div v-if="activeTab === 'active'" class="space-y-2.5">
           <div
             v-if="harvestStore.activeWmsLayers.length === 0"
-            class="p-8 text-center rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-400"
+            class="p-10 text-center rounded-[10px] gh-surface-primary border gh-border text-[13px] gh-text-secondary"
           >
-            No WMS layers are currently active on the map. Paste a WMS URL or choose a preset to overlay layers.
+            No WMS layers are currently active on the map.
           </div>
 
           <div
             v-for="layer in harvestStore.activeWmsLayers"
             :key="layer.id"
-            class="p-3.5 rounded-lg bg-slate-950 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+            class="p-3.5 rounded-[10px] gh-surface-primary border gh-border flex flex-col sm:flex-row sm:items-center justify-between gap-3"
           >
             <div class="min-w-0 flex-1">
               <div class="flex items-center space-x-2">
@@ -1032,42 +955,42 @@ onMounted(() => {
                   type="checkbox"
                   :checked="layer.visible"
                   @change="harvestStore.toggleWmsLayer(layer.id)"
-                  class="rounded border-slate-600"
+                  class="rounded cursor-pointer w-3.5 h-3.5"
                 />
-                <span class="text-xs font-bold text-white truncate">{{ layer.title }}</span>
-                <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
+                <span class="text-[13px] font-semibold gh-text-primary truncate">{{ layer.title }}</span>
+                <span class="text-[11.5px] font-mono px-1.5 py-0.5 rounded-[5px] gh-surface-secondary gh-text-secondary">
                   {{ layer.name }}
                 </span>
-                <span v-if="layer.styles" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-900 text-emerald-400 border border-slate-700">
+                <span v-if="layer.styles" class="text-[11.5px] font-mono gh-accent">
                   Style: {{ layer.styles }}
                 </span>
               </div>
-              <div class="text-[10px] font-mono text-slate-500 truncate mt-1">{{ layer.url }}</div>
+              <div class="text-[11.5px] font-mono gh-text-muted truncate mt-1">{{ layer.url }}</div>
             </div>
 
             <div class="flex items-center space-x-3 shrink-0">
               <div class="flex items-center space-x-1.5">
-                <span class="text-[10px] text-slate-400">Opacity</span>
+                <span class="text-[12px] gh-text-secondary">Opacity</span>
                 <input
                   v-model.number="layer.opacity"
                   type="range"
                   min="0.1"
                   max="1"
                   step="0.05"
-                  class="w-20 accent-emerald-500"
+                  class="w-20 cursor-pointer"
                 />
-                <span class="text-[10px] font-mono text-slate-300 w-8">{{ Math.round(layer.opacity * 100) }}%</span>
+                <span class="text-[12px] font-mono gh-text-primary w-9">{{ Math.round(layer.opacity * 100) }}%</span>
               </div>
 
               <button
                 @click="exportLayerToGeoTiff(layer.url, layer.name, layer.title, layer.version, layer.styles || '', layer.format || 'image/png')"
-                class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] border border-slate-700 cursor-pointer"
+                class="px-2.5 py-1 gh-btn-secondary text-[12px] cursor-pointer"
               >
-                ⬇ GeoTIFF
+                GeoTIFF
               </button>
               <button
                 @click="harvestStore.removeWmsLayer(layer.id)"
-                class="px-2.5 py-1 rounded bg-red-950/60 hover:bg-red-900/70 text-red-300 text-[11px] border border-red-800 cursor-pointer"
+                class="px-2.5 py-1 rounded-[6px] gh-btn-ghost gh-error text-[12px] cursor-pointer"
               >
                 Remove
               </button>

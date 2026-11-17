@@ -81,19 +81,22 @@ def test_hierarchical_directory_structure():
         assert job.job_metadata["task_name"] == "Ladakh_Glacier_Cryo_Task"
         assert job.job_metadata["destination_dir"] == str(custom_dir.resolve())
 
-        # Check that download destination path matches: task_name > year > month > scene_name
+        # Check that band downloads stage under .staging and final scene plan points to:
+        # dest_root / task_name / dataset / year / month / scene_id.tif
         dls = db.query(Download).filter(Download.job_id == job.id).all()
         assert len(dls) == 1
         dl_dest = Path(dls[0].destination)
-
-        # Expected path components
-        assert dl_dest.parent.name == "S2A_MSIL2A_20240915T053201_R105_T43SFU"
-        assert dl_dest.parent.parent.name == "09"  # Month
-        assert dl_dest.parent.parent.parent.name == "2024"  # Year
-        assert dl_dest.parent.parent.parent.parent.name == "Ladakh_Glacier_Cryo_Task"  # Task Name
-
-        # Check that scene directory was actually created on disk
+        assert ".staging" in dl_dest.parts
+        assert job.id in dl_dest.parts
         assert dl_dest.parent.exists()
+
+        plan = job.job_metadata["scene_plans"][sample_scene.id]
+        final_out = Path(plan["final_output_path"])
+        assert final_out.name == "S2A_MSIL2A_20240915T053201_R105_T43SFU.tif"
+        assert final_out.parent.name == "09"  # Month
+        assert final_out.parent.parent.name == "2024"  # Year
+        assert final_out.parent.parent.parent.name == "sentinel-2-l2a"  # Dataset
+        assert final_out.parent.parent.parent.parent.name == "Ladakh_Glacier_Cryo_Task"  # Task Name
 
     finally:
         db.close()

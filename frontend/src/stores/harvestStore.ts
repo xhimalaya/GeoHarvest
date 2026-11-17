@@ -47,8 +47,8 @@ export const useHarvestStore = defineStore('harvest', {
     inspectingSatellite: null as SatelliteConstellation | null,
 
     // Temporal & Filter criteria
-    startDate: '2024-06-01',
-    endDate: '2024-06-30',
+    startDate: '2026-01-01',
+    endDate: new Date().toISOString().slice(0, 10),
     maxCloudCover: 20,
 
     // Discovery results
@@ -67,7 +67,7 @@ export const useHarvestStore = defineStore('harvest', {
       { id: 'swir22', label: 'B12 - SWIR-2', desc: 'Shortwave IR 20m' },
       { id: 'thumbnail', label: 'Thumbnail', desc: 'Preview JPEG' },
     ],
-    selectedBands: ['visual', 'red', 'green', 'blue', 'nir'],
+    selectedBands: ['red', 'green', 'blue', 'nir'],
 
     // Storage estimation
     storageEstimate: null as StorageEstimateResponse | null,
@@ -128,10 +128,15 @@ export const useHarvestStore = defineStore('harvest', {
     toposheetSortBy: 'sheet_asc' as 'sheet_asc' | 'sheet_desc' | 'scale_50k' | 'scale_250k' | 'lat_desc' | 'lat_asc' | 'lon_asc' | 'lon_desc',
 
     // UI Theme & Ribbon Navbar State
-    uiTheme: ((typeof localStorage !== 'undefined' && localStorage.getItem('geoharvest_theme')) as 'bw-light' | 'bw-dark' | 'dark') || 'bw-dark',
+    uiTheme: ((): 'day' | 'night' => {
+      if (typeof localStorage === 'undefined') return 'day'
+      const raw = localStorage.getItem('geoharvest_theme')
+      if (raw === 'night' || raw === 'bw-dark' || raw === 'dark') return 'night'
+      return 'day'
+    })(),
     activeHarvestStep: 1 as 1 | 2 | 3,
     harvestShowAllSteps: false,
-    activeProcessingTool: 'clip' as 'clip' | 'mosaic' | 'stack' | 'index' | 'terrain' | 'reproject' | 'stats' | 'recipe',
+    activeProcessingTool: 'clip' as 'clip' | 'mosaic' | 'stack' | 'index' | 'terrain' | 'reproject' | 'stats',
     isWmsModalOpen: false,
     activeWmsLayers: [] as Array<{
       id: string
@@ -1165,14 +1170,26 @@ export const useHarvestStore = defineStore('harvest', {
       }
     },
 
-    setTheme(theme: 'bw-light' | 'bw-dark' | 'dark') {
-      this.uiTheme = theme
+    setTheme(theme: 'day' | 'night' | string) {
+      const normalized: 'day' | 'night' =
+        theme === 'night' || theme === 'bw-dark' || theme === 'dark' ? 'night' : 'day'
+      this.uiTheme = normalized
       try {
-        localStorage.setItem('geoharvest_theme', theme)
+        localStorage.setItem('geoharvest_theme', normalized)
       } catch (e) {}
       if (typeof document !== 'undefined') {
-        document.documentElement.classList.remove('theme-bw-light', 'theme-bw-dark', 'theme-dark')
-        document.documentElement.classList.add(`theme-${theme}`)
+        document.documentElement.classList.remove(
+          'theme-day',
+          'theme-night',
+          'theme-bw-light',
+          'theme-bw-dark',
+          'theme-dark',
+          'dark'
+        )
+        document.documentElement.classList.add(`theme-${normalized}`)
+        if (normalized === 'night') {
+          document.documentElement.classList.add('dark')
+        }
       }
     },
 
@@ -1184,7 +1201,7 @@ export const useHarvestStore = defineStore('harvest', {
       this.mapCommand = { type, payload, timestamp: Date.now() }
     },
 
-    openProcessingTool(tool: 'clip' | 'mosaic' | 'stack' | 'index' | 'terrain' | 'reproject' | 'stats' | 'recipe') {
+    openProcessingTool(tool: 'clip' | 'mosaic' | 'stack' | 'index' | 'terrain' | 'reproject' | 'stats') {
       this.activeProcessingTool = tool
     },
 

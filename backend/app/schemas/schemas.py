@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from datetime import datetime
 from pydantic import BaseModel, Field
 from backend.app.models.models import JobStatus, DownloadStatus
@@ -102,6 +102,10 @@ class JobCreateRequest(BaseModel):
     bands: List[str] = Field(default_factory=lambda: ["visual", "red", "green", "blue", "nir"])
     aoi: Optional[Dict[str, Any]] = None
     destination_dir: Optional[str] = None
+    target_resolution: Union[str, float] = "finest"
+    resampling_method: str = "bilinear"
+    allow_reproject: bool = False
+    order_by: Optional[str] = None
 
 
 class DownloadProgress(BaseModel):
@@ -113,6 +117,44 @@ class DownloadProgress(BaseModel):
     status: DownloadStatus
     progress_percentage: float
     attempt_count: int
+    error: Optional[str] = None
+    scene_id: Optional[str] = None
+    band: Optional[str] = None
+    final_output_path: Optional[str] = None
+
+
+class SceneBandProgress(BaseModel):
+    download_id: str
+    band: str
+    label: str
+    status: str
+    downloaded_bytes: int = 0
+    total_bytes: int = 0
+    progress_percentage: float = 0.0
+    error: Optional[str] = None
+
+
+class SceneProgressItem(BaseModel):
+    scene_id: str
+    collection: Optional[str] = None
+    dataset_dir: Optional[str] = None
+    datetime: Optional[str] = None
+    year: Optional[str] = None
+    month: Optional[str] = None
+    mode: str = "stack_bands"
+    stack_enabled: bool = True
+    status: str = "pending"
+    output_filename: Optional[str] = None
+    final_output_path: Optional[str] = None
+    relative_output_path: Optional[str] = None
+    selected_bands: List[str] = []
+    completed_bands: int = 0
+    total_bands: int = 0
+    downloaded_bytes: int = 0
+    total_bytes: int = 0
+    progress_percentage: float = 0.0
+    bands: List[SceneBandProgress] = []
+    output_metadata: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
 
 
@@ -133,6 +175,7 @@ class JobResponse(BaseModel):
 
 class JobDetailResponse(JobResponse):
     downloads: List[DownloadProgress] = []
+    scenes: List[SceneProgressItem] = []
     job_metadata: Dict[str, Any] = {}
 
 

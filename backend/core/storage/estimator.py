@@ -2,6 +2,7 @@ import psutil
 from typing import List, Dict, Any
 from backend.app.schemas.schemas import SearchResultItem, StorageEstimateResponse
 from backend.app.dependencies.config import settings
+from backend.core.satellites.bands import resolve_scene_band_selection
 
 
 def format_bytes(bytes_num: int) -> str:
@@ -22,52 +23,17 @@ class StorageEstimator:
         total_raw_bytes = 0
         total_asset_count = 0
 
-        # Normalization mapping for band queries
-        band_aliases = {
-            "b02": ["b02", "blue", "sr_b2"],
-            "b03": ["b03", "green", "sr_b3"],
-            "b04": ["b04", "red", "sr_b4"],
-            "b08": ["b08", "nir"],
-            "b05": ["b05", "rededge1", "nir08", "sr_b5"],
-            "b06": ["b06", "rededge2", "swir16", "sr_b6"],
-            "b07": ["b07", "rededge3", "swir22", "sr_b7"],
-            "b10": ["b10", "lwir11", "st_b10", "thermal"],
-            "b11": ["b11", "swir16"],
-            "b12": ["b12", "swir22"],
-            "visual": ["visual", "tci"],
-            "qa_pixel": ["qa_pixel", "qa_radsat", "qa"],
-            "vv": ["vv"],
-            "vh": ["vh"],
-            "data": ["data", "dem"],
-            "thumbnail": ["thumbnail", "rendered_preview", "reduced_resolution_browse"],
-        }
-
-        # Normalize selected bands to lower case
-        normalized_requested = set()
-        for b in selected_bands:
-            b_lower = b.lower()
-            normalized_requested.add(b_lower)
-            if b_lower in band_aliases:
-                normalized_requested.update(band_aliases[b_lower])
-
         for scene in scenes:
-            matched_for_scene = set()
-            for asset_key, asset in scene.assets.items():
-                k_lower = asset_key.lower()
-                band_lower = asset.band.lower() if asset.band else ""
-                
-                # Check if asset matches requested bands
-                is_match = (
-                    k_lower in normalized_requested or
-                    band_lower in normalized_requested or
-                    any(alias in normalized_requested for alias in band_aliases.get(k_lower, []))
-                )
-
-                if is_match and asset_key not in matched_for_scene:
-                    matched_for_scene.add(asset_key)
-                    size = asset.size_bytes or (100 * 1024 * 1024)
-                    total_raw_bytes += size
-                    total_asset_count += 1
+            resolution = resolve_scene_band_selection(
+                scene,
+                selected_bands,
+                include_ancillary_with_spectral=True,
+                fallback_to_primary=False,
+            )
+            for item in resolution.selected_assets:
+                size = getattr(item.asset, "size_bytes", None) or (100 * 1024 * 1024)
+                total_raw_bytes += size
+                total_asset_count += 1
 
         # Calculate estimated overheads
         processing_bytes = int(total_raw_bytes * 0.15)

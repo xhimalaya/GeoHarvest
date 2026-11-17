@@ -7,6 +7,7 @@ import SettingsView from '../views/SettingsView.vue'
 import FileManagerView from '../views/FileManagerView.vue'
 import TopoSheetsView from '../views/TopoSheetsView.vue'
 import EarthEngineView from '../views/EarthEngineView.vue'
+import AskView from '../views/AskView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -50,6 +51,11 @@ const router = createRouter({
       path: '/settings',
       name: 'settings',
       component: SettingsView,
+    },
+    {
+      path: '/ask',
+      name: 'ask',
+      component: AskView,
     },
   ],
 })

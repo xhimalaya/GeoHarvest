@@ -240,9 +240,82 @@ def _is_toposheet_job(job: Any) -> bool:
     return False
 
 
+def _collect_job_raster_candidates(job: Any, db: Session) -> tuple[List[Dict[str, Any]], set[str]]:
+    """Collect deliverable raster candidates for a job (stacked scene GeoTIFFs + legacy direct rasters)."""
+    from backend.app.models.models import Download, DownloadStatus
+
+    valid_exts = {".tif", ".tiff", ".jp2", ".img", ".vrt"}
+    meta = job.job_metadata or {}
+    scene_plans = meta.get("scene_plans") if isinstance(meta.get("scene_plans"), dict) else {}
+    stacked_dl_ids: set[str] = set()
+    candidates: List[Dict[str, Any]] = []
+    bands_found: set[str] = set()
+
+    for s_id, sp in (scene_plans or {}).items():
+        if not sp.get("stack_enabled"):
+            continue
+        stacked_dl_ids.update(sp.get("download_ids") or [])
+        if sp.get("status") != "completed" or not sp.get("final_output_path"):
+            continue
+        out_path = Path(sp["final_output_path"])
+        if not (
+            out_path.suffix.lower() in valid_exts
+            and _is_valid_raster_file(out_path)
+        ):
+            continue
+        out_meta = sp.get("output_metadata") or {}
+        band_keys = list(out_meta.get("band_keys") or [])
+        band_descs = list(out_meta.get("band_descriptions") or [])
+        bands_found.add("stacked")
+        candidates.append({
+            "id": f"scene_{s_id}",
+            "scene_id": s_id,
+            "asset_name": out_path.name,
+            "destination": str(out_path.resolve()),
+            "filename": out_path.name,
+            "size_bytes": out_path.stat().st_size,
+            "band": "stacked",
+            "band_keys": band_keys,
+            "band_descriptions": band_descs,
+            "download_ids": list(sp.get("download_ids") or []),
+            "is_stacked": True,
+        })
+
+    dls = (
+        db.query(Download)
+        .filter(Download.job_id == job.id, Download.status == DownloadStatus.COMPLETED)
+        .all()
+    )
+    for d in dls:
+        if d.id in stacked_dl_ids or not d.destination:
+            continue
+        p = Path(d.destination)
+        if p.suffix.lower() in valid_exts and _is_valid_raster_file(p):
+            band_name = d.asset.band if d.asset and d.asset.band else None
+            if not band_name:
+                stem_parts = p.stem.split("_")
+                band_name = stem_parts[-1] if len(stem_parts) > 1 else "raster"
+            bands_found.add(band_name)
+            candidates.append({
+                "id": d.id,
+                "scene_id": d.asset.dataset_id if d.asset else None,
+                "asset_name": d.asset.asset_name if d.asset else p.name,
+                "destination": str(p.resolve()),
+                "filename": p.name,
+                "size_bytes": p.stat().st_size,
+                "band": band_name,
+                "band_keys": [band_name],
+                "band_descriptions": [band_name],
+                "download_ids": [d.id],
+                "is_stacked": False,
+            })
+
+    return candidates, bands_found
+
+
 @router.get("/jobs/{job_id}/mosaic-options")
 async def get_job_mosaic_options(job_id: str, db: Session = Depends(get_db)):
-    from backend.app.models.models import Job, Download, DownloadStatus
+    from backend.app.models.models import Job
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -257,32 +330,7 @@ async def get_job_mosaic_options(job_id: str, db: Session = Depends(get_db)):
             "aoi_geometry": None
         }
 
-    dls = db.query(Download).filter(Download.job_id == job_id, Download.status == DownloadStatus.COMPLETED).all()
-    valid_exts = {".tif", ".tiff", ".jp2", ".img", ".vrt"}
-    raster_dls = []
-    bands_found = set()
-
-    for d in dls:
-        if d.destination:
-            p = Path(d.destination)
-            if p.suffix.lower() in valid_exts and p.exists() and p.stat().st_size > 0:
-                band_name = None
-                # Check if asset has band or filename has band
-                if d.asset:
-                    band_name = d.asset.band
-                if not band_name:
-                    stem_parts = p.stem.split("_")
-                    band_name = stem_parts[-1] if len(stem_parts) > 1 else "raster"
-                bands_found.add(band_name)
-
-                raster_dls.append({
-                    "id": d.id,
-                    "asset_name": d.asset.asset_name if d.asset else p.name,
-                    "destination": str(p.resolve()),
-                    "filename": p.name,
-                    "size_bytes": p.stat().st_size,
-                    "band": band_name
-                })
+    raster_dls, bands_found = _collect_job_raster_candidates(job, db)
 
     if not raster_dls:
         return {
@@ -327,27 +375,26 @@ async def execute_job_mosaic_clip(
             detail="Mosaic & Clip operation is not supported for TopoSheet documents. Supported on satellite and elevation rasters."
         )
 
-    dls = db.query(Download).filter(Download.job_id == job_id, Download.status == DownloadStatus.COMPLETED).all()
-    valid_exts = {".tif", ".tiff", ".jp2", ".img", ".vrt"}
+    candidates, _ = _collect_job_raster_candidates(job, db)
+    selected_ids = set(request.selected_download_ids or [])
+    req_band = request.band.lower() if request.band else None
 
-    selected_dls = []
-    for d in dls:
-        if d.destination:
-            p = Path(d.destination)
-            if p.suffix.lower() in valid_exts and p.exists() and p.stat().st_size > 0:
-                if request.selected_download_ids and d.id not in request.selected_download_ids:
-                    continue
-                if request.band:
-                    # Filter by band
-                    b_name = d.asset.band if d.asset else p.stem.split("_")[-1]
-                    if b_name.lower() != request.band.lower():
-                        continue
-                selected_dls.append(d)
+    selected_items: List[Dict[str, Any]] = []
+    for item in candidates:
+        if selected_ids:
+            item_ids = {item["id"], *item.get("download_ids", [])}
+            if not (selected_ids & item_ids):
+                continue
+        if req_band and req_band != "all":
+            item_bands = {str(item.get("band") or "").lower(), *(str(b).lower() for b in item.get("band_keys", []))}
+            if req_band not in item_bands:
+                continue
+        selected_items.append(item)
 
-    if not selected_dls:
+    if not selected_items:
         raise HTTPException(status_code=400, detail="No matching completed raster files found for mosaicking.")
 
-    input_paths = [str(Path(d.destination).resolve()) for d in selected_dls]
+    input_paths = [item["destination"] for item in selected_items]
 
     meta = job.job_metadata or {}
     aoi_geom = request.aoi_geometry or meta.get("aoi")
@@ -597,12 +644,14 @@ def _resolve_storage_location(file_path: Path) -> tuple[Optional[str], Optional[
 
 
 def _is_valid_raster_file(path: Path) -> bool:
-    """Return True if path is a non-empty, non-hidden file with a supported raster extension."""
+    """Return True if path is a non-empty, non-hidden deliverable file with a supported raster extension."""
     try:
         return (
             path.is_file()
             and path.suffix.lower() in _VALID_RASTER_EXTS
             and not path.name.startswith(".")
+            and not path.name.endswith(".partial.tif")
+            and ".staging" not in path.parts
             and path.stat().st_size > 0
         )
     except OSError:
@@ -684,6 +733,11 @@ def _scan_rasters_sync(directory: Optional[str] = None, recursive: bool = True) 
             continue
         iterator = folder_path.rglob("*") if recursive else folder_path.iterdir()
         for entry in iterator:
+            try:
+                if any(part.startswith(".") for part in entry.relative_to(folder_path).parts):
+                    continue
+            except ValueError:
+                pass
             if not _is_valid_raster_file(entry):
                 continue
             resolved_str = str(entry.resolve())
@@ -712,6 +766,11 @@ def _discover_local_folders_sync() -> Dict[str, Any]:
 
         dir_stats: Dict[Path, Dict[str, Any]] = {}
         for p in root_path.rglob("*"):
+            try:
+                if any(part.startswith(".") for part in p.relative_to(root_path).parts):
+                    continue
+            except ValueError:
+                pass
             if not _is_valid_raster_file(p):
                 continue
             stat = p.stat()

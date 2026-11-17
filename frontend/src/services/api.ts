@@ -13,6 +13,8 @@ import type {
   LineageItem,
   CatalogDataset,
   SatelliteConstellation,
+  DomainInfo,
+  EcosystemInfo,
   PlatformCredentialStatus,
   PlatformCredentialSpec,
   TestConnectionResponse,
@@ -198,6 +200,24 @@ export const api = {
 
   async resumeJob(jobId: string): Promise<any> {
     const res = await fetch(`${BASE_URL}/jobs/${jobId}/resume`, { method: 'POST' })
+    return res.json()
+  },
+
+  async restartJob(jobId: string, resetAll: boolean = false): Promise<any> {
+    const res = await fetch(`${BASE_URL}/jobs/${jobId}/restart?reset_all=${resetAll}`, { method: 'POST' })
+    if (!res.ok) throw new Error('Failed to restart job')
+    return res.json()
+  },
+
+  async restartScene(jobId: string, sceneId: string): Promise<any> {
+    const res = await fetch(`${BASE_URL}/jobs/${jobId}/scenes/${encodeURIComponent(sceneId)}/restart`, { method: 'POST' })
+    if (!res.ok) throw new Error('Failed to restart scene')
+    return res.json()
+  },
+
+  async restartDownload(jobId: string, downloadId: string): Promise<any> {
+    const res = await fetch(`${BASE_URL}/jobs/${jobId}/downloads/${encodeURIComponent(downloadId)}/restart`, { method: 'POST' })
+    if (!res.ok) throw new Error('Failed to restart download')
     return res.json()
   },
 

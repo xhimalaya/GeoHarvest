@@ -63,6 +63,7 @@ def wait_for_db(max_retries: int = 15, retry_interval: float = 2.0):
 
 def init_db():
     wait_for_db()
+    import backend.ai.models  # noqa: F401 — ensure AI conversation tables are registered on Base
     Base.metadata.create_all(bind=engine)
     # Seed default providers if not existing
     from backend.app.models.models import Provider

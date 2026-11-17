@@ -460,13 +460,11 @@ class CredentialManager:
                 # 1. Test S3 object storage credentials with boto3
                 if s3_key and s3_secret:
                     try:
-                        import boto3
-                        s3 = boto3.client(
-                            "s3",
-                            endpoint_url=s3_endpoint,
-                            aws_access_key_id=s3_key,
-                            aws_secret_access_key=s3_secret,
-                            region_name="default"
+                        from backend.core.download.engine import build_s3_client
+                        s3 = build_s3_client(
+                            endpoint=s3_endpoint,
+                            access_key=s3_key,
+                            secret_key=s3_secret,
                         )
                         buckets = await asyncio.to_thread(s3.list_buckets)
                         bucket_names = [b.get("Name") for b in buckets.get("Buckets", [])]

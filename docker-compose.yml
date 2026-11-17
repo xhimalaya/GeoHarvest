@@ -18,6 +18,33 @@ services:
       retries: 5
       start_period: 5s
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: geoharvest-ollama
+    restart: unless-stopped
+    ports:
+      - "${OLLAMA_PORT:-11435}:11434"
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+      - OLLAMA_KEEP_ALIVE=30m
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5-coder:3b}
+    volumes:
+      - ollama_data:/root/.ollama
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        ollama serve &
+        SERVER_PID=$$!
+        trap 'kill -TERM $$SERVER_PID 2>/dev/null || true; wait $$SERVER_PID' TERM INT
+        (until ollama list >/dev/null 2>&1; do sleep 1; done; ollama pull "$$OLLAMA_MODEL" || true) &
+        wait $$SERVER_PID
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
   geoharvest:
     build:
       context: .
@@ -32,11 +59,15 @@ services:
       - GEOHARVEST_HOST=0.0.0.0
       - GEOHARVEST_PORT=9009
       - GEOHARVEST_DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-geouser}:${POSTGRES_PASSWORD:-geopass}@db:5432/${POSTGRES_DB:-geoharvest}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5-coder:3b}
     env_file:
       - path: .env
         required: false
     depends_on:
       db:
+        condition: service_healthy
+      ollama:
         condition: service_healthy
     volumes:
       # SATELLITE DOWNLOADS: saved directly into your local computer
@@ -54,3 +85,4 @@ services:
 
 volumes:
   postgres_data:
+  ollama_data:

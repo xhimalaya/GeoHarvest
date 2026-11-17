@@ -1,69 +1,61 @@
 <template>
   <div
     v-if="modelValue"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 overflow-y-auto"
+    class="fixed inset-0 z-50 flex items-center justify-center gh-overlay backdrop-blur-sm p-4 overflow-y-auto"
     @click.self="close"
     @keydown.esc="close"
   >
     <div
-      class="bg-slate-900 border border-slate-800 rounded-xl max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in duration-150 text-slate-100"
+      class="gh-surface-elevated border gh-border rounded-[14px] max-w-2xl w-full gh-shadow-dialog overflow-hidden flex flex-col max-h-[90vh] gh-text-primary"
     >
       <!-- Modal Header -->
-      <div class="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-850/80">
-        <div class="flex items-center space-x-2.5">
-          <div class="w-8 h-8 rounded-lg bg-teal-950/80 border border-teal-700/80 flex items-center justify-center text-teal-300 shadow-sm">
-            <span class="text-base">🧩</span>
+      <div class="px-5 py-3.5 border-b gh-divider flex items-center justify-between gh-surface-primary">
+        <div class="flex items-center space-x-3">
+          <div class="w-8 h-8 rounded-[8px] gh-selected-bg border gh-accent-border flex items-center justify-center gh-accent">
+            <Grid class="w-4 h-4" />
           </div>
           <div>
-            <h2 class="text-sm font-bold text-slate-100 flex items-center space-x-2">
+            <h2 class="text-[15px] font-semibold gh-text-primary flex items-center space-x-2">
               <span>Mosaic &amp; Clip to GeoJSON</span>
-              <span v-if="job" class="text-[11px] font-mono text-teal-400 bg-teal-950/70 border border-teal-800/80 px-2 py-0.5 rounded">
+              <span v-if="job" class="text-[12px] font-mono gh-accent gh-selected-bg px-2 py-0.5 rounded-[5px]">
                 {{ job.id }}
               </span>
             </h2>
-            <p class="text-[11px] text-slate-400">
-              Harmonize projections across tiles, blend overlapping satellite rasters, and clip to AOI boundary
+            <p class="text-[12.5px] gh-text-secondary">
+              Harmonize projections, blend overlapping satellite rasters, and clip to AOI boundary.
             </p>
           </div>
         </div>
 
         <button
           @click="close"
-          class="p-1 rounded text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors cursor-pointer"
+          class="p-1.5 rounded-[6px] gh-btn-ghost cursor-pointer"
           title="Close (Esc)"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          <X class="w-4 h-4" />
         </button>
       </div>
 
       <!-- Loading State -->
       <div v-if="isLoading" class="p-12 text-center space-y-3">
-        <div class="inline-block w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
-        <div class="text-xs text-slate-400">Analyzing downloaded raster assets...</div>
+        <div class="inline-block w-6 h-6 border-2 gh-accent-border border-t-transparent rounded-full animate-spin"></div>
+        <div class="text-[13px] gh-text-secondary">Analyzing downloaded raster assets...</div>
       </div>
 
-      <!-- Ineligible / TopoSheet Warning -->
+      <!-- Ineligible Warning -->
       <div v-else-if="options && (!options.eligible || options.is_toposheet)" class="p-6 space-y-4">
-        <div class="p-4 bg-amber-950/40 border border-amber-800/60 rounded-xl flex items-start space-x-3 text-amber-200 text-xs">
-          <span class="text-lg shrink-0">⚠️</span>
-          <div class="space-y-1">
-            <div class="font-bold text-amber-100">Mosaic &amp; Clip Unavailable</div>
-            <p class="leading-relaxed text-amber-300/90">
-              {{ options.reason || 'This job is not eligible for raster mosaicking.' }}
-            </p>
-            <p v-if="options.is_toposheet" class="text-[11px] text-amber-400/80 pt-1">
-              Note: TopoSheet map sheets are archival cartographic PDFs and do not support satellite raster merging or band clipping.
-            </p>
-          </div>
+        <div class="p-4 gh-warning-soft-bg border gh-warning-border rounded-[10px] space-y-1 text-[13px]">
+          <div class="font-semibold gh-warning">Mosaic &amp; Clip Unavailable</div>
+          <p class="leading-relaxed gh-text-primary">
+            {{ options.reason || 'This job is not eligible for raster mosaicking.' }}
+          </p>
+          <p v-if="options.is_toposheet" class="text-[12px] gh-text-secondary pt-1">
+            TopoSheet map sheets are archival PDFs and do not support satellite raster merging.
+          </p>
         </div>
 
         <div class="flex justify-end pt-2">
-          <button
-            @click="close"
-            class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
-          >
+          <button @click="close" class="px-4 py-2 gh-btn-secondary text-[13px] cursor-pointer">
             Close
           </button>
         </div>
@@ -71,103 +63,92 @@
 
       <!-- Success State -->
       <div v-else-if="result" class="p-6 space-y-4">
-        <div class="p-4 bg-emerald-950/50 border border-emerald-800/80 rounded-xl space-y-3 text-emerald-200">
-          <div class="flex items-center space-x-2">
-            <span class="text-xl">✅</span>
-            <span class="font-bold text-sm text-emerald-100">Mosaic &amp; Clip Completed Successfully!</span>
+        <div class="p-4 gh-success-soft-bg border gh-success-border rounded-[10px] space-y-3">
+          <div class="font-semibold text-[14px] gh-success flex items-center space-x-2">
+            <Check class="w-4 h-4" />
+            <span>Mosaic &amp; Clip Completed</span>
           </div>
 
-          <div class="text-xs space-y-1 font-mono text-slate-300 bg-slate-950/70 p-3 rounded-lg border border-slate-800">
-            <div><span class="text-slate-500">Output:</span> <span class="text-emerald-300 break-all">{{ result.output_path }}</span></div>
-            <div v-if="result.crs"><span class="text-slate-500">CRS:</span> {{ result.crs }}</div>
-            <div v-if="result.width && result.height"><span class="text-slate-500">Dimensions:</span> {{ result.width }} &times; {{ result.height }} px ({{ result.count }} bands)</div>
-            <div v-if="result.size_bytes"><span class="text-slate-500">Size:</span> {{ formatBytes(result.size_bytes) }}</div>
-            <div><span class="text-slate-500">COG Optimized:</span> {{ result.is_cog ? 'Yes (Tiled + Overviews)' : 'No' }}</div>
-            <div><span class="text-slate-500">Clipped to AOI:</span> {{ result.clipped ? 'Yes' : 'Full extent' }}</div>
+          <div class="text-[12.5px] space-y-1 font-mono gh-text-primary gh-surface-primary p-3 rounded-[8px] border gh-border">
+            <div><span class="gh-text-muted">Output:</span> <span class="gh-accent break-all">{{ result.output_path }}</span></div>
+            <div v-if="result.crs"><span class="gh-text-muted">CRS:</span> {{ result.crs }}</div>
+            <div v-if="result.width && result.height"><span class="gh-text-muted">Dimensions:</span> {{ result.width }} &times; {{ result.height }} px ({{ result.count }} bands)</div>
+            <div v-if="result.size_bytes"><span class="gh-text-muted">Size:</span> {{ formatBytes(result.size_bytes) }}</div>
+            <div><span class="gh-text-muted">COG Optimized:</span> {{ result.is_cog ? 'Yes' : 'No' }}</div>
+            <div><span class="gh-text-muted">Clipped to AOI:</span> {{ result.clipped ? 'Yes' : 'Full extent' }}</div>
           </div>
         </div>
 
         <div class="flex items-center justify-end space-x-3 pt-2">
           <button
             @click="openInFileManager"
-            class="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-colors cursor-pointer shadow-md"
+            class="px-4 py-2 gh-btn-primary text-[13px] flex items-center space-x-1.5 cursor-pointer"
           >
-            <span>📁 Open in File Manager</span>
+            <FolderOpen class="w-4 h-4" />
+            <span>Open in File Browser</span>
           </button>
-          <button
-            @click="close"
-            class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
-          >
+          <button @click="close" class="px-4 py-2 gh-btn-secondary text-[13px] cursor-pointer">
             Done
           </button>
         </div>
       </div>
 
       <!-- Main Config Form -->
-      <div v-else-if="options" class="p-5 overflow-y-auto space-y-4 flex-1 scrollbar-thin scrollbar-thumb-slate-700">
-        <!-- Error Alert if any -->
-        <div v-if="executionError" class="p-3 bg-rose-950/60 border border-rose-800 rounded-lg text-xs text-rose-300 flex items-start space-x-2">
-          <span class="shrink-0">⚠️</span>
-          <span>{{ executionError }}</span>
+      <div v-else-if="options" class="p-5 overflow-y-auto space-y-4 flex-1 text-[13px]">
+        <div v-if="executionError" class="p-3 gh-error-soft-bg border gh-error-border rounded-[8px] text-[12.5px] gh-error">
+          {{ executionError }}
         </div>
 
         <!-- 1. Raster Assets Selection -->
         <div class="space-y-2">
           <div class="flex items-center justify-between">
-            <label class="text-xs font-bold text-slate-200 flex items-center space-x-1.5">
-              <span>1. Select Raster Tiles to Blend</span>
-              <span class="text-[11px] text-teal-400 font-mono">({{ selectedAssetIds.length }} / {{ options.raster_assets.length }})</span>
+            <label class="font-semibold gh-text-primary">
+              1. Raster Tiles to Blend
+              <span class="text-[12px] gh-accent font-mono ml-1">({{ selectedAssetIds.length }} / {{ options.raster_assets.length }})</span>
             </label>
 
-            <!-- Band Filter -->
             <div v-if="options.available_bands.length > 1" class="flex items-center space-x-2">
-              <span class="text-[11px] text-slate-400">Filter Band:</span>
-              <select
-                v-model="selectedBand"
-                @change="onBandChange"
-                class="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded px-2 py-1 focus:outline-none focus:border-teal-500"
-              >
+              <span class="text-[12px] gh-text-secondary">Band:</span>
+              <select v-model="selectedBand" @change="onBandChange" class="gh-input px-2 py-1 text-[12px]">
                 <option value="all">All Bands</option>
                 <option v-for="b in options.available_bands" :key="b" :value="b">{{ b }}</option>
               </select>
             </div>
           </div>
 
-          <div class="max-h-40 overflow-y-auto border border-slate-800 rounded-lg bg-slate-950/70 p-2 space-y-1.5 scrollbar-thin">
+          <div class="max-h-40 overflow-y-auto border gh-border rounded-[8px] gh-surface-primary divide-y gh-divide">
             <label
               v-for="asset in displayedAssets"
               :key="asset.id"
-              class="flex items-center space-x-2.5 p-1.5 rounded hover:bg-slate-850/80 cursor-pointer text-xs select-none transition-colors"
+              class="flex items-center space-x-2.5 px-3 py-2 hover:gh-surface-secondary cursor-pointer text-[12.5px]"
             >
               <input
                 type="checkbox"
                 :value="asset.id"
                 v-model="selectedAssetIds"
-                class="rounded border-slate-700 text-teal-500 focus:ring-0 focus:ring-offset-0 bg-slate-900 cursor-pointer"
+                class="rounded cursor-pointer w-3.5 h-3.5"
               />
-              <span class="font-mono text-slate-200 truncate flex-1" :title="asset.filename">{{ asset.filename }}</span>
-              <span v-if="asset.band" class="text-[10px] px-1.5 py-0.5 rounded bg-sky-950/80 border border-sky-800 text-sky-300 font-mono">
+              <span class="font-mono gh-text-primary truncate flex-1" :title="asset.filename">{{ asset.filename }}</span>
+              <span v-if="asset.band" class="text-[11.5px] px-1.5 py-0.5 rounded-[5px] gh-surface-secondary gh-accent font-mono">
                 {{ asset.band }}
               </span>
-              <span class="text-[11px] text-slate-400 font-mono">{{ formatBytes(asset.size_bytes) }}</span>
+              <span class="text-[12px] gh-text-muted font-mono">{{ formatBytes(asset.size_bytes) }}</span>
             </label>
           </div>
 
-          <div class="flex items-center justify-between text-[11px] text-slate-400 px-1">
-            <span>Only completed satellite/DEM raster files (.tif, .jp2, .img) are selected.</span>
+          <div class="flex items-center justify-between text-[12px] gh-text-secondary px-1">
+            <span>Raster files (.tif, .jp2, .img)</span>
             <div class="space-x-2">
-              <button @click="selectAllAssets" class="text-teal-400 hover:underline cursor-pointer">Select All</button>
-              <span>&bull;</span>
-              <button @click="deselectAllAssets" class="text-teal-400 hover:underline cursor-pointer">Deselect All</button>
+              <button @click="selectAllAssets" class="gh-accent hover:underline cursor-pointer">Select All</button>
+              <span>&middot;</span>
+              <button @click="deselectAllAssets" class="gh-text-secondary hover:gh-text-primary cursor-pointer">Deselect All</button>
             </div>
           </div>
         </div>
 
         <!-- 2. GeoJSON Boundary Clipping -->
-        <div class="space-y-2 pt-2 border-t border-slate-800">
-          <label class="text-xs font-bold text-slate-200 flex items-center space-x-1.5">
-            <span>2. GeoJSON Clipping Boundary</span>
-          </label>
+        <div class="space-y-2 pt-3 border-t gh-divider">
+          <label class="font-semibold gh-text-primary block">2. Clipping Boundary</label>
 
           <div class="grid grid-cols-3 gap-2">
             <button
@@ -175,18 +156,15 @@
               @click="clipMode = 'aoi'"
               :disabled="!options.aoi_geometry"
               :class="[
-                'p-2.5 rounded-lg border text-xs text-left font-medium transition-all cursor-pointer flex flex-col justify-between space-y-1',
+                'p-2.5 rounded-[8px] border text-left transition-colors cursor-pointer space-y-0.5',
                 clipMode === 'aoi'
-                  ? 'bg-teal-950/70 border-teal-500 text-teal-200'
-                  : (!options.aoi_geometry ? 'opacity-40 cursor-not-allowed bg-slate-950 border-slate-800 text-slate-500' : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700')
+                  ? 'gh-active gh-focus-border'
+                  : (!options.aoi_geometry ? 'opacity-40 cursor-not-allowed gh-surface-primary gh-border gh-text-muted' : 'gh-surface-primary gh-border gh-text-primary hover:gh-surface-secondary')
               ]"
             >
-              <div class="flex items-center space-x-1.5 font-bold">
-                <span>📍</span>
-                <span>Job Harvest AOI</span>
-              </div>
-              <div class="text-[10px] text-slate-400">
-                {{ options.aoi_geometry ? 'Boundary from harvest task' : 'No AOI recorded for job' }}
+              <div class="font-semibold text-[12.5px]">Job Harvest AOI</div>
+              <div class="text-[11.5px] gh-text-secondary">
+                {{ options.aoi_geometry ? 'Task boundary' : 'No AOI recorded' }}
               </div>
             </button>
 
@@ -194,71 +172,59 @@
               type="button"
               @click="clipMode = 'custom'"
               :class="[
-                'p-2.5 rounded-lg border text-xs text-left font-medium transition-all cursor-pointer flex flex-col justify-between space-y-1',
+                'p-2.5 rounded-[8px] border text-left transition-colors cursor-pointer space-y-0.5',
                 clipMode === 'custom'
-                  ? 'bg-teal-950/70 border-teal-500 text-teal-200'
-                  : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+                  ? 'gh-active gh-focus-border'
+                  : 'gh-surface-primary gh-border gh-text-primary hover:gh-surface-secondary'
               ]"
             >
-              <div class="flex items-center space-x-1.5 font-bold">
-                <span>📐</span>
-                <span>Custom GeoJSON</span>
-              </div>
-              <div class="text-[10px] text-slate-400">Upload or paste polygon</div>
+              <div class="font-semibold text-[12.5px]">Custom GeoJSON</div>
+              <div class="text-[11.5px] gh-text-secondary">Upload or paste</div>
             </button>
 
             <button
               type="button"
               @click="clipMode = 'none'"
               :class="[
-                'p-2.5 rounded-lg border text-xs text-left font-medium transition-all cursor-pointer flex flex-col justify-between space-y-1',
+                'p-2.5 rounded-[8px] border text-left transition-colors cursor-pointer space-y-0.5',
                 clipMode === 'none'
-                  ? 'bg-teal-950/70 border-teal-500 text-teal-200'
-                  : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+                  ? 'gh-active gh-focus-border'
+                  : 'gh-surface-primary gh-border gh-text-primary hover:gh-surface-secondary'
               ]"
             >
-              <div class="flex items-center space-x-1.5 font-bold">
-                <span>🔲</span>
-                <span>No Clipping</span>
-              </div>
-              <div class="text-[10px] text-slate-400">Full extent rectangular mosaic</div>
+              <div class="font-semibold text-[12.5px]">No Clipping</div>
+              <div class="text-[11.5px] gh-text-secondary">Full extent mosaic</div>
             </button>
           </div>
 
-          <!-- Custom GeoJSON Input Panel -->
-          <div v-if="clipMode === 'custom'" class="p-3 bg-slate-950 rounded-lg border border-slate-800 space-y-2">
-            <div class="flex items-center justify-between text-xs">
-              <span class="text-slate-300 font-semibold">Paste GeoJSON Geometry or FeatureCollection:</span>
-              <label class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-teal-300 rounded text-[11px] cursor-pointer transition-colors border border-slate-700">
-                <span>📁 Upload .geojson / .json</span>
+          <div v-if="clipMode === 'custom'" class="p-3 gh-surface-secondary rounded-[8px] border gh-border space-y-2">
+            <div class="flex items-center justify-between text-[12.5px]">
+              <span class="gh-text-primary font-medium">GeoJSON Geometry or FeatureCollection</span>
+              <label class="px-2.5 py-1 gh-btn-secondary text-[12px] cursor-pointer">
+                <span>Upload .geojson</span>
                 <input type="file" accept=".geojson,.json" @change="handleGeoJsonUpload" class="hidden" />
               </label>
             </div>
             <textarea
               v-model="customGeoJsonText"
               rows="3"
-              placeholder='{ "type": "Polygon", "coordinates": [[[ ... ]]] } or FeatureCollection'
-              class="w-full bg-slate-900 border border-slate-750 rounded p-2 text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:border-teal-500"
+              placeholder='{ "type": "Polygon", "coordinates": [[[ ... ]]] }'
+              class="w-full gh-input p-2 text-[12px] font-mono"
             ></textarea>
-            <div v-if="customGeoJsonError" class="text-[11px] text-rose-400">
+            <div v-if="customGeoJsonError" class="text-[12px] gh-error">
               {{ customGeoJsonError }}
             </div>
           </div>
         </div>
 
-        <!-- 3. Advanced Parameters (CRS, COG, Output Destination) -->
-        <div class="space-y-3 pt-2 border-t border-slate-800">
-          <label class="text-xs font-bold text-slate-200 flex items-center space-x-1.5">
-            <span>3. Output Format &amp; Projection</span>
-          </label>
+        <!-- 3. Output Format & Projection -->
+        <div class="space-y-3 pt-3 border-t gh-divider">
+          <label class="font-semibold gh-text-primary block">3. Output Format &amp; Projection</label>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[12.5px]">
             <div>
-              <span class="text-slate-400 block mb-1">Target CRS:</span>
-              <select
-                v-model="targetCrs"
-                class="w-full bg-slate-950 border border-slate-750 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-teal-500"
-              >
+              <span class="gh-text-secondary block mb-1">Target CRS</span>
+              <select v-model="targetCrs" class="w-full gh-input px-2.5 py-1.5 text-[12.5px]">
                 <option value="auto_utm">Auto UTM (Optimal for AOI)</option>
                 <option value="EPSG:4326">EPSG:4326 (WGS 84 Geographic)</option>
                 <option value="EPSG:3857">EPSG:3857 (Web Mercator)</option>
@@ -267,54 +233,45 @@
             </div>
 
             <div>
-              <span class="text-slate-400 block mb-1">NoData Value:</span>
-              <input
-                type="number"
-                v-model.number="nodata"
-                class="w-full bg-slate-950 border border-slate-750 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-teal-500"
-              />
+              <span class="gh-text-secondary block mb-1">NoData Value</span>
+              <input type="number" v-model.number="nodata" class="w-full gh-input px-2.5 py-1.5 text-[12.5px] font-mono" />
             </div>
           </div>
 
-          <div class="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              id="to_cog_toggle"
-              v-model="toCog"
-              class="rounded border-slate-700 text-teal-500 focus:ring-0 focus:ring-offset-0 bg-slate-900 cursor-pointer"
-            />
-            <label for="to_cog_toggle" class="text-xs text-slate-300 cursor-pointer select-none">
-              Generate <strong class="text-teal-300">Cloud-Optimized GeoTIFF (COG)</strong> (tiled + overview pyramids for instant streaming)
-            </label>
-          </div>
+          <label class="flex items-center space-x-2 text-[12.5px] gh-text-primary cursor-pointer select-none">
+            <input type="checkbox" v-model="toCog" class="rounded cursor-pointer w-4 h-4" />
+            <span>Build <strong class="gh-accent">Cloud-Optimized GeoTIFF (COG)</strong> (tiled + overviews)</span>
+          </label>
 
           <div>
-            <span class="text-slate-400 block mb-1 text-xs">Output File Destination:</span>
+            <span class="gh-text-secondary block mb-1 text-[12.5px]">Output File Destination</span>
             <input
               type="text"
               v-model="outputPath"
               placeholder="/path/to/output_mosaic.tif"
-              class="w-full bg-slate-950 border border-slate-750 rounded px-2.5 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500"
+              class="w-full gh-input px-2.5 py-1.5 text-[12.5px] font-mono"
             />
           </div>
         </div>
       </div>
 
       <!-- Modal Footer -->
-      <div v-if="options && options.eligible && !options.is_toposheet && !result" class="px-5 py-3.5 border-t border-slate-800 bg-slate-850/80 flex items-center justify-between">
-        <div class="text-[11px] text-slate-400">
-          <span v-if="isProcessing" class="text-teal-300 flex items-center space-x-1.5">
-            <span class="inline-block w-3.5 h-3.5 border-2 border-teal-400 border-t-transparent rounded-full animate-spin"></span>
-            <span>{{ processingStatusText }}</span>
+      <div
+        v-if="options && options.eligible && !options.is_toposheet && !result"
+        class="px-5 py-3.5 border-t gh-divider gh-surface-secondary flex items-center justify-between"
+      >
+        <div class="text-[12px] gh-text-secondary">
+          <span v-if="isProcessing" class="gh-accent font-mono">
+            {{ processingStatusText }}
           </span>
           <span v-else>Ready to process {{ selectedAssetIds.length }} raster tiles.</span>
         </div>
 
-        <div class="flex items-center space-x-2.5">
+        <div class="flex items-center space-x-2">
           <button
             @click="close"
             :disabled="isProcessing"
-            class="px-3.5 py-1.5 rounded-lg border border-slate-750 text-slate-300 hover:bg-slate-800 text-xs font-medium cursor-pointer transition-colors disabled:opacity-50"
+            class="px-3.5 py-1.5 gh-btn-secondary text-[13px] cursor-pointer"
           >
             Cancel
           </button>
@@ -322,10 +279,9 @@
           <button
             @click="runMosaicClip"
             :disabled="isProcessing || selectedAssetIds.length === 0"
-            class="px-4 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all shadow-md cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            class="px-4 py-1.5 gh-btn-primary text-[13px] cursor-pointer"
           >
-            <span v-if="isProcessing">Processing...</span>
-            <span v-else>🧩 Run Mosaic &amp; Clip</span>
+            {{ isProcessing ? 'Processing...' : 'Run Mosaic & Clip' }}
           </button>
         </div>
       </div>
@@ -335,6 +291,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
+import { Grid, X, Check, FolderOpen } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { api } from '../services/api'
 import type { JobMosaicOptions, MosaicClipResult } from '../types'

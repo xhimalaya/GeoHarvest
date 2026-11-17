@@ -1,453 +1,423 @@
 <template>
-  <div class="h-screen w-screen flex flex-col bg-slate-950 text-slate-100 select-none overflow-hidden">
-    <!-- TIER 1: Primary Application Topbar -->
-    <header class="h-12 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 z-30 shrink-0">
-      <div class="flex items-center space-x-5">
-        <!-- Brand Logo -->
-        <router-link to="/" class="flex items-center space-x-2">
-          <div class="w-7 h-7 rounded-md bg-emerald-600 flex items-center justify-center text-white font-black text-xs shadow-sm bw-primary-btn">
-            GH
-          </div>
-          <span class="font-bold tracking-tight text-sm text-white">GeoHarvest</span>
-          <span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-            GIS Studio
+  <div class="flex flex-col h-screen w-screen gh-app-bg gh-text-primary overflow-hidden select-none">
+    <!-- Maroon-to-gold GeoHarvest signature strip -->
+    <div class="gh-dual-strip w-full shrink-0"></div>
+    <!-- Global Application Header (56px) -->
+    <header
+      class="h-[56px] gh-surface-primary border-b gh-border px-4 flex items-center justify-between z-30 shrink-0"
+    >
+      <!-- Left: GeoHarvest Brand, Geospatial Icon & Version -->
+      <div class="flex items-center space-x-3 shrink-0">
+        <div
+          class="w-8 h-8 rounded-[8px] flex items-center justify-center border gh-saffron-border gh-saffron-soft-bg gh-turquoise"
+        >
+          <Globe class="w-4 h-4" />
+        </div>
+        <div class="flex items-baseline space-x-2">
+          <span class="font-semibold text-[16px] tracking-tight gh-text-primary">
+            GeoHarvest
+          </span>
+          <span class="text-[12px] font-mono font-semibold gh-saffron">
+            v1.0
+          </span>
+        </div>
+      </div>
+
+      <!-- Main navigation with a gold active-page marker -->
+      <nav class="flex items-center space-x-1 h-full overflow-x-auto px-2" aria-label="Main navigation">
+        <router-link
+          to="/"
+          :class="['gh-nav-item', $route.name === 'harvest' ? 'gh-nav-item-active' : '']"
+        >
+          <MapIcon class="w-4 h-4 shrink-0" />
+          <span>Map &amp; Harvest</span>
+        </router-link>
+
+        <router-link
+          to="/processing"
+          :class="['gh-nav-item', $route.name === 'processing' ? 'gh-nav-item-active' : '']"
+        >
+          <SlidersHorizontal class="w-4 h-4 shrink-0" />
+          <span>Geoprocessing</span>
+        </router-link>
+
+        <router-link
+          to="/earthengine"
+          :class="['gh-nav-item', $route.name === 'earthengine' ? 'gh-nav-item-active' : '']"
+        >
+          <Terminal class="w-4 h-4 shrink-0" />
+          <span>Earth Engine</span>
+        </router-link>
+
+        <router-link
+          to="/jobs"
+          :class="[
+            'gh-nav-item',
+            $route.name === 'jobs' || $route.name === 'files' ? 'gh-nav-item-active' : ''
+          ]"
+        >
+          <Download class="w-4 h-4 shrink-0" />
+          <span>Downloads</span>
+          <span
+            v-if="activeJobsCount > 0"
+            class="px-1.5 py-0.5 rounded-[5px] text-[12px] font-mono font-semibold gh-saffron-bg"
+          >
+            {{ activeJobsCount }}
           </span>
         </router-link>
 
-        <!-- Primary Workspace Tabs (Clean 5-Pillar Navigation) -->
-        <nav class="flex items-center space-x-1 text-xs font-semibold">
-          <router-link
-            to="/"
-            :class="[
-              'px-3 py-1.5 rounded-md flex items-center space-x-1.5 transition-colors cursor-pointer',
-              $route.name === 'harvest'
-                ? 'bg-emerald-600 text-white shadow-sm bw-primary-btn'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800'
-            ]"
-          >
-            <span>🗺️</span>
-            <span>Map & Harvest</span>
-          </router-link>
+        <router-link
+          to="/catalog"
+          :class="[
+            'gh-nav-item',
+            $route.name === 'catalog' || $route.name === 'toposheets' || $route.name === 'settings'
+              ? 'gh-nav-item-active'
+              : ''
+          ]"
+        >
+          <Compass class="w-4 h-4 shrink-0" />
+          <span>Catalogue</span>
+        </router-link>
 
-          <router-link
-            to="/processing"
-            :class="[
-              'px-3 py-1.5 rounded-md flex items-center space-x-1.5 transition-colors cursor-pointer',
-              $route.name === 'processing'
-                ? 'bg-emerald-600 text-white shadow-sm bw-primary-btn'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800'
-            ]"
-          >
-            <span>🧰</span>
-            <span>Geoprocessing</span>
-          </router-link>
+        <router-link
+          to="/ask"
+          :class="['gh-nav-item', $route.name === 'ask' ? 'gh-nav-item-active' : '']"
+        >
+          <MessageSquare class="w-4 h-4 shrink-0" />
+          <span>ATLAS</span>
+        </router-link>
+      </nav>
 
-          <router-link
-            to="/earthengine"
-            :class="[
-              'px-3 py-1.5 rounded-md flex items-center space-x-1.5 transition-colors cursor-pointer',
-              $route.name === 'earthengine'
-                ? 'bg-emerald-600 text-white shadow-sm bw-primary-btn'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800'
-            ]"
-          >
-            <span>🌍</span>
-            <span>Earth Engine Python</span>
-          </router-link>
-
-          <router-link
-            to="/jobs"
-            :class="[
-              'px-3 py-1.5 rounded-md flex items-center space-x-1.5 transition-colors cursor-pointer',
-              $route.name === 'jobs' || $route.name === 'files'
-                ? 'bg-emerald-600 text-white shadow-sm bw-primary-btn'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800'
-            ]"
-          >
-            <span>📥</span>
-            <span>Downloads & Files</span>
-          </router-link>
-
-          <router-link
-            to="/catalog"
-            :class="[
-              'px-3 py-1.5 rounded-md flex items-center space-x-1.5 transition-colors cursor-pointer',
-              $route.name === 'catalog' || $route.name === 'toposheets' || $route.name === 'settings'
-                ? 'bg-emerald-600 text-white shadow-sm bw-primary-btn'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800'
-            ]"
-          >
-            <span>🛰️</span>
-            <span>Satellites & Topo ({{ harvestStore.satellites.length || 43 }})</span>
-          </router-link>
-        </nav>
-      </div>
-
-      <!-- Right Global Controls: WMS, Credentials, Theme Toggle -->
-      <div class="flex items-center space-x-2 text-xs">
-        <!-- WMS Endpoint Button -->
+      <!-- Right: WMS, Connectors, Day/Night Switch, Storage Status -->
+      <div class="flex items-center space-x-2 shrink-0">
+        <!-- WMS -->
         <button
           @click="harvestStore.isWmsModalOpen = true"
-          class="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold transition-colors cursor-pointer"
-          title="Connect OGC WMS Endpoints & Layers"
+          class="px-2.5 py-1.5 rounded-[8px] text-[13px] font-medium gh-btn-secondary flex items-center space-x-1.5 cursor-pointer"
+          title="Connect OGC WMS Map Server"
         >
-          <span>🌐</span>
+          <Layers class="w-3.5 h-3.5 gh-accent" />
           <span>WMS</span>
           <span
             v-if="harvestStore.activeWmsLayers.length > 0"
-            class="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-600 text-white font-bold"
+            class="px-1.5 rounded-[5px] text-[12px] font-mono font-semibold gh-selected-bg gh-accent"
           >
             {{ harvestStore.activeWmsLayers.length }}
           </span>
         </button>
 
-        <!-- Credentials Button -->
+        <!-- Connectors -->
         <button
           @click="isCredentialsModalOpen = true"
-          class="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold transition-colors cursor-pointer"
-          title="Configure Platform API Keys & Credentials"
+          class="px-2.5 py-1.5 rounded-[8px] text-[13px] font-medium gh-btn-secondary flex items-center space-x-1.5 cursor-pointer"
+          title="Configure AI Models & Earth Observation Connectors"
         >
-          <span>🔑</span>
-          <span class="hidden sm:inline">Keys</span>
+          <Plug class="w-3.5 h-3.5 gh-accent" />
+          <span>Connectors</span>
         </button>
 
-        <!-- Black & White / Slate Theme Switcher -->
-        <div class="flex items-center bg-slate-950 p-0.5 rounded-md border border-slate-700" title="Switch UI Theme (Black & White Light, Black & White Dark, or Slate)">
+        <!-- Day / Night Theme Switch -->
+        <div
+          class="flex items-center p-0.5 rounded-[8px] border gh-border gh-surface-secondary"
+          role="group"
+          aria-label="Theme selector"
+        >
           <button
-            @click="harvestStore.setTheme('bw-light')"
+            @click="harvestStore.setTheme('day')"
             :class="[
-              'px-2 py-1 rounded text-[11px] font-bold transition-colors cursor-pointer',
-              harvestStore.uiTheme === 'bw-light'
-                ? 'bg-emerald-600 text-white bw-primary-btn'
-                : 'text-slate-400 hover:text-white'
+              'px-2.5 py-1 rounded-[6px] text-[12.5px] font-medium transition-colors cursor-pointer flex items-center space-x-1.5',
+              harvestStore.uiTheme === 'day'
+                ? 'gh-surface-elevated gh-accent font-semibold'
+                : 'gh-text-secondary hover:gh-text-primary'
             ]"
+            title="Day Theme — Turquoise, Maroon & Gold"
           >
-            ☀️ B&W Light
+            <Sun class="w-3.5 h-3.5" />
+            <span>Day</span>
           </button>
           <button
-            @click="harvestStore.setTheme('bw-dark')"
+            @click="harvestStore.setTheme('night')"
             :class="[
-              'px-2 py-1 rounded text-[11px] font-bold transition-colors cursor-pointer',
-              harvestStore.uiTheme === 'bw-dark'
-                ? 'bg-emerald-600 text-white bw-primary-btn'
-                : 'text-slate-400 hover:text-white'
+              'px-2.5 py-1 rounded-[6px] text-[12.5px] font-medium transition-colors cursor-pointer flex items-center space-x-1.5',
+              harvestStore.uiTheme === 'night'
+                ? 'gh-surface-elevated gh-saffron font-semibold'
+                : 'gh-text-secondary hover:gh-text-primary'
             ]"
+            title="Night Theme — Deep Teal, Maroon & Gold"
           >
-            ◑ B&W Dark
-          </button>
-          <button
-            @click="harvestStore.setTheme('dark')"
-            :class="[
-              'px-2 py-1 rounded text-[11px] font-bold transition-colors cursor-pointer',
-              harvestStore.uiTheme === 'dark'
-                ? 'bg-emerald-600 text-white bw-primary-btn'
-                : 'text-slate-400 hover:text-white'
-            ]"
-          >
-            🌑 Slate
+            <Moon class="w-3.5 h-3.5" />
+            <span>Night</span>
           </button>
         </div>
 
-        <div v-if="sysTelemetry" class="hidden xl:flex items-center space-x-1.5 font-mono text-[11px] text-slate-400 pl-1">
-          <span class="px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-300" title="Free Disk Space">
-            🖴 {{ formatBytes(sysTelemetry.disk_free_bytes) }}
+        <!-- Storage Status -->
+        <div
+          class="hidden xl:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-[8px] border gh-border gh-surface-secondary gh-text-secondary text-[12.5px] font-mono"
+          title="Available Local Storage Space"
+        >
+          <HardDrive class="w-3.5 h-3.5 shrink-0 gh-saffron" />
+          <span>
+            {{ sysTelemetry?.disk_free_bytes ? formatBytes(sysTelemetry.disk_free_bytes) + ' free' : 'Storage Ready' }}
           </span>
         </div>
       </div>
     </header>
 
-    <!-- TIER 2: Contextual Sub-Navbar (GIS Ribbon Toolbar) -->
-    <div class="h-10 bg-slate-950 border-b border-slate-800 px-4 flex items-center justify-between text-xs z-20 shrink-0 overflow-x-auto">
-      <!-- CONTEXT 1: MAP & HARVEST RIBBON -->
-      <template v-if="$route.name === 'harvest'">
-        <div class="flex items-center space-x-2">
-          <!-- Guided Step Switcher -->
-          <div class="flex items-center space-x-1 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">Steps:</span>
-            <button
-              @click="harvestStore.harvestShowAllSteps = false; harvestStore.activeHarvestStep = 1"
-              :class="[
-                'px-2 py-1 rounded text-[11px] font-semibold transition-colors cursor-pointer',
-                !harvestStore.harvestShowAllSteps && harvestStore.activeHarvestStep === 1
-                  ? 'bg-emerald-600 text-white bw-primary-btn'
-                  : 'text-slate-300 hover:bg-slate-800'
-              ]"
-            >
-              1. Area & Source
-            </button>
-            <button
-              @click="harvestStore.harvestShowAllSteps = false; harvestStore.activeHarvestStep = 2"
-              :class="[
-                'px-2 py-1 rounded text-[11px] font-semibold transition-colors cursor-pointer',
-                !harvestStore.harvestShowAllSteps && harvestStore.activeHarvestStep === 2
-                  ? 'bg-emerald-600 text-white bw-primary-btn'
-                  : 'text-slate-300 hover:bg-slate-800'
-              ]"
-            >
-              2. Satellite & Dates
-            </button>
-            <button
-              @click="harvestStore.harvestShowAllSteps = false; harvestStore.activeHarvestStep = 3"
-              :class="[
-                'px-2 py-1 rounded text-[11px] font-semibold transition-colors cursor-pointer',
-                !harvestStore.harvestShowAllSteps && harvestStore.activeHarvestStep === 3
-                  ? 'bg-emerald-600 text-white bw-primary-btn'
-                  : 'text-slate-300 hover:bg-slate-800'
-              ]"
-            >
-              3. Scenes & Download ({{ harvestStore.searchResults.length }})
-            </button>
-            <button
-              @click="harvestStore.harvestShowAllSteps = !harvestStore.harvestShowAllSteps"
-              :class="[
-                'px-2 py-1 rounded text-[10px] font-mono border transition-colors cursor-pointer',
-                harvestStore.harvestShowAllSteps
-                  ? 'bg-slate-800 text-white border-slate-600'
-                  : 'text-slate-400 border-transparent hover:text-white'
-              ]"
-              title="Toggle between step-by-step guided view and all panels open"
-            >
-              {{ harvestStore.harvestShowAllSteps ? 'Guided' : 'All' }}
-            </button>
-          </div>
-
-          <div class="h-4 w-px bg-slate-800"></div>
-
-          <!-- Map Drawing & Measurement Tools -->
-          <div class="flex items-center space-x-1">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1">AOI Tools:</span>
-            <button
-              @click="harvestStore.triggerMapCommand('Box')"
-              class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-[11px] font-medium cursor-pointer"
-              title="Draw Bounding Box on Map"
-            >
-              ⬛ Box
-            </button>
-            <button
-              @click="harvestStore.triggerMapCommand('Polygon')"
-              class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-[11px] font-medium cursor-pointer"
-              title="Draw Custom Polygon on Map"
-            >
-              ⬠ Polygon
-            </button>
-            <button
-              @click="harvestStore.triggerMapCommand('Measure')"
-              class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-[11px] font-medium cursor-pointer"
-              title="Measure Geodesic Distance & Bearing"
-            >
-              📏 Measure
-            </button>
-            <button
-              @click="harvestStore.triggerMapCommand('LadakhSample')"
-              class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-[11px] font-medium cursor-pointer"
-              title="Load Ladakh Study Area Preset"
-            >
-              🏔️ Ladakh AOI
-            </button>
-            <button
-              v-if="harvestStore.hasAoi"
-              @click="harvestStore.triggerMapCommand('FitAOI')"
-              class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-[11px] font-medium cursor-pointer"
-            >
-              🎯 Fit
-            </button>
-            <button
-              v-if="harvestStore.hasAoi"
-              @click="harvestStore.triggerMapCommand('ClearAOI')"
-              class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-red-400 border border-slate-800 text-[11px] font-medium cursor-pointer"
-            >
-              🗑️ Clear
-            </button>
-          </div>
-
-          <div class="h-4 w-px bg-slate-800"></div>
-
-          <!-- Map Layers & WMS -->
-          <div class="flex items-center space-x-1">
-            <button
-              @click="harvestStore.triggerMapCommand('ToggleLayers')"
-              class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-[11px] font-medium cursor-pointer"
-            >
-              🥞 Basemaps & Layers
-            </button>
-            <button
-              @click="harvestStore.isWmsModalOpen = true"
-              class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-[11px] font-medium cursor-pointer"
-            >
-              🌐 Add WMS Layer
-            </button>
-          </div>
+    <!-- Main Workstation Body: Contextual Tool Rail (when applicable) + Workspace -->
+    <div class="flex-1 flex overflow-hidden relative gh-workspace-bg">
+      <!-- Slim 60px Vertical Tool Rail (Expandable to Labelled Panel; Page-Specific Tools Only) -->
+      <aside
+        v-if="showToolRail"
+        :class="[
+          'gh-surface-primary border-r gh-border flex flex-col shrink-0 z-20 transition-all duration-150 overflow-hidden',
+          isSideToolbarCollapsed ? 'w-[60px]' : 'w-[228px]'
+        ]"
+      >
+        <!-- Rail Header & Expand/Collapse Toggle -->
+        <div class="h-10 px-2.5 border-b gh-divider flex items-center justify-between shrink-0">
+          <span
+            v-if="!isSideToolbarCollapsed"
+            class="text-[12.5px] font-semibold gh-text-secondary truncate px-1"
+          >
+            {{ currentSidePanelTitle }}
+          </span>
+          <button
+            @click="isSideToolbarCollapsed = !isSideToolbarCollapsed"
+            :class="[
+              'p-1.5 rounded-[6px] gh-btn-ghost cursor-pointer flex items-center justify-center',
+              isSideToolbarCollapsed ? 'mx-auto' : ''
+            ]"
+            :title="isSideToolbarCollapsed ? 'Expand Tool Rail' : 'Collapse Tool Rail'"
+          >
+            <PanelLeftOpen v-if="isSideToolbarCollapsed" class="w-4 h-4" />
+            <PanelLeftClose v-else class="w-4 h-4" />
+          </button>
         </div>
 
-        <!-- Quick Raster Toolbar Shortcuts on Right of Map Ribbon -->
-        <div class="hidden lg:flex items-center space-x-1">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1">Raster Tools:</span>
-          <button
-            @click="openTool('clip')"
-            class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-[11px] font-medium cursor-pointer"
-          >
-            ✂️ Clip
-          </button>
-          <button
-            @click="openTool('mosaic')"
-            class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-[11px] font-medium cursor-pointer"
-          >
-            🧩 Mosaic
-          </button>
-          <button
-            @click="openTool('stack')"
-            class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-[11px] font-medium cursor-pointer"
-          >
-            📚 Band Stack
-          </button>
-          <button
-            @click="openTool('index')"
-            class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-[11px] font-medium cursor-pointer"
-          >
-            🌿 NDVI / Indices
-          </button>
-          <button
-            @click="openTool('terrain')"
-            class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-[11px] font-medium cursor-pointer"
-          >
-            ⛰️ Terrain
-          </button>
-        </div>
-      </template>
+        <!-- Contextual Page-Specific Tools (No Global Navigation Duplication) -->
+        <div class="flex-1 overflow-y-auto p-2 space-y-3">
+          <!-- CONTEXT 1: MAP & HARVEST TOOLS -->
+          <template v-if="$route.name === 'harvest'">
+            <!-- Discovery Mode -->
+            <div class="pb-2.5 border-b gh-divider space-y-1">
+              <div v-if="!isSideToolbarCollapsed" class="px-2 pb-1 gh-label">
+                Discovery Mode
+              </div>
+              <button
+                @click="harvestStore.setDiscoveryMode('satellite')"
+                :class="railBtnClass(harvestStore.discoveryMode === 'satellite')"
+                title="Satellite Missions & STAC Search"
+              >
+                <Orbit class="w-4 h-4 shrink-0" />
+                <span v-if="!isSideToolbarCollapsed" class="truncate">Satellite Imagery</span>
+              </button>
+              <button
+                @click="harvestStore.setDiscoveryMode('toposheet')"
+                :class="railBtnClass(harvestStore.discoveryMode === 'toposheet')"
+                title="Survey of India Topographic Sheets"
+              >
+                <Grid class="w-4 h-4 shrink-0" />
+                <span v-if="!isSideToolbarCollapsed" class="truncate">Topo Sheets</span>
+              </button>
+            </div>
 
-      <!-- CONTEXT 2: GEOPROCESSING STUDIO RIBBON -->
-      <template v-else-if="$route.name === 'processing'">
-        <div class="flex items-center space-x-1.5">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1">Raster Geoprocessing Toolbar:</span>
-          <button
-            v-for="tool in processingTools"
-            :key="tool.id"
-            @click="harvestStore.openProcessingTool(tool.id)"
-            :class="[
-              'px-2.5 py-1 rounded text-[11px] font-semibold border transition-colors cursor-pointer flex items-center space-x-1.5',
-              harvestStore.activeProcessingTool === tool.id
-                ? 'bg-emerald-600 text-white border-emerald-500 bw-primary-btn'
-                : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-800'
-            ]"
-          >
-            <span>{{ tool.icon }}</span>
-            <span>{{ tool.label }}</span>
-          </button>
-        </div>
-      </template>
+            <!-- AOI & Spatial Drawing Tools -->
+            <div class="pb-2.5 border-b gh-divider space-y-1">
+              <div v-if="!isSideToolbarCollapsed" class="px-2 pb-1 gh-label">
+                Spatial &amp; AOI Tools
+              </div>
+              <button
+                @click="harvestStore.triggerMapCommand('Box')"
+                :class="railBtnClass(false)"
+                title="Draw Bounding Box on Map"
+              >
+                <Square class="w-4 h-4 shrink-0" />
+                <span v-if="!isSideToolbarCollapsed" class="truncate">Draw Box</span>
+              </button>
+              <button
+                @click="harvestStore.triggerMapCommand('Polygon')"
+                :class="railBtnClass(false)"
+                title="Draw Polygon on Map"
+              >
+                <Pentagon class="w-4 h-4 shrink-0" />
+                <span v-if="!isSideToolbarCollapsed" class="truncate">Draw Polygon</span>
+              </button>
+              <button
+                @click="harvestStore.triggerMapCommand('Measure')"
+                :class="railBtnClass(false)"
+                title="Measure Geodesic Distance"
+              >
+                <Ruler class="w-4 h-4 shrink-0" />
+                <span v-if="!isSideToolbarCollapsed" class="truncate">Measure Distance</span>
+              </button>
+              <button
+                @click="harvestStore.triggerMapCommand('LadakhSample')"
+                :class="railBtnClass(false)"
+                title="Load Ladakh Study Area Preset"
+              >
+                <Mountain class="w-4 h-4 shrink-0" />
+                <span v-if="!isSideToolbarCollapsed" class="truncate">Ladakh AOI Preset</span>
+              </button>
+              <button
+                @click="harvestStore.triggerMapCommand('UploadAOI')"
+                :class="railBtnClass(false)"
+                title="Upload GeoJSON / KML Boundary"
+              >
+                <FolderUp class="w-4 h-4 shrink-0" />
+                <span v-if="!isSideToolbarCollapsed" class="truncate">Upload GeoJSON</span>
+              </button>
+              <button
+                v-if="harvestStore.hasAoi"
+                @click="harvestStore.triggerMapCommand('FitAOI')"
+                :class="railBtnClass(false)"
+                title="Fit Map to Active AOI"
+              >
+                <Maximize2 class="w-4 h-4 shrink-0" />
+                <span v-if="!isSideToolbarCollapsed" class="truncate">Fit AOI</span>
+              </button>
+              <button
+                v-if="harvestStore.hasAoi"
+                @click="harvestStore.triggerMapCommand('ClearAOI')"
+                :class="railBtnClass(false, true)"
+                title="Clear Active AOI"
+              >
+                <Trash2 class="w-4 h-4 shrink-0" />
+                <span v-if="!isSideToolbarCollapsed" class="truncate">Clear AOI</span>
+              </button>
+            </div>
 
-      <!-- CONTEXT 3: DOWNLOADS & FILES RIBBON -->
-      <template v-else-if="$route.name === 'jobs' || $route.name === 'files'">
-        <div class="flex items-center space-x-2">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1">Download & Storage Manager:</span>
-          <router-link
-            to="/jobs"
-            :class="[
-              'px-3 py-1 rounded text-[11px] font-semibold border transition-colors',
-              $route.name === 'jobs'
-                ? 'bg-emerald-600 text-white border-emerald-500 bw-primary-btn'
-                : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
-            ]"
-          >
-            📥 Download Queue & Active Jobs
-          </router-link>
-          <router-link
-            to="/files"
-            :class="[
-              'px-3 py-1 rounded text-[11px] font-semibold border transition-colors',
-              $route.name === 'files'
-                ? 'bg-emerald-600 text-white border-emerald-500 bw-primary-btn'
-                : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
-            ]"
-          >
-            📁 Local Files & Folder Browser
-          </router-link>
-          <router-link
-            to="/processing"
-            class="px-3 py-1 rounded text-[11px] font-semibold bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800"
-          >
-            🧰 Process Downloaded Files (Clip / Mosaic / Stack) →
-          </router-link>
-        </div>
-      </template>
+            <!-- Layer & Map Overlays -->
+            <div class="space-y-1">
+              <div v-if="!isSideToolbarCollapsed" class="px-2 pb-1 gh-label">
+                Map Overlays
+              </div>
+              <button
+                @click="harvestStore.showSatelliteImagery = !harvestStore.showSatelliteImagery"
+                :class="railBtnClass(harvestStore.showSatelliteImagery)"
+                title="Toggle True-Color Scene Previews"
+              >
+                <Layers class="w-4 h-4 shrink-0" />
+                <span v-if="!isSideToolbarCollapsed" class="truncate">Scene Previews</span>
+              </button>
+              <button
+                @click="harvestStore.isWmsModalOpen = true"
+                :class="railBtnClass(harvestStore.activeWmsLayers.length > 0)"
+                title="Manage OGC WMS Layers"
+              >
+                <Globe class="w-4 h-4 shrink-0" />
+                <span v-if="!isSideToolbarCollapsed" class="truncate">WMS Layers</span>
+              </button>
+            </div>
+          </template>
 
-      <!-- CONTEXT 4: SATELLITES, TOPO SHEETS & TELEMETRY RIBBON -->
-      <template v-else-if="$route.name === 'catalog' || $route.name === 'toposheets' || $route.name === 'settings'">
-        <div class="flex items-center space-x-2">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1">Catalogs & Reference:</span>
-          <router-link
-            to="/catalog"
-            :class="[
-              'px-3 py-1 rounded text-[11px] font-semibold border transition-colors',
-              $route.name === 'catalog'
-                ? 'bg-emerald-600 text-white border-emerald-500 bw-primary-btn'
-                : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
-            ]"
-          >
-            🛰️ Master Satellite & STAC Catalog ({{ harvestStore.satellites.length || 43 }} Missions)
-          </router-link>
-          <router-link
-            to="/toposheets"
-            :class="[
-              'px-3 py-1 rounded text-[11px] font-semibold border transition-colors',
-              $route.name === 'toposheets'
-                ? 'bg-emerald-600 text-white border-emerald-500 bw-primary-btn'
-                : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
-            ]"
-          >
-            🗺️ Survey of India Topo Sheets (1:50k / 1:250k)
-          </router-link>
-          <router-link
-            to="/settings"
-            :class="[
-              'px-3 py-1 rounded text-[11px] font-semibold border transition-colors',
+          <!-- CONTEXT 2: GEOPROCESSING TOOLS -->
+          <template v-else-if="$route.name === 'processing'">
+            <div class="pb-2.5 border-b gh-divider space-y-1">
+              <div v-if="!isSideToolbarCollapsed" class="px-2 pb-1 gh-label">
+                Raster
+              </div>
+              <button
+                v-for="tool in extractionProcessingTools"
+                :key="tool.id"
+                @click="harvestStore.activeProcessingTool = tool.id"
+                :class="railBtnClass(harvestStore.activeProcessingTool === tool.id)"
+                :title="tool.label"
+              >
+                <component :is="tool.iconComponent" class="w-4 h-4 shrink-0" />
+                <span v-if="!isSideToolbarCollapsed" class="truncate">{{ tool.label }}</span>
+              </button>
+            </div>
+
+            <div class="space-y-1">
+              <div v-if="!isSideToolbarCollapsed" class="px-2 pb-1 gh-label">
+                Spectral, Terrain &amp; Vector
+              </div>
+              <button
+                v-for="tool in analysisProcessingTools"
+                :key="tool.id"
+                @click="harvestStore.activeProcessingTool = tool.id"
+                :class="railBtnClass(harvestStore.activeProcessingTool === tool.id)"
+                :title="tool.label"
+              >
+                <component :is="tool.iconComponent" class="w-4 h-4 shrink-0" />
+                <span v-if="!isSideToolbarCollapsed" class="truncate">{{ tool.label }}</span>
+              </button>
+            </div>
+          </template>
+
+          <!-- CONTEXT 3: DOWNLOADS & FILES -->
+          <template v-else-if="$route.name === 'jobs' || $route.name === 'files'">
+            <div class="space-y-1">
+              <div v-if="!isSideToolbarCollapsed" class="px-2 pb-1 gh-label">
+                Downloads &amp; Storage
+              </div>
+              <router-link
+                to="/jobs"
+                :class="railBtnClass($route.name === 'jobs')"
+                title="Download Queue & Job History"
+              >
+                <Download class="w-4 h-4 shrink-0" />
+                <span v-if="!isSideToolbarCollapsed" class="truncate">Download Queue</span>
+              </router-link>
+              <router-link
+                to="/files"
+                :class="railBtnClass($route.name === 'files')"
+                title="Local File Browser & Storage"
+              >
+                <FolderOpen class="w-4 h-4 shrink-0" />
+                <span v-if="!isSideToolbarCollapsed" class="truncate">File Browser</span>
+              </router-link>
+            </div>
+          </template>
+
+          <!-- CONTEXT 4: CATALOGUE (SATELLITES, TOPO SHEETS, SYSTEM) -->
+          <template
+            v-else-if="
+              $route.name === 'catalog' ||
+              $route.name === 'toposheets' ||
               $route.name === 'settings'
-                ? 'bg-emerald-600 text-white border-emerald-500 bw-primary-btn'
-                : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
-            ]"
+            "
           >
-            ⚙️ System Telemetry & Diagnostics
-          </router-link>
-          <button
-            @click="harvestStore.isWmsModalOpen = true"
-            class="px-3 py-1 rounded text-[11px] font-semibold bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800 cursor-pointer"
-          >
-            🌐 OGC WMS Endpoints
-          </button>
+            <div class="space-y-1">
+              <div v-if="!isSideToolbarCollapsed" class="px-2 pb-1 gh-label">
+                Data Catalogue
+              </div>
+              <router-link
+                to="/catalog"
+                :class="railBtnClass($route.name === 'catalog')"
+                title="Satellite Missions & Local STAC Catalogue"
+              >
+                <Orbit class="w-4 h-4 shrink-0" />
+                <span v-if="!isSideToolbarCollapsed" class="truncate">
+                  Satellites &amp; STAC
+                </span>
+              </router-link>
+              <router-link
+                to="/toposheets"
+                :class="railBtnClass($route.name === 'toposheets')"
+                title="Survey of India Topographic Sheets"
+              >
+                <Grid class="w-4 h-4 shrink-0" />
+                <span v-if="!isSideToolbarCollapsed" class="truncate">Survey of India Topo</span>
+              </router-link>
+              <router-link
+                to="/settings"
+                :class="railBtnClass($route.name === 'settings')"
+                title="System Diagnostics & Storage"
+              >
+                <Settings class="w-4 h-4 shrink-0" />
+                <span v-if="!isSideToolbarCollapsed" class="truncate">System Diagnostics</span>
+              </router-link>
+            </div>
+          </template>
         </div>
-      </template>
+      </aside>
 
-      <!-- CONTEXT 5: EARTH ENGINE PYTHON STUDIO RIBBON -->
-      <template v-else-if="$route.name === 'earthengine'">
-        <div class="flex items-center justify-between w-full">
-          <div class="flex items-center space-x-2">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Earth Engine Python Studio:</span>
-            <span class="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[11px] text-slate-300">
-              🐍 Local Host Compute + Google Earth Engine Cloud API
-            </span>
-          </div>
-          <div class="flex items-center space-x-2">
-            <router-link
-              to="/processing"
-              class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-[11px]"
-            >
-              🧰 Open Raster Geoprocessing Toolbar
-            </router-link>
-            <button
-              @click="harvestStore.isWmsModalOpen = true"
-              class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-[11px] cursor-pointer"
-            >
-              🌐 WMS Overlay
-            </button>
-          </div>
-        </div>
-      </template>
+      <!-- Main View Content -->
+      <main class="flex-1 overflow-hidden relative">
+        <router-view />
+      </main>
     </div>
-
-    <!-- Main View Content -->
-    <main class="flex-1 overflow-hidden relative">
-      <router-view />
-    </main>
 
     <!-- Modals -->
     <CredentialsModal v-model="isCredentialsModalOpen" />
@@ -456,8 +426,39 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
+import {
+  Globe,
+  Map as MapIcon,
+  SlidersHorizontal,
+  Terminal,
+  Download,
+  Compass,
+  MessageSquare,
+  Layers,
+  Plug,
+  Sun,
+  Moon,
+  HardDrive,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Orbit,
+  Square,
+  Pentagon,
+  Ruler,
+  Mountain,
+  FolderUp,
+  Maximize2,
+  Trash2,
+  Grid,
+  Scissors,
+  RefreshCw,
+  Sprout,
+  BarChart3,
+  FolderOpen,
+  Settings,
+} from 'lucide-vue-next'
 import { useJobStore } from './stores/jobStore'
 import { useHarvestStore } from './stores/harvestStore'
 import { api } from './services/api'
@@ -465,27 +466,66 @@ import CredentialsModal from './components/CredentialsModal.vue'
 import WmsModal from './components/WmsModal.vue'
 import type { SystemStatus } from './types'
 
-const router = useRouter()
+const route = useRoute()
 const jobStore = useJobStore()
 const harvestStore = useHarvestStore()
 const isCredentialsModalOpen = ref(false)
+const activeJobsCount = computed(() =>
+  jobStore.jobs.filter((j) => ['RUNNING', 'QUEUED', 'DOWNLOADING'].includes(j.status)).length
+)
+// Slim 60px vertical rail by default
+const isSideToolbarCollapsed = ref(true)
 const sysTelemetry = ref<SystemStatus | null>(null)
 let pollTimer: any = null
 
-const processingTools = [
-  { id: 'clip' as const, icon: '✂️', label: 'Clip Raster' },
-  { id: 'mosaic' as const, icon: '🧩', label: 'Mosaic' },
-  { id: 'stack' as const, icon: '📚', label: 'Band Stack' },
-  { id: 'index' as const, icon: '🌿', label: 'Spectral Indices' },
-  { id: 'terrain' as const, icon: '⛰️', label: 'Terrain (DEM)' },
-  { id: 'reproject' as const, icon: '🌐', label: 'Reproject & COG' },
-  { id: 'stats' as const, icon: '📊', label: 'Zonal Stats' },
-  { id: 'recipe' as const, icon: '⚙️', label: 'Recipes' },
+// Only show the contextual tool rail on pages that have contextual sub-tools;
+// Ask and Earth Engine have their own dedicated full-width workspace layout.
+const showToolRail = computed(() => {
+  return route.name !== 'ask' && route.name !== 'earthengine'
+})
+
+const currentSidePanelTitle = computed(() => {
+  switch (route.name) {
+    case 'harvest':
+      return 'Spatial Tools'
+    case 'processing':
+      return 'Processing Tools'
+    case 'jobs':
+    case 'files':
+      return 'Downloads & Files'
+    case 'catalog':
+    case 'toposheets':
+    case 'settings':
+      return 'Catalogue'
+    default:
+      return 'Tools'
+  }
+})
+
+const extractionProcessingTools = [
+  { id: 'clip' as const, iconComponent: Scissors, label: 'Clip Raster' },
+  { id: 'mosaic' as const, iconComponent: Grid, label: 'Mosaic Rasters' },
+  { id: 'stack' as const, iconComponent: Layers, label: 'Band Stack' },
+  { id: 'reproject' as const, iconComponent: RefreshCw, label: 'Reproject / Resample' },
 ]
 
-function openTool(tool: 'clip' | 'mosaic' | 'stack' | 'index' | 'terrain' | 'reproject' | 'stats' | 'recipe') {
-  harvestStore.openProcessingTool(tool)
-  router.push('/processing')
+const analysisProcessingTools = [
+  { id: 'index' as const, iconComponent: Sprout, label: 'Spectral Indices' },
+  { id: 'terrain' as const, iconComponent: Mountain, label: 'Terrain (DEM)' },
+  { id: 'stats' as const, iconComponent: BarChart3, label: 'Vector & Zonal' },
+]
+
+function railBtnClass(isActive: boolean, isDanger = false) {
+  const layout = isSideToolbarCollapsed.value
+    ? 'justify-center px-2 py-2'
+    : 'space-x-2.5 px-2.5 py-2'
+  if (isDanger) {
+    return `w-full rounded-[6px] text-[13px] font-medium transition-colors cursor-pointer flex items-center gh-error hover:gh-error-soft-bg ${layout}`
+  }
+  if (isActive) {
+    return `w-full rounded-[6px] text-[13px] font-semibold transition-colors cursor-pointer flex items-center gh-active border-l-2 gh-focus-border ${layout}`
+  }
+  return `w-full rounded-[6px] text-[13px] font-medium transition-colors cursor-pointer flex items-center gh-text-secondary hover:gh-surface-secondary hover:gh-text-primary ${layout}`
 }
 
 onMounted(async () => {
@@ -520,3 +560,29 @@ function formatBytes(bytes?: number) {
   return `${b.toFixed(1)} ${units[i]}`
 }
 </script>
+
+<style scoped>
+.gh-nav-item {
+  height: 100%;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: color 150ms ease, border-color 150ms ease, background-color 150ms ease;
+}
+
+.gh-nav-item:hover {
+  color: var(--text-primary);
+}
+
+.gh-nav-item-active {
+  color: var(--accent-text);
+  font-weight: 600;
+  border-bottom-color: var(--accent-turquoise);
+}
+</style>

@@ -1,411 +1,632 @@
 <template>
-  <div class="flex h-full w-full overflow-hidden bg-slate-950 text-slate-100">
-    <!-- Left Sidebar: Jobs List (w-[320px]) -->
-    <div class="w-[320px] border-r border-slate-800 bg-slate-900/95 flex flex-col h-full shrink-0 shadow-2xl">
-      <div class="px-3.5 py-3 border-b border-slate-800 flex items-center justify-between">
-        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-100 flex items-center space-x-1.5 min-w-0">
-          <svg class="w-4 h-4 text-sky-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-          </svg>
-          <span class="truncate">Jobs Engine</span>
-        </h2>
-        <button
-          @click="jobStore.fetchJobs"
-          class="p-1.5 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer shrink-0"
-          title="Refresh jobs"
+  <div class="flex flex-col lg:flex-row h-full w-full gh-workspace-bg gh-text-primary overflow-hidden">
+    <!-- LEFT PANEL: Queue & Job History (340px on desktop) -->
+    <aside class="w-full lg:w-[340px] border-b lg:border-b-0 lg:border-r gh-border gh-surface-primary flex flex-col h-[40vh] lg:h-full shrink-0">
+      <!-- Queue Header + Storage Readout -->
+      <div class="px-4 py-3 border-b gh-border space-y-2 shrink-0">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center space-x-2 min-w-0">
+            <Download class="w-4 h-4 gh-accent shrink-0" />
+            <h2 class="text-[14px] font-semibold gh-text-primary truncate">Download Queue</h2>
+            <span class="text-[12px] font-mono gh-text-muted">({{ jobStore.jobs.length }})</span>
+          </div>
+          <div class="flex items-center space-x-1 shrink-0">
+            <router-link
+              to="/files"
+              class="px-2 py-1 rounded-[6px] gh-btn-ghost text-[12px] font-medium flex items-center space-x-1"
+              title="Open Local File Browser"
+            >
+              <FolderOpen class="w-3.5 h-3.5 gh-accent" />
+              <span>Files</span>
+            </router-link>
+            <button
+              @click="refreshQueueAndStorage"
+              class="p-1.5 rounded-[6px] gh-btn-ghost cursor-pointer"
+              title="Refresh Queue & Storage"
+            >
+              <RefreshCw class="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        <!-- Local Disk Storage Summary -->
+        <div
+          v-if="storageInfo"
+          class="flex items-center justify-between text-[11px] font-mono gh-text-secondary pt-0.5"
         >
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
+          <span class="flex items-center space-x-1.5 truncate">
+            <HardDrive class="w-3 h-3 gh-accent shrink-0" />
+            <span class="truncate">{{ formatBytes(storageInfo.disk_free_bytes) }} free</span>
+          </span>
+          <span class="gh-text-muted shrink-0">
+            {{ storageInfo.disk_percent.toFixed(0) }}% used
+          </span>
+        </div>
+      </div>
+
+      <!-- Queue Filter Tabs: All / Active / Completed / Failed / Paused -->
+      <div class="px-3 py-1.5 border-b gh-divider flex items-center space-x-1 overflow-x-auto text-[12px] shrink-0 gh-surface-secondary">
+        <button
+          v-for="tab in queueTabs"
+          :key="tab.id"
+          @click="queueFilter = tab.id"
+          :class="[
+            'px-2.5 py-1 rounded-[6px] font-medium whitespace-nowrap transition-colors cursor-pointer flex items-center space-x-1',
+            queueFilter === tab.id
+              ? 'gh-surface-elevated gh-accent font-semibold border gh-border'
+              : 'gh-text-secondary hover:gh-text-primary border border-transparent'
+          ]"
+        >
+          <span>{{ tab.label }}</span>
+          <span class="font-mono text-[10.5px] opacity-75">({{ tab.count }})</span>
         </button>
       </div>
 
-      <div class="flex-1 overflow-y-auto p-2.5 space-y-2 text-xs scrollbar-thin scrollbar-thumb-slate-700">
-        <div v-if="jobStore.jobs.length === 0" class="p-6 text-center text-slate-400 text-xs">
-          No jobs found. Start a harvest from the Discover tab.
+      <!-- Jobs Vertical List (Divider-Separated) -->
+      <div class="flex-1 overflow-y-auto divide-y gh-divide">
+        <div v-if="filteredJobs.length === 0" class="px-4 py-8 text-center gh-text-muted text-[13px]">
+          No {{ queueFilter === 'all' ? 'harvest' : queueFilter }} jobs found.
         </div>
 
         <div
-          v-for="job in jobStore.jobs"
+          v-for="job in filteredJobs"
           :key="job.id"
           @click="jobStore.selectJob(job.id)"
           :class="[
-            'p-2.5 rounded-md border cursor-pointer transition-all shadow-sm',
+            'px-4 py-3 cursor-pointer transition-colors border-l-2',
             jobStore.currentJob?.id === job.id
-              ? 'bg-sky-950/40 border-sky-600'
-              : 'bg-slate-800/60 border-slate-700/60 hover:border-slate-600'
+              ? 'gh-selected-bg gh-focus-border'
+              : 'border-l-transparent hover:gh-surface-secondary'
           ]"
         >
-          <div class="flex justify-between items-start mb-1.5 gap-1">
-            <div class="min-w-0">
-              <div class="font-mono text-xs font-bold text-slate-100 truncate max-w-[160px]" :title="job.name || job.id">
-                {{ job.name || job.id }}
-              </div>
-              <div v-if="job.name && job.name !== job.id" class="font-mono text-[10px] text-slate-500 truncate">
-                {{ job.id }}
-              </div>
-            </div>
-            <span :class="getStatusBadgeClass(job.status)" class="text-[10px] px-1.5 py-0.5 rounded font-mono font-semibold shrink-0">
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <span class="font-mono text-[12.5px] font-semibold gh-text-primary truncate" :title="job.id">
+              {{ job.id }}
+            </span>
+            <span :class="getStatusTextClass(job.status)" class="text-[10.5px] font-mono font-semibold uppercase tracking-wider shrink-0">
               {{ job.status }}
             </span>
           </div>
 
-          <!-- Overall Mini Progress Bar -->
-          <div class="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden my-1.5">
+          <div
+            v-if="job.job_metadata?.task_name"
+            class="text-[12px] gh-text-secondary truncate mb-1.5"
+            :title="job.job_metadata.task_name"
+          >
+            {{ job.job_metadata.task_name }}
+          </div>
+
+          <!-- Slim Progress Track -->
+          <div class="w-full gh-progress-track rounded-[4px] h-[4px] overflow-hidden my-1.5">
             <div
-              class="bg-sky-500 h-full transition-all duration-300"
+              :class="[
+                'h-full transition-all duration-300',
+                job.status === 'FAILED' ? 'bg-[var(--error)]' : job.status === 'COMPLETED' ? 'bg-[var(--success)]' : 'gh-progress-fill'
+              ]"
               :style="{ width: `${getJobProgress(job)}%` }"
             ></div>
           </div>
 
-          <div class="flex items-center justify-between text-xs text-slate-400">
-            <span class="font-semibold text-slate-300">{{ getJobProgress(job) }}%</span>
-            <span class="text-[11px] text-slate-400">{{ getJobCompletedCount(job) }} / {{ getJobTotalCount(job) }} files</span>
+          <div class="flex items-center justify-between text-[11.5px] font-mono gh-text-secondary">
+            <span>{{ getJobProgress(job) }}% &bull; {{ getJobCompletedCount(job) }}/{{ getJobTotalCount(job) }} files</span>
+            <button
+              v-if="['FAILED', 'CANCELLED'].includes(job.status)"
+              @click.stop="jobStore.restartJob(job.id, false)"
+              class="px-2 py-0.5 rounded-[6px] border gh-warning-border gh-warning-soft-bg gh-warning text-[11px] font-semibold flex items-center space-x-1 cursor-pointer"
+              title="Restart failed tasks in this job"
+            >
+              <RotateCcw class="w-3 h-3" />
+              <span>Restart</span>
+            </button>
           </div>
         </div>
       </div>
-    </div>
+    </aside>
 
-    <!-- Main Detail Area (flex-1) -->
-    <div class="flex-1 flex flex-col h-full overflow-hidden bg-slate-950">
+    <!-- CENTER WORKSPACE: Active Job Details & Scene/Asset Progress -->
+    <main class="flex-1 flex flex-col h-full overflow-hidden gh-workspace-bg min-w-0">
       <div v-if="jobStore.currentJob" class="flex-1 flex flex-col h-full overflow-hidden">
         <!-- Job Header Banner -->
-        <div class="p-4 sm:p-5 border-b border-slate-800 bg-slate-900/60 flex items-center justify-between gap-4">
-          <div>
-            <div class="flex items-center space-x-3">
-              <h1 class="text-xl font-bold font-mono text-slate-100">{{ jobStore.currentJob.id }}</h1>
-              <span :class="getStatusBadgeClass(jobStore.currentJob.status)" class="text-xs px-2.5 py-1 rounded font-mono font-bold">
+        <div class="px-5 py-4 border-b gh-border gh-surface-primary flex flex-col xl:flex-row xl:items-center justify-between gap-3 shrink-0">
+          <div class="min-w-0">
+            <div class="flex items-center flex-wrap gap-2.5">
+              <h1 class="text-[17px] font-semibold font-mono gh-text-primary truncate">
+                {{ jobStore.currentJob.id }}
+              </h1>
+              <span
+                :class="getStatusTextClass(jobStore.currentJob.status)"
+                class="text-[11px] px-2 py-0.5 rounded-[6px] border gh-border gh-surface-secondary font-mono font-semibold uppercase tracking-wider"
+              >
                 {{ jobStore.currentJob.status }}
               </span>
             </div>
-            <div class="text-xs text-slate-400 mt-1.5 flex items-center space-x-3 sm:space-x-4 flex-wrap">
-              <span>Created: {{ formatTime(jobStore.currentJob.created_at) }}</span>
-              <span>&bull;</span>
-              <span class="text-teal-300 font-semibold">Progress: {{ currentProgress }}%</span>
-              <span>&bull;</span>
-              <span class="text-sky-300 font-semibold">Files: {{ currentCompletedDownloads }} / {{ currentTotalDownloads }} completed</span>
+
+            <div class="text-[12.5px] gh-text-secondary mt-1.5 flex items-center gap-x-3 gap-y-1 flex-wrap font-mono">
+              <span>Created {{ formatTime(jobStore.currentJob.created_at) }}</span>
+              <span class="gh-text-muted">&bull;</span>
+              <span class="gh-accent font-semibold">{{ currentProgress }}% complete</span>
+              <span class="gh-text-muted">&bull;</span>
+              <template v-if="currentJobScenes.length > 0">
+                <span>
+                  {{ completedScenesCount }} / {{ currentJobScenes.length }} scenes stacked (.tif)
+                </span>
+                <span v-if="failedScenesCount > 0" class="gh-error font-semibold">
+                  &bull; {{ failedScenesCount }} failed
+                </span>
+              </template>
+              <span v-else>
+                {{ currentCompletedDownloads }} / {{ currentTotalDownloads }} files completed
+              </span>
+            </div>
+
+            <div
+              v-if="jobStore.currentJob.error"
+              class="mt-2 px-3 py-1.5 rounded-[6px] gh-error-soft-bg border gh-error-border gh-error text-[12px] font-mono flex items-center space-x-2"
+            >
+              <AlertTriangle class="w-3.5 h-3.5 shrink-0" />
+              <span class="break-words">{{ jobStore.currentJob.error }}</span>
             </div>
           </div>
 
-          <!-- Actions -->
-          <div class="flex items-center space-x-2 shrink-0">
-            <!-- Toggle Telemetry Sidebar -->
+          <!-- Job Controls -->
+          <div class="flex flex-wrap items-center gap-2 shrink-0">
             <button
               @click="isTelemetryOpen = !isTelemetryOpen"
-              :class="isTelemetryOpen ? 'bg-teal-950/90 text-teal-300 border-teal-700' : 'bg-slate-800 text-slate-400 border-slate-700'"
-              class="px-3 py-2 border rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-colors cursor-pointer shadow-sm"
+              :class="[
+                'px-3 py-1.5 rounded-[8px] text-[12.5px] font-medium flex items-center space-x-1.5 transition-colors cursor-pointer border',
+                isTelemetryOpen
+                  ? 'gh-selected-bg gh-turquoise gh-focus-border font-semibold'
+                  : 'gh-btn-secondary'
+              ]"
               title="Toggle Live Telemetry Sidebar"
             >
-              <span>⚡</span>
+              <Activity class="w-3.5 h-3.5" />
               <span>Telemetry</span>
             </button>
 
             <button
               v-if="jobStore.currentJob.status === 'RUNNING'"
               @click="jobStore.pauseJob(jobStore.currentJob.id)"
-              class="px-3.5 py-2 bg-amber-600/80 hover:bg-amber-600 text-white rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer shadow-sm"
+              class="px-3 py-1.5 rounded-[8px] border gh-warning-border gh-warning-soft-bg gh-warning text-[12.5px] font-semibold flex items-center space-x-1.5 cursor-pointer"
             >
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+              <Pause class="w-3.5 h-3.5" />
               <span>Pause</span>
             </button>
 
             <button
               v-if="['PAUSED', 'FAILED', 'QUEUED'].includes(jobStore.currentJob.status)"
               @click="jobStore.resumeJob(jobStore.currentJob.id)"
-              class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-colors shadow-lg shadow-emerald-950 cursor-pointer"
+              class="px-3.5 py-1.5 rounded-[8px] gh-btn-primary text-[12.5px] font-semibold flex items-center space-x-1.5 cursor-pointer"
             >
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+              <Play class="w-3.5 h-3.5" />
               <span>Resume</span>
             </button>
 
-            <!-- Mosaic & Clip button (Only for satellite rasters, strictly excluded for toposheets) -->
+            <button
+              v-if="['FAILED', 'CANCELLED'].includes(jobStore.currentJob.status) || failedScenesCount > 0 || failedDownloadsCount > 0"
+              @click="jobStore.restartJob(jobStore.currentJob.id, false)"
+              class="px-3.5 py-1.5 rounded-[8px] border gh-warning-border gh-warning-soft-bg gh-warning text-[12.5px] font-semibold flex items-center space-x-1.5 cursor-pointer"
+              title="Restart all failed scenes and downloads cleanly"
+            >
+              <RotateCcw class="w-3.5 h-3.5" />
+              <span>Restart Failed</span>
+            </button>
+
             <button
               v-if="canMosaicJob(jobStore.currentJob)"
               @click="openMosaicModal"
-              class="px-3 py-2 bg-teal-950/90 hover:bg-teal-900 border border-teal-750 text-teal-200 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer shadow-sm"
-              title="Mosaic and clip raster tiles to GeoJSON boundary"
+              class="px-3 py-1.5 rounded-[8px] gh-btn-secondary text-[12.5px] font-medium flex items-center space-x-1.5 cursor-pointer"
+              title="Mosaic and clip raster tiles to AOI boundary"
             >
-              <span class="text-xs">🧩</span>
+              <Combine class="w-3.5 h-3.5 gh-accent" />
               <span>Mosaic &amp; Clip</span>
             </button>
 
-            <!-- Open in File Manager button -->
             <button
               @click="openInFileManager(jobStore.currentJob)"
-              class="px-3 py-2 bg-sky-950/80 hover:bg-sky-900 border border-sky-800 text-sky-200 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer shadow-sm"
-              title="Browse downloaded files for this job in File Manager"
+              class="px-3 py-1.5 rounded-[8px] gh-btn-secondary text-[12.5px] font-medium flex items-center space-x-1.5 cursor-pointer"
+              title="Browse downloaded files in File Browser"
             >
-              <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-              </svg>
+              <FolderOpen class="w-3.5 h-3.5 gh-accent" />
               <span>Files</span>
             </button>
 
             <button
               v-if="jobStore.currentJob.status !== 'COMPLETED' && jobStore.currentJob.status !== 'CANCELLED'"
               @click="jobStore.cancelJob(jobStore.currentJob.id)"
-              class="px-3 py-2 bg-slate-800 hover:bg-red-950/60 text-slate-300 hover:text-red-400 border border-slate-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+              class="px-3 py-1.5 rounded-[8px] border gh-border gh-surface-secondary hover:gh-error-soft-bg hover:gh-error hover:gh-error-border gh-text-secondary text-[12.5px] font-medium flex items-center space-x-1.5 transition-colors cursor-pointer"
             >
+              <XCircle class="w-3.5 h-3.5" />
               <span>Cancel</span>
             </button>
           </div>
         </div>
 
         <!-- Overall Progress Strip -->
-        <div class="px-5 py-3 bg-slate-900/40 border-b border-slate-800/80">
-          <div class="flex justify-between items-center text-xs mb-1.5">
-            <span class="text-slate-300 font-medium flex items-center space-x-2">
-              <span>Overall Harvest &amp; Download Progress</span>
-              <span class="text-[11px] text-slate-400 font-mono">({{ currentCompletedDownloads }} / {{ currentTotalDownloads }} files complete)</span>
+        <div class="px-5 py-3 gh-surface-primary border-b gh-divider shrink-0">
+          <div class="flex justify-between items-center text-[12.5px] mb-1.5">
+            <span class="gh-text-primary font-medium flex items-center space-x-2">
+              <span>Harvest &amp; Stacking Progress</span>
+              <span v-if="currentJobScenes.length > 0" class="text-[12px] gh-text-secondary font-mono">
+                ({{ completedScenesCount }}/{{ currentJobScenes.length }} scenes &bull; {{ currentCompletedDownloads }}/{{ currentTotalDownloads }} bands)
+              </span>
+              <span v-else class="text-[12px] gh-text-secondary font-mono">
+                ({{ currentCompletedDownloads }}/{{ currentTotalDownloads }} files)
+              </span>
             </span>
-            <span class="font-mono text-teal-400 font-bold text-sm">{{ currentProgress }}%</span>
+            <span class="font-mono gh-accent font-semibold text-[13px]">{{ currentProgress }}%</span>
           </div>
-          <div class="w-full bg-slate-900 rounded-full h-2.5 overflow-hidden border border-slate-800">
+          <div class="w-full gh-progress-track rounded-[4px] h-[5px] overflow-hidden">
             <div
-              class="bg-gradient-to-r from-sky-500 via-teal-400 to-emerald-400 h-full transition-all duration-300"
+              :class="[
+                'h-full transition-all duration-300',
+                jobStore.currentJob.status === 'FAILED' ? 'bg-[var(--error)]' : 'gh-progress-fill'
+              ]"
               :style="{ width: `${currentProgress}%` }"
             ></div>
           </div>
         </div>
 
-        <!-- Download Items Table -->
-        <div class="flex-1 overflow-y-auto p-4 sm:p-5">
-          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center justify-between">
-            <span>Asset Downloads ({{ currentTotalDownloads }})</span>
-            <span class="text-[11px] font-mono text-slate-500">
-              {{ currentCompletedDownloads }} Completed &bull; {{ currentTotalDownloads - currentCompletedDownloads }} Remaining
+        <!-- Scene-Level Multiband GeoTIFF Deliverables -->
+        <div v-if="currentJobScenes.length > 0" class="flex-1 overflow-y-auto p-5">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center space-x-2.5">
+              <h3 class="gh-label">Scene Deliverables ({{ currentJobScenes.length }})</h3>
+              <span class="text-[11px] font-mono px-2 py-0.5 rounded-[6px] border gh-border gh-surface-secondary gh-accent">
+                1 Scene = 1 Multiband .TIF
+              </span>
+            </div>
+            <span class="text-[12px] font-mono gh-text-secondary">
+              {{ completedScenesCount }} stacked &bull; {{ currentJobScenes.length - completedScenesCount }} remaining
             </span>
-          </h3>
+          </div>
 
-          <div class="space-y-2">
+          <div class="border gh-border rounded-[10px] gh-surface-primary divide-y gh-divide overflow-hidden">
             <div
-              v-for="dl in jobStore.currentJob.downloads"
-              :key="dl.id"
-              class="p-3 bg-slate-900/90 border border-slate-800/90 rounded-lg text-xs hover:border-slate-750 transition-colors"
+              v-for="scene in currentJobScenes"
+              :key="scene.scene_id"
+              class="p-4 text-[13px] space-y-2.5"
             >
-              <div class="flex items-center justify-between mb-2">
-                <div class="flex items-center space-x-2 truncate">
-                  <span class="font-mono font-semibold text-slate-200 truncate">{{ dl.asset_name }}</span>
-                  <span class="text-slate-500 text-[11px] truncate">({{ getFileName(dl.destination) }})</span>
+              <!-- Scene Header -->
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0 space-y-1">
+                  <div class="flex items-center space-x-2">
+                    <span class="px-1.5 py-0.5 rounded-[5px] border gh-border gh-surface-secondary gh-accent font-mono text-[10.5px] font-semibold shrink-0">
+                      {{ scene.dataset_dir || scene.collection || 'SATELLITE' }}
+                    </span>
+                    <span class="font-mono font-semibold gh-text-primary truncate text-[13px]" :title="scene.output_filename || `${scene.scene_id}.tif`">
+                      {{ scene.output_filename || `${scene.scene_id}.tif` }}
+                    </span>
+                  </div>
+
+                  <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] font-mono gh-text-secondary">
+                    <span v-if="scene.datetime || (scene.year && scene.month)" class="flex items-center space-x-1">
+                      <Calendar class="w-3 h-3 gh-text-muted" />
+                      <span>{{ formatSceneDate(scene) }}</span>
+                    </span>
+                    <span class="flex items-center space-x-1 gh-accent truncate" :title="scene.final_output_path || scene.relative_output_path || ''">
+                      <FolderOpen class="w-3 h-3 shrink-0" />
+                      <span class="truncate">downloads/{{ scene.relative_output_path || `${scene.year || 'YYYY'}/${scene.month || 'MM'}/${scene.scene_id}.tif` }}</span>
+                    </span>
+                  </div>
                 </div>
-                <div class="flex items-center space-x-2 shrink-0">
-                  <span
-                    v-if="dl.status === 'DOWNLOADING' && (dl.speed_bytes_sec || 0) > 0"
-                    class="text-[10px] text-teal-300 font-mono font-semibold bg-teal-950/60 border border-teal-800/60 px-1.5 py-0.5 rounded"
+
+                <div class="flex items-center space-x-2.5 shrink-0">
+                  <button
+                    v-if="['failed', 'cancelled'].includes(scene.status) || scene.bands?.some((b: any) => b.status === 'FAILED')"
+                    @click="jobStore.restartScene(jobStore.currentJob.id, scene.scene_id)"
+                    class="px-2.5 py-1 rounded-[7px] border gh-warning-border gh-warning-soft-bg gh-warning text-[11.5px] font-semibold flex items-center space-x-1 cursor-pointer"
+                    title="Restart this scene download and multiband GeoTIFF stacking"
                   >
-                    {{ formatSpeed(dl.speed_bytes_sec || 0) }}
+                    <RotateCcw class="w-3 h-3" />
+                    <span>Restart</span>
+                  </button>
+                  <span :class="getSceneStatusTextClass(scene.status)" class="text-[11px] font-mono font-semibold uppercase">
+                    {{ getSceneStatusLabel(scene) }}
                   </span>
-                  <span :class="getStatusBadgeClass(dl.status)" class="text-[10px] px-1.5 py-0.5 rounded font-mono">
-                    {{ dl.status }}
-                  </span>
-                  <span class="font-mono text-slate-300 font-semibold">{{ dl.progress_percentage }}%</span>
+                  <span class="font-mono gh-text-primary font-semibold text-[12px]">{{ scene.progress_percentage }}%</span>
                 </div>
               </div>
 
-              <!-- Progress Bar -->
-              <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden mb-2">
+              <!-- Scene Progress Bar -->
+              <div class="w-full gh-progress-track rounded-[4px] h-[4px] overflow-hidden">
                 <div
                   :class="[
                     'h-full transition-all duration-200',
-                    dl.status === 'COMPLETED' ? 'bg-emerald-500' : dl.status === 'FAILED' ? 'bg-rose-500' : 'bg-teal-500'
+                    scene.status === 'completed'
+                      ? 'bg-[var(--success)]'
+                      : scene.status === 'failed'
+                      ? 'bg-[var(--error)]'
+                      : scene.status === 'stacking'
+                      ? 'bg-[var(--warning)]'
+                      : 'gh-progress-fill'
+                  ]"
+                  :style="{ width: `${scene.progress_percentage}%` }"
+                ></div>
+              </div>
+
+              <!-- Spectral Band Items -->
+              <div class="space-y-1.5">
+                <div class="flex items-center justify-between text-[11px] font-mono gh-text-secondary">
+                  <span>Selected Spectral Bands ({{ scene.completed_bands }}/{{ scene.total_bands }} downloaded)</span>
+                  <span>{{ formatBytes(scene.downloaded_bytes) }} / {{ formatBytes(scene.total_bytes) }}</span>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                  <div
+                    v-for="b in scene.bands"
+                    :key="b.download_id"
+                    :class="[
+                      'px-2.5 py-1.5 rounded-[6px] border text-[11px] font-mono flex items-center justify-between',
+                      b.status === 'COMPLETED'
+                        ? 'gh-surface-secondary gh-border gh-success'
+                        : b.status === 'DOWNLOADING'
+                        ? 'gh-selected-bg gh-focus-border gh-turquoise'
+                        : b.status === 'FAILED'
+                        ? 'gh-error-soft-bg gh-error-border gh-error'
+                        : 'gh-workspace-bg gh-border gh-text-secondary'
+                    ]"
+                  >
+                    <span class="truncate font-medium">{{ b.label }}</span>
+                    <span class="ml-1.5 shrink-0 flex items-center space-x-1.5">
+                      <Check v-if="b.status === 'COMPLETED'" class="w-3 h-3" />
+                      <span v-else>{{ b.status === 'DOWNLOADING' ? `${b.progress_percentage}%` : b.status }}</span>
+                      <button
+                        v-if="b.status === 'FAILED' || b.status === 'CANCELLED'"
+                        @click.stop="jobStore.restartDownload(jobStore.currentJob.id, b.download_id)"
+                        class="px-1.5 py-0.5 rounded-[5px] border gh-warning-border gh-warning-soft-bg gh-warning text-[10px] font-semibold flex items-center space-x-0.5 cursor-pointer"
+                        title="Restart this band download"
+                      >
+                        <RotateCcw class="w-2.5 h-2.5" />
+                        <span>Retry</span>
+                      </button>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Pipeline Footer -->
+              <div class="pt-2 border-t gh-divider flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono">
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 gh-text-secondary">
+                  <span :class="scene.completed_bands === scene.total_bands && scene.total_bands > 0 ? 'gh-success' : scene.status === 'failed' ? 'gh-error font-semibold' : 'gh-accent'">
+                    1. Bands: {{ scene.completed_bands === scene.total_bands && scene.total_bands > 0 ? 'DONE' : scene.status === 'failed' ? `FAILED (${scene.completed_bands}/${scene.total_bands})` : `${scene.completed_bands}/${scene.total_bands}` }}
+                  </span>
+                  <span :class="scene.status === 'completed' ? 'gh-success' : scene.status === 'stacking' ? 'gh-warning' : scene.status === 'failed' && scene.completed_bands === scene.total_bands ? 'gh-error font-semibold' : 'gh-text-muted'">
+                    2. Validate: {{ scene.status === 'completed' ? 'PASSED' : scene.status === 'stacking' ? 'RUNNING' : scene.status === 'failed' && scene.completed_bands === scene.total_bands ? 'FAILED' : 'PENDING' }}
+                  </span>
+                  <span :class="scene.status === 'completed' ? 'gh-success font-semibold' : scene.status === 'stacking' ? 'gh-warning font-semibold' : scene.status === 'failed' && scene.completed_bands === scene.total_bands ? 'gh-error font-semibold' : 'gh-text-muted'">
+                    3. GeoTIFF Stack: {{ scene.status === 'completed' ? 'COMPLETED' : scene.status === 'stacking' ? 'STACKING...' : scene.status === 'failed' && scene.completed_bands === scene.total_bands ? 'FAILED' : 'PENDING' }}
+                  </span>
+                </div>
+
+                <div v-if="scene.error" class="gh-error truncate max-w-md flex items-center space-x-1" :title="scene.error">
+                  <AlertTriangle class="w-3 h-3 shrink-0" />
+                  <span class="truncate">{{ scene.error }}</span>
+                </div>
+                <div v-else-if="scene.status === 'completed'" class="gh-success font-semibold flex items-center space-x-1">
+                  <Check class="w-3 h-3" />
+                  <span>Stacked {{ scene.output_metadata?.band_count || scene.total_bands }}-Band GeoTIFF</span>
+                  <span v-if="scene.output_metadata?.crs" class="gh-text-secondary font-normal">({{ scene.output_metadata.crs }})</span>
+                  <span v-if="scene.output_metadata?.file_size" class="gh-text-secondary font-normal">&bull; {{ formatBytes(scene.output_metadata.file_size) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Legacy / Asset Downloads Clean Table -->
+        <div v-else class="flex-1 overflow-y-auto p-5">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="gh-label">Asset Downloads ({{ currentTotalDownloads }})</h3>
+            <span class="text-[12px] font-mono gh-text-secondary">
+              {{ currentCompletedDownloads }} completed &bull; {{ currentTotalDownloads - currentCompletedDownloads }} remaining
+            </span>
+          </div>
+
+          <div class="border gh-border rounded-[10px] gh-surface-primary divide-y gh-divide overflow-hidden">
+            <div
+              v-for="dl in jobStore.currentJob.downloads"
+              :key="dl.id"
+              class="px-4 py-3 text-[13px] space-y-2"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center space-x-2 min-w-0">
+                  <span class="font-mono font-semibold gh-text-primary truncate">{{ dl.asset_name }}</span>
+                  <span class="gh-text-muted text-[11.5px] font-mono truncate">
+                    ({{ getFileName(dl.final_output_path || dl.destination) }})
+                  </span>
+                </div>
+
+                <div class="flex items-center space-x-2.5 shrink-0 font-mono">
+                  <span
+                    v-if="dl.status === 'DOWNLOADING' && (dl.speed_bytes_sec || 0) > 0"
+                    class="text-[11px] gh-accent font-semibold"
+                  >
+                    {{ formatSpeed(dl.speed_bytes_sec || 0) }}
+                  </span>
+                  <button
+                    v-if="dl.status === 'FAILED' || dl.status === 'CANCELLED'"
+                    @click="jobStore.restartDownload(jobStore.currentJob.id, dl.id)"
+                    class="px-2.5 py-1 rounded-[7px] border gh-warning-border gh-warning-soft-bg gh-warning text-[11.5px] font-semibold flex items-center space-x-1 cursor-pointer"
+                    title="Restart this download from scratch"
+                  >
+                    <RotateCcw class="w-3 h-3" />
+                    <span>Restart</span>
+                  </button>
+                  <span :class="getStatusTextClass(dl.status)" class="text-[11px] font-semibold uppercase">
+                    {{ dl.status }}
+                  </span>
+                  <span class="gh-text-primary font-semibold text-[12px]">{{ dl.progress_percentage }}%</span>
+                </div>
+              </div>
+
+              <div class="w-full gh-progress-track rounded-[4px] h-[4px] overflow-hidden">
+                <div
+                  :class="[
+                    'h-full transition-all duration-200',
+                    dl.status === 'COMPLETED' ? 'bg-[var(--success)]' : dl.status === 'FAILED' ? 'bg-[var(--error)]' : 'gh-progress-fill'
                   ]"
                   :style="{ width: `${dl.progress_percentage}%` }"
                 ></div>
               </div>
 
-              <div class="flex justify-between items-center text-[11px] text-slate-400 font-mono">
+              <div class="flex justify-between items-center text-[11.5px] gh-text-secondary font-mono">
                 <span>{{ formatBytes(dl.downloaded_bytes) }} / {{ formatBytes(dl.total_bytes) }}</span>
-                <span v-if="dl.error" class="text-rose-400 truncate max-w-sm">⚠ {{ dl.error }}</span>
-                <span v-else-if="dl.status === 'COMPLETED'" class="text-emerald-400">✓ Downloaded &amp; Verified</span>
-                <span v-else-if="dl.status === 'DOWNLOADING'" class="text-teal-400">Streaming chunks...</span>
+                <span v-if="dl.error" class="gh-error truncate max-w-md flex items-center space-x-1">
+                  <AlertTriangle class="w-3 h-3 shrink-0" />
+                  <span class="truncate">{{ dl.error }}</span>
+                </span>
+                <span v-else-if="dl.status === 'COMPLETED'" class="gh-success flex items-center space-x-1">
+                  <Check class="w-3 h-3" />
+                  <span>Downloaded &amp; Verified</span>
+                </span>
+                <span v-else-if="dl.status === 'DOWNLOADING'" class="gh-accent">Streaming chunks...</span>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div v-else class="flex-1 flex items-center justify-center text-slate-500 text-xs">
-        Select a job from the left panel to inspect real-time progress and downloads.
+      <div v-else class="flex-1 flex items-center justify-center gh-text-muted text-[13px]">
+        Select a job from the Download Queue panel to inspect progress and deliverables.
       </div>
-    </div>
+    </main>
 
-    <!-- Right Sidebar: Live Telemetry, ETA & Process Remaining (w-[295px]) -->
-    <div
+    <!-- RIGHT SIDEBAR: Live Telemetry (290px, flat divider sections) -->
+    <aside
       v-if="jobStore.currentJob && isTelemetryOpen"
-      class="w-[295px] border-l border-slate-800 bg-slate-900/95 flex flex-col h-full shrink-0 shadow-2xl overflow-y-auto p-3.5 space-y-3 scrollbar-thin scrollbar-thumb-slate-700 animate-in fade-in duration-150"
+      class="w-full lg:w-[290px] border-t lg:border-t-0 lg:border-l gh-border gh-surface-primary flex flex-col h-[34vh] lg:h-full shrink-0 overflow-y-auto divide-y gh-divide"
     >
       <!-- Telemetry Header -->
-      <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+      <div class="px-4 py-3 flex items-center justify-between">
         <div class="flex items-center space-x-2">
-          <div class="w-6 h-6 rounded-md bg-teal-950/80 border border-teal-700/80 flex items-center justify-center text-teal-400 shadow-sm">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
+          <Activity class="w-4 h-4 gh-accent shrink-0" />
           <div>
-            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-100">Live Telemetry</h3>
-            <p class="text-[10px] text-slate-400 font-mono">Transfer &amp; process monitor</p>
+            <h3 class="text-[13px] font-semibold gh-text-primary">Live Telemetry</h3>
+            <p class="text-[11px] gh-text-muted font-mono">Transfer monitor</p>
           </div>
         </div>
-
-        <span
-          :class="[
-            'text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold flex items-center space-x-1 border',
-            jobStore.currentJob.status === 'RUNNING'
-              ? 'bg-emerald-950/80 text-emerald-400 border-emerald-800'
-              : jobStore.currentJob.status === 'COMPLETED'
-              ? 'bg-teal-950/80 text-teal-300 border-teal-800'
-              : 'bg-slate-800 text-slate-400 border-slate-700'
-          ]"
-        >
+        <span :class="getStatusTextClass(jobStore.currentJob.status)" class="text-[11px] font-mono font-semibold flex items-center space-x-1.5">
           <span
             v-if="jobStore.currentJob.status === 'RUNNING'"
-            class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping mr-0.5"
+            class="w-2 h-2 rounded-full bg-[var(--accent-turquoise)]"
           ></span>
           <span>{{ jobStore.currentJob.status }}</span>
         </span>
       </div>
 
-      <!-- 1. Network Speed Card -->
-      <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2 relative overflow-hidden shadow-xs">
-        <div class="flex items-center justify-between text-xs text-slate-400">
-          <span class="font-medium flex items-center space-x-1.5">
-            <span class="text-amber-400">⚡</span>
-            <span>Network Speed</span>
-          </span>
-          <span class="text-[10px] font-mono text-slate-500">
-            {{ activeDownloadsCount }} {{ activeDownloadsCount === 1 ? 'stream' : 'streams' }}
-          </span>
-        </div>
-
-        <div class="flex items-baseline space-x-1.5">
-          <span class="text-2xl font-bold font-mono text-teal-300 tracking-tight">
+      <!-- Network Speed & ETA -->
+      <div class="px-4 py-3.5 space-y-3">
+        <div>
+          <div class="flex items-center justify-between text-[12px] gh-text-secondary mb-1">
+            <span class="font-medium">Network Speed</span>
+            <span class="text-[11px] font-mono gh-text-muted">
+              {{ activeDownloadsCount }} {{ activeDownloadsCount === 1 ? 'stream' : 'streams' }}
+            </span>
+          </div>
+          <div class="text-[20px] font-semibold font-mono gh-turquoise tracking-tight">
             {{ formatSpeed(aggregateSpeed) }}
-          </span>
+          </div>
+          <div class="w-full gh-progress-track rounded-[4px] h-[4px] overflow-hidden mt-2">
+            <div
+              :class="['h-full gh-progress-fill transition-all duration-300', aggregateSpeed > 0 ? 'opacity-100' : 'opacity-25']"
+              :style="{ width: `${Math.min(100, Math.max(4, (aggregateSpeed / (30 * 1024 * 1024)) * 100))}%` }"
+            ></div>
+          </div>
+          <div class="text-[11px] gh-text-muted font-mono flex justify-between mt-1">
+            <span>Bandwidth</span>
+            <span :class="aggregateSpeed > 0 ? 'gh-success font-semibold' : 'gh-text-muted'">
+              {{ aggregateSpeed > 0 ? 'Streaming' : 'Idle' }}
+            </span>
+          </div>
         </div>
 
-        <!-- Animated speed bar -->
-        <div class="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden">
-          <div
-            :class="[
-              'h-full bg-gradient-to-r from-teal-500 to-sky-400 transition-all duration-300',
-              aggregateSpeed > 0 ? 'opacity-100' : 'opacity-20'
-            ]"
-            :style="{ width: `${Math.min(100, Math.max(4, (aggregateSpeed / (30 * 1024 * 1024)) * 100))}%` }"
-          ></div>
-        </div>
-
-        <div class="text-[10px] text-slate-500 font-mono flex justify-between">
-          <span>Aggregate bandwidth</span>
-          <span :class="aggregateSpeed > 0 ? 'text-emerald-400 font-semibold' : 'text-slate-600'">
-            {{ aggregateSpeed > 0 ? 'Active streaming' : 'Idle / Waiting' }}
-          </span>
-        </div>
-      </div>
-
-      <!-- 2. Estimated Time (ETA) Card -->
-      <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2 shadow-xs">
-        <div class="flex items-center justify-between text-xs text-slate-400">
-          <span class="font-medium flex items-center space-x-1.5">
-            <span class="text-sky-400">⏱️</span>
-            <span>Estimated Time</span>
-          </span>
-          <span class="text-[10px] font-mono text-slate-500">ETA</span>
-        </div>
-
-        <div class="flex items-baseline space-x-1.5">
-          <span class="text-2xl font-bold font-mono text-sky-300 tracking-tight">
+        <div class="pt-2 border-t gh-divider">
+          <div class="flex items-center justify-between text-[12px] gh-text-secondary mb-1">
+            <span class="font-medium flex items-center space-x-1.5">
+              <Clock class="w-3.5 h-3.5 gh-saffron" />
+              <span>Estimated Time</span>
+            </span>
+            <span class="text-[11px] font-mono gh-text-muted">ETA</span>
+          </div>
+          <div class="text-[19px] font-semibold font-mono gh-saffron tracking-tight">
             {{ formattedEta }}
-          </span>
-        </div>
-
-        <div class="text-[10px] text-slate-500 font-mono flex justify-between">
-          <span>Remaining duration</span>
-          <span class="text-slate-400">{{ formatBytes(remainingBytes) }} left</span>
+          </div>
+          <div class="text-[11px] gh-text-muted font-mono flex justify-between mt-0.5">
+            <span>Data remaining</span>
+            <span class="gh-text-secondary">{{ formatBytes(remainingBytes) }}</span>
+          </div>
         </div>
       </div>
 
-      <!-- 3. Process Left / Remaining Work Card -->
-      <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2.5 shadow-xs">
-        <div class="flex items-center justify-between text-xs text-slate-400">
+      <!-- Process Remaining Breakdown -->
+      <div class="px-4 py-3.5 space-y-2.5">
+        <div class="flex items-center justify-between text-[12px] gh-text-secondary">
           <span class="font-medium flex items-center space-x-1.5">
-            <span class="text-indigo-400">📦</span>
+            <Layers class="w-3.5 h-3.5 gh-accent" />
             <span>Process Remaining</span>
           </span>
-          <span class="text-[11px] font-mono font-bold text-teal-400">{{ currentProgress }}%</span>
+          <span class="font-mono font-semibold gh-accent">{{ currentProgress }}%</span>
         </div>
 
-        <!-- Overall progress bar -->
-        <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-850">
-          <div
-            class="bg-gradient-to-r from-teal-500 via-sky-500 to-emerald-400 h-full transition-all duration-300"
-            :style="{ width: `${currentProgress}%` }"
-          ></div>
+        <div class="w-full gh-progress-track rounded-[4px] h-[4px] overflow-hidden">
+          <div class="gh-progress-fill h-full transition-all duration-300" :style="{ width: `${currentProgress}%` }"></div>
         </div>
 
-        <!-- Key Metrics Grid -->
-        <div class="grid grid-cols-2 gap-2 pt-0.5 font-mono text-[11px]">
-          <div class="p-2 rounded bg-slate-900/80 border border-slate-850 space-y-0.5">
-            <div class="text-[10px] text-slate-500">Files Left</div>
-            <div class="text-sm font-bold text-slate-200">
-              {{ remainingFiles }} <span class="text-[10px] text-slate-500">/ {{ currentTotalDownloads }}</span>
+        <div class="grid grid-cols-2 gap-2 pt-1 font-mono text-[11.5px]">
+          <div class="p-2 rounded-[6px] gh-surface-secondary border gh-border">
+            <div class="text-[10.5px] gh-text-muted">Files Left</div>
+            <div class="text-[13px] font-semibold gh-text-primary">
+              {{ remainingFiles }} <span class="text-[10.5px] gh-text-muted">/ {{ currentTotalDownloads }}</span>
             </div>
           </div>
-
-          <div class="p-2 rounded bg-slate-900/80 border border-slate-850 space-y-0.5">
-            <div class="text-[10px] text-slate-500">Data Left</div>
-            <div class="text-xs font-bold text-slate-200 truncate" :title="formatBytes(remainingBytes)">
+          <div class="p-2 rounded-[6px] gh-surface-secondary border gh-border">
+            <div class="text-[10.5px] gh-text-muted">Data Left</div>
+            <div class="text-[13px] font-semibold gh-text-primary truncate" :title="formatBytes(remainingBytes)">
               {{ formatBytes(remainingBytes) }}
             </div>
           </div>
         </div>
 
-        <!-- Status Breakdown Chips -->
-        <div class="grid grid-cols-2 gap-1.5 pt-0.5 text-[10px] font-mono">
-          <div class="px-2 py-1 rounded bg-emerald-950/40 border border-emerald-900/60 flex items-center justify-between text-emerald-300">
-            <span>✓ Done:</span>
-            <span class="font-bold">{{ currentCompletedDownloads }}</span>
+        <div class="grid grid-cols-2 gap-1.5 text-[11px] font-mono pt-1">
+          <div class="px-2 py-1 rounded-[6px] gh-surface-secondary border gh-border flex justify-between gh-success">
+            <span>Done:</span>
+            <span class="font-semibold">{{ currentCompletedDownloads }}</span>
           </div>
-          <div class="px-2 py-1 rounded bg-teal-950/40 border border-teal-900/60 flex items-center justify-between text-teal-300">
-            <span>⚡ Active:</span>
-            <span class="font-bold">{{ activeDownloadsCount }}</span>
+          <div class="px-2 py-1 rounded-[6px] gh-surface-secondary border gh-border flex justify-between gh-accent">
+            <span>Active:</span>
+            <span class="font-semibold">{{ activeDownloadsCount }}</span>
           </div>
-          <div class="px-2 py-1 rounded bg-slate-900 border border-slate-800 flex items-center justify-between text-slate-400">
-            <span>⏳ In Queue:</span>
-            <span class="font-bold">{{ pendingDownloadsCount }}</span>
+          <div class="px-2 py-1 rounded-[6px] gh-surface-secondary border gh-border flex justify-between gh-text-secondary">
+            <span>Queued:</span>
+            <span class="font-semibold">{{ pendingDownloadsCount }}</span>
           </div>
-          <div class="px-2 py-1 rounded bg-rose-950/40 border border-rose-900/60 flex items-center justify-between text-rose-300">
-            <span>⚠ Failed:</span>
-            <span class="font-bold">{{ failedDownloadsCount }}</span>
+          <div class="px-2 py-1 rounded-[6px] gh-surface-secondary border gh-border flex justify-between gh-error">
+            <span>Failed:</span>
+            <span class="font-semibold">{{ failedDownloadsCount }}</span>
           </div>
         </div>
       </div>
 
-      <!-- 4. Job Details & Folder Info -->
-      <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2 text-[11px] font-mono shadow-xs">
-        <div class="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Job Details</div>
+      <!-- Job Details -->
+      <div class="px-4 py-3.5 space-y-2 text-[12px] font-mono">
+        <div class="gh-label mb-1">Job Details</div>
 
-        <div class="flex justify-between text-slate-400">
-          <span>Elapsed Time:</span>
-          <span class="text-slate-200 font-semibold">{{ elapsedTimeFormatted }}</span>
+        <div class="flex justify-between gh-text-secondary">
+          <span>Elapsed Time</span>
+          <span class="gh-text-primary font-semibold">{{ elapsedTimeFormatted }}</span>
         </div>
 
-        <div class="flex justify-between text-slate-400">
-          <span>Task Name:</span>
-          <span class="text-amber-300 truncate max-w-[140px]" :title="jobStore.currentJob.job_metadata?.task_name">
+        <div class="flex justify-between gh-text-secondary">
+          <span>Task Name</span>
+          <span class="gh-saffron font-semibold truncate max-w-[140px]" :title="jobStore.currentJob.job_metadata?.task_name">
             {{ jobStore.currentJob.job_metadata?.task_name || 'task' }}
           </span>
         </div>
 
-        <div class="space-y-0.5 pt-1 border-t border-slate-900">
-          <div class="text-slate-500 text-[10px]">Destination Directory:</div>
+        <div class="pt-1.5 border-t gh-divider space-y-1">
+          <div class="text-[11px] gh-text-muted">Destination Directory</div>
           <div
-            class="text-[10px] text-teal-300 bg-slate-900 px-2 py-1 rounded border border-slate-850 truncate select-all cursor-text font-mono"
+            class="text-[11px] gh-text-primary gh-surface-secondary px-2 py-1.5 rounded-[6px] border gh-border truncate select-all cursor-text"
             :title="jobStore.currentJob.job_metadata?.destination_dir || 'Default downloads'"
           >
             {{ jobStore.currentJob.job_metadata?.destination_dir || 'Default downloads' }}
@@ -414,13 +635,13 @@
 
         <button
           @click="openInFileManager(jobStore.currentJob)"
-          class="w-full mt-2 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-200 rounded text-xs font-semibold flex items-center justify-center space-x-1.5 transition-colors cursor-pointer border border-slate-700"
+          class="w-full mt-2 py-1.5 gh-btn-secondary rounded-[8px] text-[12.5px] font-medium flex items-center justify-center space-x-1.5 cursor-pointer"
         >
-          <span>📁</span>
-          <span>Open in File Manager</span>
+          <FolderOpen class="w-3.5 h-3.5 gh-accent" />
+          <span>Open in File Browser</span>
         </button>
       </div>
-    </div>
+    </aside>
 
     <!-- Mosaic & Clip Modal -->
     <MosaicClipModal
@@ -434,7 +655,26 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import {
+  Activity,
+  AlertTriangle,
+  Calendar,
+  Check,
+  Clock,
+  Combine,
+  Download,
+  FolderOpen,
+  HardDrive,
+  Layers,
+  Pause,
+  Play,
+  RefreshCw,
+  RotateCcw,
+  XCircle,
+} from 'lucide-vue-next'
+import { api } from '../services/api'
 import { useJobStore } from '../stores/jobStore'
+import type { StorageDestinationInfo } from '../types'
 import MosaicClipModal from '../components/MosaicClipModal.vue'
 
 const route = useRoute()
@@ -443,9 +683,43 @@ const jobStore = useJobStore()
 
 const isTelemetryOpen = ref(true)
 const nowTime = ref(Date.now())
+const queueFilter = ref<'all' | 'active' | 'completed' | 'failed' | 'paused'>('all')
+const storageInfo = ref<StorageDestinationInfo | null>(null)
 let timerId: any = null
 
 const isMosaicModalOpen = ref(false)
+
+const queueTabs = computed(() => {
+  const jobs = jobStore.jobs
+  return [
+    { id: 'all' as const, label: 'History', count: jobs.length },
+    {
+      id: 'active' as const,
+      label: 'Active',
+      count: jobs.filter((j) => ['RUNNING', 'QUEUED', 'DOWNLOADING', 'RETRYING', 'VERIFYING'].includes(j.status)).length,
+    },
+    { id: 'completed' as const, label: 'Completed', count: jobs.filter((j) => j.status === 'COMPLETED').length },
+    { id: 'failed' as const, label: 'Failed', count: jobs.filter((j) => ['FAILED', 'CANCELLED'].includes(j.status)).length },
+    { id: 'paused' as const, label: 'Paused', count: jobs.filter((j) => j.status === 'PAUSED').length },
+  ]
+})
+
+const filteredJobs = computed(() => {
+  const jobs = jobStore.jobs
+  if (queueFilter.value === 'active') {
+    return jobs.filter((j) => ['RUNNING', 'QUEUED', 'DOWNLOADING', 'RETRYING', 'VERIFYING'].includes(j.status))
+  }
+  if (queueFilter.value === 'completed') {
+    return jobs.filter((j) => j.status === 'COMPLETED')
+  }
+  if (queueFilter.value === 'failed') {
+    return jobs.filter((j) => ['FAILED', 'CANCELLED'].includes(j.status))
+  }
+  if (queueFilter.value === 'paused') {
+    return jobs.filter((j) => j.status === 'PAUSED')
+  }
+  return jobs
+})
 
 function openMosaicModal() {
   isMosaicModalOpen.value = true
@@ -453,6 +727,18 @@ function openMosaicModal() {
 
 function onMosaicCompleted(_result: any) {
   jobStore.fetchJobs()
+}
+
+async function loadStorageInfo() {
+  try {
+    storageInfo.value = await api.getStorageDestination()
+  } catch {
+    // non-fatal
+  }
+}
+
+async function refreshQueueAndStorage() {
+  await Promise.all([jobStore.fetchJobs(), loadStorageInfo()])
 }
 
 function isToposheetJob(job: any): boolean {
@@ -480,7 +766,6 @@ function canMosaicJob(job: any): boolean {
     return rasterExts.some((ext) => path.endsWith(ext))
   })
   if (hasRasterFiles) return true
-  // If download list is not expanded yet but job completed downloads > 0
   return (job.completed_downloads || 0) > 0 && !isToposheetJob(job)
 }
 
@@ -497,11 +782,16 @@ function openInFileManager(job: any) {
 
 onMounted(async () => {
   jobStore.initWebSocket()
-  await jobStore.fetchJobs()
+  await refreshQueueAndStorage()
 
   const activeId = route.query.active as string
   if (activeId) {
     await jobStore.selectJob(activeId)
+    if (!jobStore.currentJob || jobStore.currentJob.id !== activeId) {
+      router.replace({
+        query: jobStore.currentJob ? { active: jobStore.currentJob.id } : {},
+      })
+    }
   } else if (jobStore.jobs.length > 0) {
     await jobStore.selectJob(jobStore.jobs[0].id)
   }
@@ -516,7 +806,69 @@ onUnmounted(() => {
   jobStore.stopPolling()
 })
 
-// Current Job Reactive Computed Metrics
+const currentJobScenes = computed(() => {
+  if (!jobStore.currentJob) return []
+  if (Array.isArray(jobStore.currentJob.scenes) && jobStore.currentJob.scenes.length > 0) {
+    return jobStore.currentJob.scenes
+  }
+  return []
+})
+
+const completedScenesCount = computed(() => {
+  return currentJobScenes.value.filter((s) => s.status === 'completed').length
+})
+
+const failedScenesCount = computed(() => {
+  return currentJobScenes.value.filter((s) => s.status === 'failed').length
+})
+
+function formatSceneDate(scene: any): string {
+  if (scene?.datetime) {
+    const dt = new Date(scene.datetime)
+    if (!isNaN(dt.getTime())) {
+      return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    }
+    return String(scene.datetime).slice(0, 10)
+  }
+  if (scene?.year && scene?.month) {
+    return `${scene.year}-${scene.month}`
+  }
+  return ''
+}
+
+function getSceneStatusLabel(scene: any): string {
+  const st = String(scene?.status || 'pending').toLowerCase()
+  if (st === 'completed') {
+    const bc = scene?.output_metadata?.band_count || scene?.total_bands || 1
+    return `STACKED .TIF (${bc}B)`
+  }
+  if (st === 'stacking') {
+    return 'STACKING GEOTIFF'
+  }
+  if (st === 'downloading') {
+    return `DOWNLOADING (${scene?.completed_bands || 0}/${scene?.total_bands || 0} BANDS)`
+  }
+  if (st === 'failed') {
+    return 'FAILED'
+  }
+  if (st === 'paused') {
+    return 'PAUSED'
+  }
+  if (st === 'cancelled') {
+    return 'CANCELLED'
+  }
+  return 'QUEUED'
+}
+
+function getSceneStatusTextClass(status: string): string {
+  const st = String(status || 'pending').toLowerCase()
+  if (st === 'completed') return 'gh-success'
+  if (st === 'stacking' || st === 'paused') return 'gh-warning'
+  if (st === 'downloading') return 'gh-turquoise'
+  if (st === 'failed') return 'gh-error'
+  return 'gh-text-muted'
+}
+
 const currentCompletedDownloads = computed(() => {
   if (!jobStore.currentJob) return 0
   const dls = jobStore.currentJob.downloads || []
@@ -538,21 +890,24 @@ const currentTotalDownloads = computed(() => {
 const currentProgress = computed(() => {
   if (!jobStore.currentJob) return 0
   if (jobStore.currentJob.status === 'COMPLETED') return 100
+  if (currentJobScenes.value.length > 0) {
+    const sumScenePct = currentJobScenes.value.reduce((acc, s) => acc + (s.progress_percentage || 0), 0)
+    return Math.min(99, Math.round((sumScenePct / currentJobScenes.value.length) * 10) / 10)
+  }
   const dls = jobStore.currentJob.downloads || []
   if (dls.length > 0) {
     const totBytes = dls.reduce((acc, d) => acc + (d.total_bytes || 0), 0)
     const dnBytes = dls.reduce((acc, d) => acc + (d.downloaded_bytes || 0), 0)
     if (totBytes > 0) {
-      return Math.round((dnBytes / totBytes) * 1000) / 10
+      return Math.min(99, Math.round((dnBytes / totBytes) * 1000) / 10)
     }
     if (currentTotalDownloads.value > 0) {
-      return Math.round((currentCompletedDownloads.value / currentTotalDownloads.value) * 1000) / 10
+      return Math.min(99, Math.round((currentCompletedDownloads.value / currentTotalDownloads.value) * 1000) / 10)
     }
   }
-  return jobStore.currentJob.progress || 0
+  return Math.min(99, jobStore.currentJob.progress || 0)
 })
 
-// Left Sidebar Job Helpers
 function getJobCompletedCount(job: any): number {
   if (jobStore.currentJob && jobStore.currentJob.id === job.id && jobStore.currentJob.downloads?.length) {
     return currentCompletedDownloads.value
@@ -574,7 +929,6 @@ function getJobProgress(job: any): number {
   return job.progress || 0
 }
 
-// Telemetry Computations
 const aggregateSpeed = computed(() => {
   if (!jobStore.currentJob || jobStore.currentJob.status !== 'RUNNING') return 0
   const dls = jobStore.currentJob.downloads || []
@@ -655,25 +1009,22 @@ function getFileName(pathStr: string) {
   return pathStr.split('/').pop() || pathStr
 }
 
-function getStatusBadgeClass(status: string) {
+function getStatusTextClass(status: string) {
   switch (status) {
     case 'COMPLETED':
-      return 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+      return 'gh-success'
     case 'RUNNING':
     case 'DOWNLOADING':
-      return 'bg-sky-950 text-sky-400 border border-sky-800 animate-pulse'
+      return 'gh-turquoise'
     case 'PAUSED':
-      return 'bg-amber-950 text-amber-400 border border-amber-800'
-    case 'FAILED':
-      return 'bg-rose-950 text-rose-400 border border-rose-800'
-    case 'CANCELLED':
-      return 'bg-slate-900 text-slate-400 border border-slate-700'
     case 'RETRYING':
-      return 'bg-orange-950 text-orange-400 border border-orange-800'
+      return 'gh-warning'
+    case 'FAILED':
+      return 'gh-error'
     case 'VERIFYING':
-      return 'bg-purple-950 text-purple-400 border border-purple-800'
+      return 'gh-accent'
     default:
-      return 'bg-slate-800 text-slate-300'
+      return 'gh-text-muted'
   }
 }
 

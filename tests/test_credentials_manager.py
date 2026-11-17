@@ -101,3 +101,39 @@ def test_api_credentials_endpoints(client, tmp_path, monkeypatch):
     assert del_resp.status_code == 200
     assert del_resp.json()["is_configured"] is False
 
+
+@pytest.mark.asyncio
+async def test_cdse_connection_uses_shared_s3_client(temp_credential_manager, monkeypatch):
+    from backend.app.dependencies.config import settings
+
+    monkeypatch.setattr(settings, "cdse_s3_access_key", settings.cdse_s3_access_key)
+    monkeypatch.setattr(settings, "cdse_s3_secret_key", settings.cdse_s3_secret_key)
+    monkeypatch.setattr(settings, "cdse_s3_endpoint", settings.cdse_s3_endpoint)
+
+    mgr = temp_credential_manager
+    mgr.save_platform_credentials(
+        platform_id="copernicus-dataspace",
+        fields={
+            "s3_access_key": "KEY123",
+            "s3_secret_key": "SECRET123",
+            "s3_endpoint": "https://eodata.dataspace.copernicus.eu",
+        },
+    )
+
+    calls = []
+
+    class FakeS3:
+        def list_buckets(self):
+            return {"Buckets": [{"Name": "eodata"}]}
+
+    def fake_build_s3_client(endpoint, access_key, secret_key, region_name="default"):
+        calls.append((endpoint, access_key, secret_key))
+        return FakeS3()
+
+    monkeypatch.setattr("backend.core.download.engine.build_s3_client", fake_build_s3_client)
+
+    result = await mgr.test_platform_connection("copernicus-dataspace")
+    assert result["connected"] is True
+    assert calls == [("https://eodata.dataspace.copernicus.eu", "KEY123", "SECRET123")]
+
+

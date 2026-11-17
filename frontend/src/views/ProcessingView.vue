@@ -1,1035 +1,838 @@
 <template>
-  <div class="h-full w-full overflow-hidden bg-slate-950 p-5 flex flex-col text-slate-100">
-    <!-- Top Header & Tool Selector Ribbon -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-800 shrink-0">
-      <div>
-        <h1 class="text-lg font-bold flex items-center space-x-2">
-          <span>🧰</span>
-          <span>Raster Geoprocessing Studio</span>
-          <span class="text-[11px] px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-emerald-400 font-mono">
-            GDAL / Rasterio Engine
-          </span>
-        </h1>
-        <p class="text-xs text-slate-400 mt-0.5">
-          Clip (Extract by Mask), Mosaic to New Raster, Band Stacking (Composite), Spectral Indices, DEM Terrain Analysis, Reproject/Resample, and Zonal Statistics
-        </p>
-      </div>
+  <div class="flex flex-col lg:flex-row h-full w-full gh-workspace-bg gh-text-primary overflow-hidden">
+    <!-- LEFT COLUMN: Tool Categories + Dataset Browser (300px) -->
+    <aside class="w-full lg:w-[300px] border-b lg:border-b-0 lg:border-r gh-border gh-surface-primary flex flex-col h-[42vh] lg:h-full shrink-0 overflow-hidden">
+      <!-- Tool Categories -->
+      <div class="px-4 py-3 border-b gh-border space-y-2.5 shrink-0">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <SlidersHorizontal class="w-4 h-4 gh-accent shrink-0" />
+            <h2 class="text-[14px] font-semibold gh-text-primary">Geoprocessing</h2>
+          </div>
+          <span class="text-[11px] font-mono gh-text-muted">GDAL / Rasterio</span>
+        </div>
 
-      <div class="flex items-center space-x-2">
-        <button
-          @click="refreshWorkspace"
-          class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-md text-xs font-semibold flex items-center space-x-1.5 border border-slate-700 cursor-pointer"
-        >
-          <span>🔄 Refresh Rasters ({{ localRasters.length }})</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- Tool Tabs Bar -->
-    <div class="flex flex-wrap gap-1.5 mb-4 shrink-0">
-      <button
-        v-for="t in tools"
-        :key="t.id"
-        @click="harvestStore.openProcessingTool(t.id)"
-        :class="[
-          'px-3 py-2 rounded-lg text-xs font-bold border transition-all flex items-center space-x-2 cursor-pointer',
-          activeTool === t.id
-            ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm bw-primary-btn'
-            : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-800'
-        ]"
-      >
-        <span>{{ t.icon }}</span>
-        <span>{{ t.name }}</span>
-      </button>
-    </div>
-
-    <!-- Main 2-Column Studio Grid -->
-    <div class="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-5">
-      <!-- LEFT COLUMN (7 Cols): Active Tool Configuration Form -->
-      <div class="lg:col-span-7 overflow-y-auto pr-1 space-y-4">
-        <!-- TOOL 1: CLIP RASTER (EXTRACT BY MASK) -->
-        <div v-if="activeTool === 'clip'" class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-            <div>
-              <h2 class="text-sm font-bold text-white">✂️ Clip Raster (Extract by Mask)</h2>
-              <p class="text-xs text-slate-400">Crops any GeoTIFF raster to your active Map AOI polygon or custom GeoJSON boundary.</p>
+        <div class="space-y-2 max-h-[210px] overflow-y-auto pr-0.5">
+          <div v-for="group in toolGroups" :key="group.category" class="space-y-1">
+            <div class="gh-label px-1">{{ group.category }}</div>
+            <div class="space-y-0.5">
+              <button
+                v-for="tool in group.items"
+                :key="tool.id"
+                @click="harvestStore.activeProcessingTool = tool.id"
+                :class="[
+                  'w-full px-2.5 py-1.5 rounded-[7px] text-left text-[12.5px] flex items-center justify-between transition-colors cursor-pointer border-l-2',
+                  activeTool === tool.id
+                    ? 'gh-active font-semibold gh-focus-border'
+                    : 'border-l-transparent gh-text-secondary hover:gh-surface-secondary hover:gh-text-primary font-medium'
+                ]"
+              >
+                <span class="flex items-center space-x-2 truncate">
+                  <component :is="tool.icon" class="w-3.5 h-3.5 shrink-0" />
+                  <span class="truncate">{{ tool.label }}</span>
+                </span>
+                <ChevronRight v-if="activeTool === tool.id" class="w-3.5 h-3.5 gh-turquoise shrink-0" />
+              </button>
             </div>
-            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">Extract by Mask</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dataset Browser (Local Rasters Workspace) -->
+      <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <div class="px-4 py-2.5 border-b gh-divider flex items-center justify-between gap-2 shrink-0 gh-surface-secondary">
+          <div class="flex items-center space-x-1.5 min-w-0">
+            <FolderOpen class="w-3.5 h-3.5 gh-accent shrink-0" />
+            <span class="text-[12px] font-semibold gh-text-primary truncate">Dataset Browser</span>
+          </div>
+          <span class="text-[11px] font-mono gh-text-muted shrink-0">
+            {{ displayedWorkspaceRasters.length }}
+          </span>
+        </div>
+
+        <!-- Folder & Upload Controls -->
+        <div class="px-3 py-2.5 border-b gh-divider space-y-2 shrink-0">
+          <select
+            v-model="selectedDirectory"
+            @change="onFolderSelectionChange"
+            class="w-full gh-input rounded-[7px] px-2.5 py-1.5 text-[12px] font-mono"
+            title="Select source folder"
+          >
+            <option value="">All Workspace Folders ({{ totalIndexedFiles }})</option>
+            <optgroup v-if="downloadedFolderOptions.length > 0" label="Downloaded Folders">
+              <option v-for="folder in downloadedFolderOptions" :key="folder.id" :value="folder.path">
+                {{ folder.depth === 0 ? '' : '  - ' }}{{ folder.label }} ({{ folder.file_count }})
+              </option>
+            </optgroup>
+            <optgroup v-if="otherFolderOptions.length > 0" label="Processed &amp; Custom">
+              <option v-for="folder in otherFolderOptions" :key="folder.id" :value="folder.path">
+                {{ folder.depth === 0 ? '' : '  - ' }}{{ folder.label }} ({{ folder.file_count }})
+              </option>
+            </optgroup>
+            <optgroup v-if="isCustomExternalDirectory" label="Custom Folder">
+              <option :value="selectedDirectory">{{ selectedDirectory }}</option>
+            </optgroup>
+          </select>
+
+          <div class="flex items-center gap-1.5">
+            <button
+              type="button"
+              @click="showFolderPickerModal = true"
+              class="flex-1 px-2 py-1.5 rounded-[7px] gh-btn-secondary text-[11.5px] font-medium flex items-center justify-center space-x-1 cursor-pointer"
+              title="Browse filesystem to pick a folder"
+            >
+              <FolderSearch class="w-3.5 h-3.5 gh-accent" />
+              <span>Browse</span>
+            </button>
+
+            <input
+              ref="customRasterInputRef"
+              type="file"
+              accept=".tif,.tiff,.jp2,.img,.vrt"
+              class="hidden"
+              @change="handleCustomRasterUpload"
+            />
+            <button
+              type="button"
+              @click="triggerCustomRasterUpload"
+              :disabled="isUploadingCustomRaster"
+              class="flex-1 px-2 py-1.5 rounded-[7px] gh-btn-secondary text-[11.5px] font-medium flex items-center justify-center space-x-1 cursor-pointer disabled:opacity-50"
+              title="Upload GeoTIFF, JP2, IMG, or VRT into custom workspace"
+            >
+              <Upload class="w-3.5 h-3.5 gh-accent" />
+              <span>{{ isUploadingCustomRaster ? 'Uploading...' : 'Upload' }}</span>
+            </button>
+
+            <button
+              type="button"
+              @click="refreshWorkspace"
+              class="p-1.5 rounded-[7px] gh-btn-ghost cursor-pointer"
+              title="Refresh raster index"
+            >
+              <RefreshCw class="w-3.5 h-3.5" />
+            </button>
           </div>
 
-          <div class="space-y-3">
-            <div>
-              <label class="block text-xs font-bold text-slate-300 mb-1">Input Raster File (.tif)</label>
-              <select
-                v-model="singleInputPath"
-                class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono"
-              >
-                <option value="">-- Select a local raster or click one on the right --</option>
-                <option v-for="r in localRasters" :key="r.absolute_path" :value="r.absolute_path">
-                  [{{ r.root }}] {{ r.name }} ({{ formatBytes(r.size_bytes) }})
-                </option>
-              </select>
+          <div class="relative">
+            <Search class="w-3.5 h-3.5 gh-text-muted absolute left-2.5 top-2 pointer-events-none" />
+            <input
+              v-model="workspaceSearch"
+              type="text"
+              placeholder="Filter rasters..."
+              class="w-full gh-input rounded-[7px] pl-8 pr-6 py-1 text-[12px]"
+            />
+            <button
+              v-if="selectedDirectory || workspaceSearch"
+              type="button"
+              @click="resetWorkspaceFilter"
+              class="absolute right-2 top-1.5 gh-text-muted hover:gh-text-primary cursor-pointer"
+              title="Clear filter"
+            >
+              <X class="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        <!-- Raster Dataset List -->
+        <div class="flex-1 overflow-y-auto divide-y gh-divide">
+          <div v-if="workspaceLoading" class="px-4 py-6 text-center text-[12px] gh-text-muted">
+            Scanning raster index...
+          </div>
+          <div v-else-if="workspaceError" class="px-4 py-4 text-[12px] gh-error">
+            {{ workspaceError }}
+          </div>
+          <div v-else-if="displayedWorkspaceRasters.length === 0" class="px-4 py-6 text-center text-[12px] gh-text-muted">
+            No compatible rasters found.
+          </div>
+          <div
+            v-for="r in displayedWorkspaceRasters"
+            :key="r.absolute_path"
+            @click="selectRasterFromBrowser(r.absolute_path)"
+            :class="[
+              'px-3.5 py-2.5 cursor-pointer transition-colors space-y-1',
+              isRasterSelected(r.absolute_path) ? 'gh-selected-bg' : 'hover:gh-surface-secondary'
+            ]"
+            title="Click to assign raster to active tool"
+          >
+            <div class="flex items-center justify-between gap-2">
+              <span class="font-mono text-[12px] font-medium gh-text-primary truncate">{{ r.name }}</span>
+              <span class="text-[10.5px] font-mono gh-text-muted shrink-0">{{ formatBytes(r.size_bytes) }}</span>
+            </div>
+            <div class="flex items-center justify-between text-[10.5px] font-mono gh-text-secondary">
+              <span class="truncate">
+                {{ r.dimensions ? `${r.dimensions[0]}x${r.dimensions[1]}` : '' }}
+                {{ r.bands ? `${r.dimensions ? ' ' : ''}${r.bands}B` : '' }}
+                {{ r.crs ? ` (${r.crs})` : '' }}
+              </span>
+              <span v-if="r.subfolder" class="gh-text-muted truncate max-w-[90px]">{{ r.subfolder }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CENTER COLUMN: Tool Configuration & Parameters -->
+    <main class="flex-1 min-w-0 h-full overflow-y-auto gh-workspace-bg flex flex-col">
+      <!-- Tool Title Bar & Vector AOI Selector -->
+      <div class="px-6 py-4 border-b gh-border gh-surface-primary flex flex-col gap-3 shrink-0">
+        <div>
+          <div class="flex items-center space-x-2">
+            <component :is="activeToolMeta.icon" class="w-4 h-4 gh-accent shrink-0" />
+            <h1 class="text-[16px] font-semibold gh-text-primary">{{ activeToolMeta.title }}</h1>
+            <span class="text-[11px] font-mono px-2 py-0.5 rounded-[6px] border gh-saffron-border gh-saffron-soft-bg gh-saffron font-semibold">
+              {{ activeToolMeta.category }}
+            </span>
+          </div>
+          <p class="text-[12.5px] gh-text-secondary mt-0.5">{{ activeToolMeta.description }}</p>
+        </div>
+
+        <!-- Quick Vector AOI Binding -->
+        <div class="flex items-center gap-2 shrink-0 flex-wrap">
+          <select
+            v-model="selectedStudioAoiId"
+            @change="onSelectStudioAoi"
+            class="gh-input rounded-[7px] px-2.5 py-1.5 text-[12px] max-w-[190px]"
+            title="Switch active study area geometry"
+          >
+            <option value="">
+              {{ harvestStore.hasAoi ? `AOI: ${harvestStore.aoiName || 'Active Map AOI'}` : 'Load Saved AOI...' }}
+            </option>
+            <option v-for="a in harvestStore.savedAois" :key="a.id" :value="a.id">
+              {{ a.name }} ({{ a.area_km2?.toFixed(0) }} km2)
+            </option>
+          </select>
+
+          <label
+            class="px-2.5 py-1.5 rounded-[7px] gh-btn-secondary text-[12px] font-medium cursor-pointer flex items-center space-x-1"
+            title="Upload vector AOI boundary (.geojson, .json, .kml, .wkt)"
+          >
+            <FolderUp class="w-3.5 h-3.5 gh-accent" />
+            <span>Upload AOI</span>
+            <input type="file" accept=".geojson,.json,.kml,.wkt" class="hidden" @change="handleStudioAoiUpload" />
+          </label>
+        </div>
+      </div>
+
+      <!-- Tool Parameters Form -->
+      <div class="flex-1 px-6 py-5 space-y-6 max-w-4xl w-full">
+        <!-- TOOL 1: CLIP RASTER -->
+        <section v-if="activeTool === 'clip'" class="space-y-5">
+          <div class="space-y-1.5">
+            <label class="block text-[12.5px] font-semibold gh-text-primary">Input GeoTIFF Raster</label>
+            <select v-model="singleInputPath" class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px] font-mono">
+              <option value="">-- Select Raster from Workspace --</option>
+              <option v-for="r in localRasters" :key="r.absolute_path" :value="r.absolute_path">
+                {{ r.name }} ({{ formatBytes(r.size_bytes) }})
+              </option>
+            </select>
+          </div>
+
+          <div class="pt-4 border-t gh-divider space-y-1.5">
+            <div class="flex items-center justify-between text-[12.5px]">
+              <span class="font-semibold gh-text-primary">Target Vector Boundary (AOI Polygon)</span>
+              <span :class="harvestStore.hasAoi ? 'gh-success' : 'gh-warning'" class="font-mono text-[11.5px] font-semibold">
+                {{ harvestStore.hasAoi ? 'Active Map AOI' : 'Using Default Ladakh AOI' }}
+              </span>
+            </div>
+            <p class="text-[12px] font-mono gh-text-secondary">
+              {{ harvestStore.aoiName || 'Ladakh Study Corridor' }}
+              <span v-if="harvestStore.aoiAnalysis?.area_km2">
+                &bull; {{ harvestStore.aoiAnalysis.area_km2.toFixed(1) }} km2
+              </span>
+            </p>
+          </div>
+
+          <div class="pt-4 border-t gh-divider grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+            <div class="space-y-1.5">
+              <label class="block text-[12.5px] font-semibold gh-text-primary">Output Filename (optional)</label>
               <input
-                v-model="singleInputPath"
+                v-model="outputFilename"
                 type="text"
-                placeholder="Or enter absolute path: /app/data/downloads/..."
-                class="w-full mt-1.5 bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-300 font-mono"
+                placeholder="auto_clipped_cog.tif"
+                class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px] font-mono"
               />
             </div>
 
-            <div class="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-2.5">
-              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                  <div class="text-xs font-bold text-slate-200">Clipping Geometry (AOI Mask)</div>
-                  <div v-if="harvestStore.hasAoi" class="text-[11px] text-emerald-400 mt-0.5">
-                    ✓ Active AOI: {{ harvestStore.aoiName }} ({{ harvestStore.aoiAnalysis?.area_km2?.toLocaleString() }} km²)
-                  </div>
-                  <div v-else class="text-[11px] text-amber-400 mt-0.5">
-                    ℹ️ No custom AOI selected — select from AOI Library, upload a GeoJSON/KML file, or draw on map.
-                  </div>
-                </div>
-                <div class="flex items-center gap-1.5 shrink-0">
-                  <label class="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-xs text-white font-semibold cursor-pointer bw-primary-btn">
-                    <span>📤 Upload AOI (.geojson/.kml)</span>
-                    <input type="file" accept=".geojson,.json,.kml,.wkt" class="hidden" @change="handleStudioAoiUpload" />
-                  </label>
-                  <router-link to="/" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 border border-slate-700">
-                    🗺️ Draw on Map
-                  </router-link>
-                </div>
-              </div>
+            <label class="flex items-center space-x-2.5 text-[12.5px] gh-text-secondary cursor-pointer pb-2">
+              <input v-model="exportAsCog" type="checkbox" class="rounded accent-[var(--accent-primary)]" />
+              <span>Export as Cloud-Optimized GeoTIFF (COG)</span>
+            </label>
+          </div>
 
-              <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center pt-1 border-t border-slate-800/80">
-                <div class="sm:col-span-8">
-                  <select
-                    v-model="selectedStudioAoiId"
-                    @change="onSelectStudioAoi"
-                    class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
-                  >
-                    <option value="">-- Or select existing AOI from AOI Library ({{ harvestStore.savedAois.length }} saved) --</option>
-                    <option v-for="item in harvestStore.savedAois" :key="item.id" :value="item.id">
-                      {{ item.name }} ({{ Math.round(item.area_km2 || 0).toLocaleString() }} km² • {{ item.crs || 'EPSG:4326' }})
-                    </option>
-                  </select>
-                </div>
-                <div class="sm:col-span-4 flex justify-end gap-1.5">
-                  <button
-                    @click="harvestStore.loadLadakhSample()"
-                    class="px-2.5 py-1.5 rounded bg-slate-900 hover:bg-slate-800 text-xs text-slate-300 border border-slate-700 cursor-pointer"
-                  >
-                    🏔️ Ladakh Sample
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs font-bold text-slate-300 mb-1">Output Filename (Optional)</label>
-                <input
-                  v-model="outputFilename"
-                  type="text"
-                  placeholder="clipped_output.tif"
-                  class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono"
-                />
-              </div>
-              <div class="flex items-center pt-5 space-x-2">
-                <input id="cog-clip" v-model="exportAsCog" type="checkbox" class="h-4 w-4 rounded" />
-                <label for="cog-clip" class="text-xs text-slate-300 cursor-pointer">
-                  Build Cloud-Optimized GeoTIFF (COG) with internal pyramids
-                </label>
-              </div>
-            </div>
-
+          <div class="pt-4 border-t gh-divider">
             <button
               @click="executeClip"
               :disabled="isExecuting || !singleInputPath"
-              class="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs cursor-pointer bw-primary-btn"
+              class="px-5 py-2.5 rounded-[8px] gh-btn-primary text-[13px] font-semibold disabled:opacity-50 flex items-center space-x-2 cursor-pointer"
             >
-              {{ isExecuting ? '⏳ Clipping Raster...' : '✂️ Run Clip Raster' }}
+              <Scissors class="w-4 h-4" />
+              <span>{{ isExecuting ? 'Clipping Raster...' : 'Run Raster Clip' }}</span>
             </button>
           </div>
-        </div>
+        </section>
 
         <!-- TOOL 2: MOSAIC RASTERS -->
-        <div v-if="activeTool === 'mosaic'" class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-            <div>
-              <h2 class="text-sm font-bold text-white">🧩 Mosaic Rasters (Stitch Tiles)</h2>
-              <p class="text-xs text-slate-400">Merges multiple adjacent satellite scenes or DEM tiles into a seamless single GeoTIFF with automatic CRS alignment.</p>
-            </div>
-            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">Mosaic to New Raster</span>
-          </div>
-
-          <div class="space-y-3">
+        <section v-else-if="activeTool === 'mosaic'" class="space-y-5">
+          <div class="space-y-2">
             <div class="flex items-center justify-between">
-              <label class="text-xs font-bold text-slate-300">
-                Select Rasters to Mosaic ({{ multiInputPaths.length }} selected)
+              <label class="text-[12.5px] font-semibold gh-text-primary">
+                Input Tiles to Mosaic ({{ multiInputPaths.length }} selected)
               </label>
-              <div class="space-x-2 text-xs">
-                <button @click="multiInputPaths = localRasters.map(r => r.absolute_path)" class="text-emerald-400 underline cursor-pointer">Select All</button>
-                <button @click="multiInputPaths = []" class="text-slate-400 underline cursor-pointer">Clear</button>
+              <div class="flex items-center space-x-3 text-[11.5px] font-mono">
+                <button type="button" @click="selectAllRastersForMulti" class="gh-accent hover:underline cursor-pointer">
+                  Select All
+                </button>
+                <button type="button" @click="clearMultiInputs" class="gh-text-muted hover:gh-text-primary cursor-pointer">
+                  Clear
+                </button>
               </div>
             </div>
 
-            <div class="max-h-52 overflow-y-auto bg-slate-950 border border-slate-800 rounded-lg p-2 space-y-1">
-              <div v-if="localRasters.length === 0" class="text-xs text-slate-500 p-4 text-center">
-                No local rasters found. Download scenes from Map & Harvest or WMS first.
-              </div>
+            <div class="border gh-border rounded-[8px] gh-surface-primary max-h-56 overflow-y-auto divide-y gh-divide">
               <label
                 v-for="r in localRasters"
                 :key="r.absolute_path"
-                class="flex items-center justify-between p-2 rounded hover:bg-slate-900 cursor-pointer text-xs"
+                class="px-3 py-2 flex items-center justify-between gap-2 text-[12px] cursor-pointer hover:gh-surface-secondary"
               >
-                <div class="flex items-center space-x-2 truncate">
-                  <input type="checkbox" :value="r.absolute_path" v-model="multiInputPaths" class="rounded" />
-                  <span class="font-mono text-slate-200 truncate">{{ r.name }}</span>
-                </div>
-                <span class="text-[10px] font-mono text-slate-400 shrink-0">{{ formatBytes(r.size_bytes) }}</span>
+                <span class="flex items-center space-x-2.5 min-w-0">
+                  <input
+                    type="checkbox"
+                    :checked="multiInputPaths.includes(r.absolute_path)"
+                    @change="toggleMultiInput(r.absolute_path)"
+                    class="rounded accent-[var(--accent-primary)]"
+                  />
+                  <span class="font-mono gh-text-primary truncate">{{ r.name }}</span>
+                </span>
+                <span class="font-mono text-[11px] gh-text-muted shrink-0">{{ formatBytes(r.size_bytes) }}</span>
+              </label>
+              <div v-if="localRasters.length === 0" class="px-3 py-4 text-center text-[12px] gh-text-muted">
+                No local rasters available.
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-4 border-t gh-divider grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between">
+                <label class="text-[12.5px] font-semibold gh-text-primary">Target CRS</label>
+                <button type="button" @click="recommendCRSForLadakh" class="text-[11px] font-mono gh-accent hover:underline cursor-pointer">
+                  Auto UTM
+                </button>
+              </div>
+              <input v-model="targetCRS" type="text" placeholder="EPSG:32643" class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px] font-mono" />
+            </div>
+
+            <div class="space-y-2 pb-1">
+              <label class="flex items-center space-x-2 text-[12.5px] gh-text-secondary cursor-pointer">
+                <input v-model="clipToAOI" type="checkbox" class="rounded accent-[var(--accent-primary)]" />
+                <span>Clip Mosaic to Active AOI Polygon</span>
+              </label>
+              <label class="flex items-center space-x-2 text-[12.5px] gh-text-secondary cursor-pointer">
+                <input v-model="exportAsCog" type="checkbox" class="rounded accent-[var(--accent-primary)]" />
+                <span>Export as Cloud-Optimized GeoTIFF</span>
               </label>
             </div>
+          </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs font-bold text-slate-300 mb-1">Target CRS (Optional)</label>
-                <input
-                  v-model="targetCRS"
-                  type="text"
-                  placeholder="EPSG:32643"
-                  class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono"
-                />
-              </div>
-              <div class="flex flex-col justify-end space-y-1.5">
-                <label class="flex items-center space-x-2 text-xs text-slate-300 cursor-pointer">
-                  <input v-model="clipToAOI" type="checkbox" class="rounded" />
-                  <span>Also Clip Mosaic to Active AOI</span>
-                </label>
-                <label class="flex items-center space-x-2 text-xs text-slate-300 cursor-pointer">
-                  <input v-model="exportAsCog" type="checkbox" class="rounded" />
-                  <span>Export as Cloud-Optimized GeoTIFF (COG)</span>
-                </label>
-              </div>
-            </div>
-
+          <div class="pt-4 border-t gh-divider">
             <button
               @click="executeMosaic"
-              :disabled="isExecuting || multiInputPaths.length === 0"
-              class="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs cursor-pointer bw-primary-btn"
+              :disabled="isExecuting || multiInputPaths.length < 2"
+              class="px-5 py-2.5 rounded-[8px] gh-btn-primary text-[13px] font-semibold disabled:opacity-50 flex items-center space-x-2 cursor-pointer"
             >
-              {{ isExecuting ? '⏳ Mosaicking Rasters...' : `🧩 Run Mosaic (${multiInputPaths.length} Rasters)` }}
+              <Grid class="w-4 h-4" />
+              <span>{{ isExecuting ? 'Mosaicking Tiles...' : `Mosaic ${multiInputPaths.length} Rasters` }}</span>
             </button>
           </div>
-        </div>
+        </section>
 
-        <!-- TOOL 3: BAND STACKING (COMPOSITE BANDS) -->
-        <div v-if="activeTool === 'stack'" class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-            <div>
-              <h2 class="text-sm font-bold text-white">📚 Band Stacking (Composite Multi-Band GeoTIFF)</h2>
-              <p class="text-xs text-slate-400">Combines separate spectral band files (e.g. Red, Green, Blue, NIR, SWIR) into a single aligned multi-band raster stack.</p>
+        <!-- TOOL 3: BAND STACK -->
+        <section v-else-if="activeTool === 'stack'" class="space-y-5">
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <label class="text-[12.5px] font-semibold gh-text-primary">
+                Input Spectral Bands in Stack Order ({{ multiInputPaths.length }} selected)
+              </label>
+              <button type="button" @click="clearMultiInputs" class="text-[11.5px] font-mono gh-text-muted hover:gh-text-primary cursor-pointer">
+                Clear Selection
+              </button>
             </div>
-            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">Composite Bands</span>
-          </div>
 
-          <div class="space-y-3">
-            <label class="block text-xs font-bold text-slate-300">
-              Select Band Files in Stack Order ({{ multiInputPaths.length }} bands selected)
-            </label>
-            <div class="max-h-52 overflow-y-auto bg-slate-950 border border-slate-800 rounded-lg p-2 space-y-1">
+            <div class="border gh-border rounded-[8px] gh-surface-primary max-h-56 overflow-y-auto divide-y gh-divide">
               <label
                 v-for="r in localRasters"
                 :key="r.absolute_path"
-                class="flex items-center justify-between p-2 rounded hover:bg-slate-900 cursor-pointer text-xs"
+                class="px-3 py-2 flex items-center justify-between gap-2 text-[12px] cursor-pointer hover:gh-surface-secondary"
               >
-                <div class="flex items-center space-x-2 truncate">
-                  <input type="checkbox" :value="r.absolute_path" v-model="multiInputPaths" class="rounded" />
-                  <span class="font-mono text-slate-200 truncate">{{ r.name }}</span>
-                </div>
-                <span
-                  v-if="multiInputPaths.indexOf(r.absolute_path) > -1"
-                  class="px-2 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-bold"
-                >
+                <span class="flex items-center space-x-2.5 min-w-0">
+                  <input
+                    type="checkbox"
+                    :checked="multiInputPaths.includes(r.absolute_path)"
+                    @change="toggleMultiInput(r.absolute_path)"
+                    class="rounded accent-[var(--accent-primary)]"
+                  />
+                  <span class="font-mono gh-text-primary truncate">{{ r.name }}</span>
+                </span>
+                <span v-if="multiInputPaths.includes(r.absolute_path)" class="text-[11px] font-mono gh-accent font-semibold shrink-0">
                   Band #{{ multiInputPaths.indexOf(r.absolute_path) + 1 }}
                 </span>
               </label>
             </div>
+          </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs font-bold text-slate-300 mb-1">Output Stack Filename</label>
-                <input
-                  v-model="outputFilename"
-                  type="text"
-                  placeholder="composite_stack.tif"
-                  class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono"
-                />
-              </div>
-              <div class="flex items-center pt-5 space-x-2">
-                <input v-model="clipToAOI" type="checkbox" class="rounded" />
-                <span class="text-xs text-slate-300">Clip Stack to Active AOI</span>
-              </div>
+          <div class="pt-4 border-t gh-divider grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-1.5">
+              <label class="block text-[12.5px] font-semibold gh-text-primary">Target CRS (optional)</label>
+              <input v-model="targetCRS" type="text" placeholder="Keep reference CRS" class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px] font-mono" />
             </div>
+            <div class="space-y-1.5">
+              <label class="block text-[12.5px] font-semibold gh-text-primary">Output Filename (optional)</label>
+              <input v-model="outputFilename" type="text" placeholder="multiband_stack.tif" class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px] font-mono" />
+            </div>
+          </div>
 
+          <div class="flex flex-wrap items-center gap-6">
+            <label class="flex items-center space-x-2 text-[12.5px] gh-text-secondary cursor-pointer">
+              <input v-model="clipToAOI" type="checkbox" class="rounded accent-[var(--accent-primary)]" />
+              <span>Clip Output Stack to Active AOI</span>
+            </label>
+            <label class="flex items-center space-x-2 text-[12.5px] gh-text-secondary cursor-pointer">
+              <input v-model="exportAsCog" type="checkbox" class="rounded accent-[var(--accent-primary)]" />
+              <span>Build Cloud-Optimized Overviews</span>
+            </label>
+          </div>
+
+          <div class="pt-4 border-t gh-divider">
             <button
               @click="executeStackBands"
-              :disabled="isExecuting || multiInputPaths.length === 0"
-              class="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs cursor-pointer bw-primary-btn"
+              :disabled="isExecuting || multiInputPaths.length < 2"
+              class="px-5 py-2.5 rounded-[8px] gh-btn-primary text-[13px] font-semibold disabled:opacity-50 flex items-center space-x-2 cursor-pointer"
             >
-              {{ isExecuting ? '⏳ Stacking Bands...' : `📚 Build Multi-Band Stack (${multiInputPaths.length} files)` }}
+              <Layers class="w-4 h-4" />
+              <span>{{ isExecuting ? 'Stacking Bands...' : `Create ${multiInputPaths.length}-Band GeoTIFF` }}</span>
             </button>
           </div>
-        </div>
+        </section>
 
-        <!-- TOOL 4: SPECTRAL INDICES & RASTER CALCULATOR -->
-        <div v-if="activeTool === 'index'" class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-            <div>
-              <h2 class="text-sm font-bold text-white">🌿 Spectral Indices & Raster Band Calculator</h2>
-              <p class="text-xs text-slate-400">Compute NDVI, NDWI, MNDWI, NDSI (Snow/Ice), NDBI, SAVI, EVI, NBR, or custom Band Math expressions.</p>
+        <!-- TOOL 4: SPECTRAL INDICES -->
+        <section v-else-if="activeTool === 'index'" class="space-y-5">
+          <div class="space-y-2">
+            <label class="block text-[12.5px] font-semibold gh-text-primary">Spectral Index Preset</label>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <button
+                v-for="idx in indexPresets"
+                :key="idx.id"
+                @click="spectralIndexType = idx.id"
+                :class="[
+                  'p-2.5 rounded-[8px] border text-left transition-colors cursor-pointer',
+                  spectralIndexType === idx.id
+                    ? 'gh-selected-bg gh-focus-border gh-turquoise'
+                    : 'gh-surface-primary gh-border hover:gh-surface-secondary gh-text-secondary'
+                ]"
+              >
+                <div class="text-[12.5px] font-semibold gh-text-primary">{{ idx.label }}</div>
+                <div class="text-[11px] gh-text-secondary mt-0.5">{{ idx.desc }}</div>
+              </button>
             </div>
-            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">Band Arithmetic</span>
           </div>
 
-          <div class="space-y-3">
-            <div>
-              <label class="block text-xs font-bold text-slate-300 mb-1">Select Spectral Index or Custom Formula</label>
-              <div class="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
-                <button
-                  v-for="idx in indexPresets"
-                  :key="idx.id"
-                  @click="spectralIndexType = idx.id"
-                  :class="[
-                    'p-2 rounded border text-left transition-colors cursor-pointer',
-                    spectralIndexType === idx.id
-                      ? 'bg-emerald-600 text-white border-emerald-500 bw-primary-btn'
-                      : 'bg-slate-950 text-slate-300 border-slate-800 hover:bg-slate-800'
-                  ]"
-                >
-                  <div class="text-xs font-bold">{{ idx.label }}</div>
-                  <div class="text-[10px] opacity-80 truncate">{{ idx.desc }}</div>
-                </button>
+          <div class="pt-4 border-t gh-divider grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-1.5">
+              <label class="block text-[12.5px] font-semibold gh-text-primary">{{ currentIndexLabels.b1 }}</label>
+              <select v-model="band1Path" class="w-full gh-input rounded-[7px] px-3 py-2 text-[12px] font-mono">
+                <option value="">-- Select Band Raster --</option>
+                <option v-for="r in localRasters" :key="r.absolute_path" :value="r.absolute_path">{{ r.name }}</option>
+              </select>
+              <div class="flex items-center space-x-2 text-[11.5px] gh-text-secondary font-mono pt-1">
+                <span>Band Index:</span>
+                <input v-model.number="band1Idx" type="number" min="1" class="w-16 gh-input rounded-[6px] px-2 py-0.5 text-[12px]" />
               </div>
             </div>
 
-            <div v-if="spectralIndexType === 'custom'">
-              <label class="block text-xs font-bold text-slate-300 mb-1">Custom Band Math Expression (Use B1, B2, B3)</label>
-              <input
-                v-model="customFormula"
-                type="text"
-                placeholder="(B1 - B2) / (B1 + B2 + 1e-6)"
-                class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono"
-              />
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs font-bold text-slate-300 mb-1">Band 1 Raster ({{ currentIndexLabels.b1 }})</label>
-                <select v-model="band1Path" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono">
-                  <option value="">-- Select Raster --</option>
-                  <option v-for="r in localRasters" :key="r.absolute_path" :value="r.absolute_path">{{ r.name }}</option>
-                </select>
-                <div class="mt-1 flex items-center space-x-2">
-                  <span class="text-[10px] text-slate-400">Band Number in File:</span>
-                  <input v-model.number="band1Idx" type="number" min="1" max="30" class="w-16 bg-slate-950 border border-slate-700 rounded px-2 py-0.5 text-xs font-mono" />
-                </div>
-              </div>
-
-              <div>
-                <label class="block text-xs font-bold text-slate-300 mb-1">Band 2 Raster ({{ currentIndexLabels.b2 }})</label>
-                <select v-model="band2Path" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono">
-                  <option value="">-- Select Raster --</option>
-                  <option v-for="r in localRasters" :key="r.absolute_path" :value="r.absolute_path">{{ r.name }}</option>
-                </select>
-                <div class="mt-1 flex items-center space-x-2">
-                  <span class="text-[10px] text-slate-400">Band Number in File:</span>
-                  <input v-model.number="band2Idx" type="number" min="1" max="30" class="w-16 bg-slate-950 border border-slate-700 rounded px-2 py-0.5 text-xs font-mono" />
-                </div>
+            <div class="space-y-1.5">
+              <label class="block text-[12.5px] font-semibold gh-text-primary">{{ currentIndexLabels.b2 }}</label>
+              <select v-model="band2Path" class="w-full gh-input rounded-[7px] px-3 py-2 text-[12px] font-mono">
+                <option value="">-- Select Band Raster --</option>
+                <option v-for="r in localRasters" :key="r.absolute_path" :value="r.absolute_path">{{ r.name }}</option>
+              </select>
+              <div class="flex items-center space-x-2 text-[11.5px] gh-text-secondary font-mono pt-1">
+                <span>Band Index:</span>
+                <input v-model.number="band2Idx" type="number" min="1" class="w-16 gh-input rounded-[6px] px-2 py-0.5 text-[12px]" />
               </div>
             </div>
+          </div>
 
+          <div v-if="spectralIndexType === 'custom'" class="space-y-1.5">
+            <label class="block text-[12.5px] font-semibold gh-text-primary">Custom Band Math Formula</label>
+            <input v-model="customFormula" type="text" class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px] font-mono" />
+          </div>
+
+          <div class="pt-4 border-t gh-divider grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+            <div class="space-y-1.5">
+              <label class="block text-[12.5px] font-semibold gh-text-primary">Output Filename (optional)</label>
+              <input v-model="outputFilename" type="text" placeholder="index_output.tif" class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px] font-mono" />
+            </div>
+            <label class="flex items-center space-x-2 text-[12.5px] gh-text-secondary cursor-pointer pb-2">
+              <input v-model="exportAsCog" type="checkbox" class="rounded accent-[var(--accent-primary)]" />
+              <span>Export as Cloud-Optimized GeoTIFF</span>
+            </label>
+          </div>
+
+          <div class="pt-4 border-t gh-divider">
             <button
               @click="executeSpectralIndex"
               :disabled="isExecuting || !band1Path || !band2Path"
-              class="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs cursor-pointer bw-primary-btn"
+              class="px-5 py-2.5 rounded-[8px] gh-btn-primary text-[13px] font-semibold disabled:opacity-50 flex items-center space-x-2 cursor-pointer"
             >
-              {{ isExecuting ? '⏳ Computing Spectral Index...' : `🌿 Compute ${spectralIndexType.toUpperCase()} Raster` }}
+              <Sprout class="w-4 h-4" />
+              <span>{{ isExecuting ? 'Computing Index...' : `Compute ${spectralIndexType.toUpperCase()} Raster` }}</span>
             </button>
           </div>
-        </div>
+        </section>
 
         <!-- TOOL 5: TERRAIN ANALYSIS (DEM) -->
-        <div v-if="activeTool === 'terrain'" class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-            <div>
-              <h2 class="text-sm font-bold text-white">⛰️ DEM Surface & Terrain Analysis</h2>
-              <p class="text-xs text-slate-400">Derive Slope, Hillshade, Aspect, Terrain Ruggedness Index (TRI), or Topographic Position Index (TPI) from any Digital Elevation Model.</p>
-            </div>
-            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">Surface Toolbox</span>
+        <section v-else-if="activeTool === 'terrain'" class="space-y-5">
+          <div class="space-y-1.5">
+            <label class="block text-[12.5px] font-semibold gh-text-primary">Input DEM Raster (.tif)</label>
+            <select v-model="singleInputPath" class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px] font-mono">
+              <option value="">-- Select Elevation / DEM Raster --</option>
+              <option v-for="r in localRasters" :key="r.absolute_path" :value="r.absolute_path">{{ r.name }}</option>
+            </select>
           </div>
 
-          <div class="space-y-3">
-            <div>
-              <label class="block text-xs font-bold text-slate-300 mb-1">Input DEM Raster (.tif)</label>
-              <select v-model="singleInputPath" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono">
-                <option value="">-- Select Elevation / DEM Raster --</option>
-                <option v-for="r in localRasters" :key="r.absolute_path" :value="r.absolute_path">{{ r.name }}</option>
-              </select>
+          <div class="pt-4 border-t gh-divider space-y-2">
+            <label class="block text-[12.5px] font-semibold gh-text-primary">Surface Derivative</label>
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              <button
+                v-for="op in terrainOps"
+                :key="op.id"
+                @click="terrainOp = op.id"
+                :class="[
+                  'p-2.5 rounded-[8px] border text-left transition-colors cursor-pointer',
+                  terrainOp === op.id
+                    ? 'gh-selected-bg gh-focus-border gh-turquoise'
+                    : 'gh-surface-primary gh-border hover:gh-surface-secondary gh-text-secondary'
+                ]"
+              >
+                <div class="text-[12.5px] font-semibold gh-text-primary">{{ op.label }}</div>
+                <div class="text-[11px] gh-text-secondary mt-0.5">{{ op.sub }}</div>
+              </button>
             </div>
+          </div>
 
-            <div>
-              <label class="block text-xs font-bold text-slate-300 mb-1">Surface Derivative Operation</label>
-              <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                <button
-                  v-for="op in terrainOps"
-                  :key="op.id"
-                  @click="terrainOp = op.id"
-                  :class="[
-                    'p-2.5 rounded-lg border text-left transition-colors cursor-pointer',
-                    terrainOp === op.id
-                      ? 'bg-emerald-600 text-white border-emerald-500 bw-primary-btn'
-                      : 'bg-slate-950 text-slate-300 border-slate-800 hover:bg-slate-800'
-                  ]"
-                >
-                  <div class="text-xs font-bold">{{ op.label }}</div>
-                  <div class="text-[10px] opacity-80">{{ op.sub }}</div>
-                </button>
-              </div>
+          <div v-if="terrainOp === 'hillshade'" class="pt-4 border-t gh-divider grid grid-cols-3 gap-3">
+            <div class="space-y-1">
+              <label class="block text-[12px] gh-text-secondary">Azimuth (deg)</label>
+              <input v-model.number="hillshadeAzimuth" type="number" class="w-full gh-input rounded-[7px] px-2.5 py-1.5 text-[12.5px] font-mono" />
             </div>
-
-            <div v-if="terrainOp === 'hillshade'" class="grid grid-cols-3 gap-3">
-              <div>
-                <label class="block text-[11px] text-slate-400 mb-1">Azimuth (°)</label>
-                <input v-model.number="hillshadeAzimuth" type="number" class="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs font-mono" />
-              </div>
-              <div>
-                <label class="block text-[11px] text-slate-400 mb-1">Sun Altitude (°)</label>
-                <input v-model.number="hillshadeAltitude" type="number" class="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs font-mono" />
-              </div>
-              <div>
-                <label class="block text-[11px] text-slate-400 mb-1">Z-Factor</label>
-                <input v-model.number="terrainZFactor" type="number" step="0.1" class="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs font-mono" />
-              </div>
+            <div class="space-y-1">
+              <label class="block text-[12px] gh-text-secondary">Altitude (deg)</label>
+              <input v-model.number="hillshadeAltitude" type="number" class="w-full gh-input rounded-[7px] px-2.5 py-1.5 text-[12.5px] font-mono" />
             </div>
+            <div class="space-y-1">
+              <label class="block text-[12px] gh-text-secondary">Z-Factor</label>
+              <input v-model.number="terrainZFactor" type="number" step="0.1" class="w-full gh-input rounded-[7px] px-2.5 py-1.5 text-[12.5px] font-mono" />
+            </div>
+          </div>
 
+          <div class="pt-4 border-t gh-divider grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+            <div class="space-y-1.5">
+              <label class="block text-[12.5px] font-semibold gh-text-primary">Output Filename (optional)</label>
+              <input v-model="outputFilename" type="text" placeholder="terrain_derivative.tif" class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px] font-mono" />
+            </div>
+            <label class="flex items-center space-x-2 text-[12.5px] gh-text-secondary cursor-pointer pb-2">
+              <input v-model="exportAsCog" type="checkbox" class="rounded accent-[var(--accent-primary)]" />
+              <span>Export as Cloud-Optimized GeoTIFF</span>
+            </label>
+          </div>
+
+          <div class="pt-4 border-t gh-divider">
             <button
               @click="executeTerrain"
               :disabled="isExecuting || !singleInputPath"
-              class="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs cursor-pointer bw-primary-btn"
+              class="px-5 py-2.5 rounded-[8px] gh-btn-primary text-[13px] font-semibold disabled:opacity-50 flex items-center space-x-2 cursor-pointer"
             >
-              {{ isExecuting ? '⏳ Running Terrain Derivative...' : `⛰️ Generate ${terrainOp.toUpperCase()} Raster` }}
+              <Mountain class="w-4 h-4" />
+              <span>{{ isExecuting ? 'Generating Surface...' : `Generate ${terrainOp.toUpperCase()} Raster` }}</span>
             </button>
           </div>
-        </div>
+        </section>
 
-        <!-- TOOL 6: REPROJECT, RESAMPLE & COG BUILDER -->
-        <div v-if="activeTool === 'reproject'" class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-            <div>
-              <h2 class="text-sm font-bold text-white">🌐 Project Raster, Resample & COG Builder</h2>
-              <p class="text-xs text-slate-400">Transform coordinate reference systems (UTM / WGS84), change pixel resolution, and build Cloud-Optimized GeoTIFF overviews.</p>
+        <!-- TOOL 6: REPROJECT & RESAMPLE -->
+        <section v-else-if="activeTool === 'reproject'" class="space-y-5">
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label class="text-[12.5px] font-semibold gh-text-primary">Input Raster File (.tif)</label>
+              <button
+                @click="recommendCRSForLadakh"
+                class="px-2.5 py-1 rounded-[7px] gh-btn-secondary text-[11.5px] font-mono gh-accent cursor-pointer flex items-center space-x-1"
+              >
+                <Compass class="w-3.5 h-3.5" />
+                <span>Auto-Recommend UTM</span>
+              </button>
             </div>
-            <button
-              @click="recommendCRSForLadakh"
-              class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-emerald-400 border border-slate-700 cursor-pointer"
-            >
-              🎯 Auto-Recommend UTM
-            </button>
+            <select v-model="singleInputPath" class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px] font-mono">
+              <option value="">-- Select Input Raster --</option>
+              <option v-for="r in localRasters" :key="r.absolute_path" :value="r.absolute_path">{{ r.name }}</option>
+            </select>
           </div>
 
-          <div class="space-y-3">
-            <div>
-              <label class="block text-xs font-bold text-slate-300 mb-1">Input Raster File (.tif)</label>
-              <select v-model="singleInputPath" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono">
-                <option value="">-- Select Input Raster --</option>
-                <option v-for="r in localRasters" :key="r.absolute_path" :value="r.absolute_path">{{ r.name }}</option>
+          <div class="pt-4 border-t gh-divider grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="space-y-1.5">
+              <label class="block text-[12.5px] font-semibold gh-text-primary">Target CRS</label>
+              <input v-model="targetCRS" type="text" placeholder="EPSG:32643" class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px] font-mono" />
+            </div>
+            <div class="space-y-1.5">
+              <label class="block text-[12.5px] font-semibold gh-text-primary">Resolution (m / deg)</label>
+              <input v-model.number="targetResolution" type="number" step="1" placeholder="Keep native" class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px] font-mono" />
+            </div>
+            <div class="space-y-1.5">
+              <label class="block text-[12.5px] font-semibold gh-text-primary">Resampling Kernel</label>
+              <select v-model="resamplingMethod" class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px]">
+                <option value="bilinear">Bilinear (Continuous)</option>
+                <option value="cubic">Cubic Convolution</option>
+                <option value="nearest">Nearest Neighbor</option>
+                <option value="average">Average</option>
               </select>
             </div>
+          </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label class="block text-xs font-bold text-slate-300 mb-1">Target CRS</label>
-                <input v-model="targetCRS" type="text" placeholder="EPSG:32643" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono" />
-              </div>
-              <div>
-                <label class="block text-xs font-bold text-slate-300 mb-1">Target Resolution (Optional)</label>
-                <input v-model.number="targetResolution" type="number" step="1" placeholder="Keep native" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono" />
-              </div>
-              <div>
-                <label class="block text-xs font-bold text-slate-300 mb-1">Resampling Kernel</label>
-                <select v-model="resamplingMethod" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
-                  <option value="bilinear">Bilinear (Continuous)</option>
-                  <option value="cubic">Cubic Convolution (Smooth)</option>
-                  <option value="nearest">Nearest Neighbor (Categorical)</option>
-                  <option value="average">Average (Downsampling)</option>
-                </select>
-              </div>
+          <div class="pt-4 border-t gh-divider grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+            <div class="space-y-1.5">
+              <label class="block text-[12.5px] font-semibold gh-text-primary">Output Filename (optional)</label>
+              <input v-model="outputFilename" type="text" placeholder="reprojected_cog.tif" class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px] font-mono" />
             </div>
+            <label class="flex items-center space-x-2 text-[12.5px] gh-text-secondary cursor-pointer pb-2">
+              <input v-model="exportAsCog" type="checkbox" class="rounded accent-[var(--accent-primary)]" />
+              <span>Export as Cloud-Optimized GeoTIFF</span>
+            </label>
+          </div>
 
+          <div class="pt-4 border-t gh-divider">
             <button
               @click="executeReproject"
               :disabled="isExecuting || !singleInputPath"
-              class="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs cursor-pointer bw-primary-btn"
+              class="px-5 py-2.5 rounded-[8px] gh-btn-primary text-[13px] font-semibold disabled:opacity-50 flex items-center space-x-2 cursor-pointer"
             >
-              {{ isExecuting ? '⏳ Reprojecting & Building COG...' : '🌐 Run Project Raster & COG Export' }}
+              <RefreshCw class="w-4 h-4" />
+              <span>{{ isExecuting ? 'Reprojecting & Exporting...' : 'Run Reproject & COG Export' }}</span>
             </button>
           </div>
-        </div>
+        </section>
 
-        <!-- TOOL 7: ZONAL STATISTICS & HISTOGRAM -->
-        <div v-if="activeTool === 'stats'" class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-            <div>
-              <h2 class="text-sm font-bold text-white">📊 Zonal Statistics & Band Histogram Inspector</h2>
-              <p class="text-xs text-slate-400">Compute per-band Min, Max, Mean, StdDev, Median, Percentiles (P5/P95), and 12-bin distributions across the raster or active AOI.</p>
-            </div>
-            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">Zonal Statistics</span>
+        <!-- TOOL 7: VECTOR & ZONAL STATISTICS -->
+        <section v-else-if="activeTool === 'stats'" class="space-y-5">
+          <div class="space-y-1.5">
+            <label class="block text-[12.5px] font-semibold gh-text-primary">Select Raster to Inspect</label>
+            <select v-model="singleInputPath" class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px] font-mono">
+              <option value="">-- Select Raster --</option>
+              <option v-for="r in localRasters" :key="r.absolute_path" :value="r.absolute_path">{{ r.name }}</option>
+            </select>
           </div>
 
-          <div class="space-y-3">
-            <div>
-              <label class="block text-xs font-bold text-slate-300 mb-1">Select Raster to Inspect</label>
-              <select v-model="singleInputPath" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono">
-                <option value="">-- Select Raster --</option>
-                <option v-for="r in localRasters" :key="r.absolute_path" :value="r.absolute_path">{{ r.name }}</option>
-              </select>
-            </div>
-
-            <label class="flex items-center space-x-2 text-xs text-slate-300 cursor-pointer">
-              <input v-model="clipToAOI" type="checkbox" class="rounded" />
-              <span>Mask Zonal Statistics to Active Map AOI Polygon</span>
+          <div class="pt-4 border-t gh-divider space-y-2">
+            <label class="flex items-center space-x-2.5 text-[12.5px] gh-text-primary cursor-pointer font-medium">
+              <input v-model="clipToAOI" type="checkbox" class="rounded accent-[var(--accent-primary)]" />
+              <span>Mask Zonal Statistics to Active Map Vector AOI Polygon</span>
             </label>
+            <p v-if="clipToAOI" class="text-[12px] font-mono gh-text-secondary pl-6">
+              Active boundary: {{ harvestStore.hasAoi ? (harvestStore.aoiName || 'Map Polygon AOI') : 'None loaded (full raster extent will be analyzed)' }}
+            </p>
+          </div>
 
+          <div class="pt-4 border-t gh-divider">
             <button
               @click="executeStats"
               :disabled="isExecuting || !singleInputPath"
-              class="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs cursor-pointer bw-primary-btn"
+              class="px-5 py-2.5 rounded-[8px] gh-btn-primary text-[13px] font-semibold disabled:opacity-50 flex items-center space-x-2 cursor-pointer"
             >
-              {{ isExecuting ? '⏳ Computing Zonal Statistics...' : '📊 Compute Band Statistics & Histogram' }}
+              <BarChart3 class="w-4 h-4" />
+              <span>{{ isExecuting ? 'Computing Statistics...' : 'Compute Zonal Statistics & Histograms' }}</span>
             </button>
           </div>
+        </section>
+      </div>
+    </main>
+
+    <!-- RIGHT COLUMN: Execution Status, Logs & Output Preview (400px) -->
+    <aside class="w-full lg:w-[400px] xl:w-[430px] border-t lg:border-t-0 lg:border-l gh-border gh-surface-primary flex flex-col h-[38vh] lg:h-full shrink-0 overflow-hidden">
+      <div class="px-4 py-3 border-b gh-border flex items-center justify-between shrink-0">
+        <div class="flex items-center space-x-2">
+          <Terminal class="w-4 h-4 gh-accent shrink-0" />
+          <h2 class="text-[13.5px] font-semibold gh-text-primary">Execution &amp; Output</h2>
         </div>
 
-        <!-- TOOL 8: AUTOMATED MULTI-STAGE RECIPES -->
-        <div v-if="activeTool === 'recipe'" class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-            <div>
-              <h2 class="text-sm font-bold text-white">⚙️ Automated Multi-Stage Processing Recipes</h2>
-              <p class="text-xs text-slate-400">Run end-to-end automated pipelines on catalog datasets with full provenance lineage tracking.</p>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div
-              v-for="recipe in recipes"
-              :key="recipe.id"
-              @click="selectedRecipeId = recipe.id"
-              :class="[
-                'p-3 rounded-lg border cursor-pointer transition-all',
-                selectedRecipeId === recipe.id
-                  ? 'bg-slate-800 border-emerald-500'
-                  : 'bg-slate-950 border-slate-800 hover:border-slate-700'
-              ]"
-            >
-              <div class="font-bold text-xs text-white">{{ recipe.name }}</div>
-              <p class="text-[11px] text-slate-400 mt-1">{{ recipe.description }}</p>
-            </div>
-          </div>
-
-          <!-- Input Mode Switch: Workspace Scene Folder vs DB Harvest Catalog -->
-          <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-3">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <span class="text-xs font-bold text-slate-300">Input Data Source</span>
-              <div class="inline-flex rounded-lg bg-slate-900 p-0.5 border border-slate-800 text-[11px]">
-                <button
-                  type="button"
-                  @click="recipeInputMode = 'folder'"
-                  :class="[
-                    'px-2.5 py-1 rounded-md font-semibold cursor-pointer transition-colors',
-                    recipeInputMode === 'folder' ? 'bg-teal-600 text-white' : 'text-slate-400 hover:text-slate-200'
-                  ]"
-                >
-                  📁 Selected Folder TIFFs ({{ selectedRecipeFilePaths.length }})
-                </button>
-                <button
-                  type="button"
-                  @click="recipeInputMode = 'catalog'"
-                  :class="[
-                    'px-2.5 py-1 rounded-md font-semibold cursor-pointer transition-colors',
-                    recipeInputMode === 'catalog' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-200'
-                  ]"
-                >
-                  🗄️ Catalog Dataset ({{ datasets.length }})
-                </button>
-              </div>
-            </div>
-
-            <!-- Mode 1: Workspace Folder / All Scene TIFFs -->
-            <div v-if="recipeInputMode === 'folder'" class="space-y-2.5">
-              <div class="flex items-center gap-2">
-                <select
-                  v-model="selectedDirectory"
-                  @change="onFolderSelectionChange"
-                  class="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono"
-                >
-                  <option value="">All Workspace Folders ({{ totalIndexedFiles }} indexed)</option>
-                  <optgroup v-if="downloadedFolderOptions.length > 0" label="📥 Downloaded Folders">
-                    <option v-for="folder in downloadedFolderOptions" :key="folder.id" :value="folder.path">
-                      {{ folder.depth === 0 ? '📁 ' : '  ↳ ' }}{{ folder.label }} ({{ folder.file_count }})
-                    </option>
-                  </optgroup>
-                  <optgroup v-if="otherFolderOptions.length > 0" label="⚙️ Processed &amp; Custom">
-                    <option v-for="folder in otherFolderOptions" :key="folder.id" :value="folder.path">
-                      {{ folder.depth === 0 ? '📁 ' : '  ↳ ' }}{{ folder.label }} ({{ folder.file_count }})
-                    </option>
-                  </optgroup>
-                  <optgroup v-if="isCustomExternalDirectory" label="📂 Custom Selected Folder">
-                    <option :value="selectedDirectory">{{ selectedDirectory }}</option>
-                  </optgroup>
-                </select>
-                <button
-                  type="button"
-                  @click="showFolderPickerModal = true"
-                  class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-teal-300 shrink-0 cursor-pointer"
-                >
-                  📂 Browse
-                </button>
-              </div>
-
-              <div v-if="!selectedDirectory && localRasters.length > 0" class="text-[11px] text-amber-300/90 bg-amber-950/30 border border-amber-800/50 rounded px-2.5 py-1.5">
-                Tip: Pick a downloaded scene subfolder (or browse a custom folder) so the recipe processes only that scene's `.tif` files.
-              </div>
-
-              <div class="flex items-center justify-between text-[11px] text-slate-400">
-                <span>
-                  <strong class="text-slate-200">{{ selectedRecipeFilePaths.length }}</strong> of {{ localRasters.length }} raster file(s) queued in this scene/folder
-                </span>
-                <div class="space-x-2">
-                  <button
-                    type="button"
-                    @click="selectedRecipeFilePaths = localRasters.map(r => r.absolute_path)"
-                    class="text-emerald-400 hover:underline cursor-pointer"
-                  >
-                    Select All
-                  </button>
-                  <button
-                    type="button"
-                    @click="selectedRecipeFilePaths = []"
-                    class="text-slate-400 hover:underline cursor-pointer"
-                  >
-                    Clear
-                  </button>
-                </div>
-              </div>
-
-              <div v-if="localRasters.length === 0" class="text-xs text-slate-500 p-3 text-center border border-dashed border-slate-800 rounded-lg">
-                No `.tif` files found in the selected folder.
-              </div>
-              <div v-else class="max-h-36 overflow-y-auto space-y-1 pr-1">
-                <label
-                  v-for="r in localRasters"
-                  :key="r.absolute_path"
-                  class="flex items-center space-x-2 p-1.5 rounded hover:bg-slate-900 cursor-pointer text-[11px]"
-                >
-                  <input
-                    type="checkbox"
-                    :value="r.absolute_path"
-                    v-model="selectedRecipeFilePaths"
-                    class="rounded border-slate-700 bg-slate-900 text-emerald-500"
-                  />
-                  <span class="font-mono text-slate-200 truncate flex-1">{{ r.name }}</span>
-                  <span class="text-[10px] text-slate-500 font-mono shrink-0">{{ r.crs || 'EPSG:4326' }}</span>
-                </label>
-              </div>
-            </div>
-
-            <!-- Mode 2: Database Catalog Dataset -->
-            <div v-else class="space-y-2">
-              <p class="text-[11px] text-slate-400">
-                Selects scenes recorded in GeoHarvest's catalog database from completed harvest jobs. Use <strong>Selected Folder TIFFs</strong> for downloaded subfolders or custom local data.
-              </p>
-              <div v-if="datasets.length > 0" class="space-y-1.5">
-                <label class="block text-xs font-bold text-slate-300">Select Catalog Dataset</label>
-                <select v-model="selectedDatasetId" @change="selectAllDatasetAssets" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono">
-                  <option v-for="ds in datasets" :key="ds.id" :value="ds.id">{{ ds.dataset_id }} ({{ ds.collection }})</option>
-                </select>
-                <div class="text-[11px] text-slate-400 font-mono">
-                  {{ selectedAssetIds.length }} dataset asset(s) selected
-                </div>
-              </div>
-              <div v-else class="text-xs text-slate-500 p-3 text-center border border-dashed border-slate-800 rounded-lg">
-                No datasets registered in the catalog database yet. Switch to <strong>Selected Folder TIFFs</strong> above to run on downloaded or custom folders.
-              </div>
-            </div>
-          </div>
-
-          <!-- Pipeline Execution Options -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-            <label class="flex items-center space-x-2 p-2.5 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer">
-              <input v-model="clipToAOI" type="checkbox" class="rounded border-slate-700 bg-slate-900 text-emerald-500" />
-              <span class="text-slate-300">Clip to active Study Area (AOI)</span>
-            </label>
-            <div class="flex items-center space-x-2 p-2 rounded-lg bg-slate-950 border border-slate-800">
-              <span class="text-slate-400 shrink-0 font-semibold">Target CRS:</span>
-              <input
-                v-model="targetCRS"
-                type="text"
-                placeholder="auto_utm or EPSG:32643"
-                class="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white font-mono"
-              />
-            </div>
-          </div>
-
-          <div v-if="runningPipeline && activeTask" class="p-2.5 rounded-lg bg-slate-950 border border-emerald-800/60 space-y-1.5 text-xs">
-            <div class="flex items-center justify-between text-emerald-300 font-mono text-[11px]">
-              <span>{{ activeTask.checkpoint?.current_step || 'Processing...' }}</span>
-              <span>{{ activeTask.progress ?? 0 }}%</span>
-            </div>
-            <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-              <div class="h-full bg-emerald-500 transition-all duration-300" :style="{ width: `${activeTask.progress ?? 5}%` }"></div>
-            </div>
-          </div>
-
-          <button
-            @click="runPipeline"
-            :disabled="runningPipeline || (recipeInputMode === 'folder' ? selectedRecipeFilePaths.length === 0 : selectedAssetIds.length === 0)"
-            class="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs cursor-pointer bw-primary-btn"
+        <div class="flex items-center space-x-2">
+          <span
+            v-if="isExecuting"
+            class="text-[11px] font-mono font-semibold gh-turquoise"
           >
-            {{ runningPipeline ? '⏳ Running Recipe Pipeline...' : `⚙️ Execute Recipe on ${recipeInputMode === 'folder' ? selectedRecipeFilePaths.length + ' File(s)' : 'Catalog Dataset'}` }}
-          </button>
+            RUNNING
+          </span>
+          <span
+            v-else-if="toolError"
+            class="text-[11px] font-mono font-semibold gh-error"
+          >
+            ERROR
+          </span>
+          <span
+            v-else-if="toolResult"
+            class="text-[11px] font-mono font-semibold gh-success"
+          >
+            COMPLETE
+          </span>
+          <span v-else class="text-[11px] font-mono gh-text-muted">IDLE</span>
+
+          <router-link
+            to="/files?root=processed"
+            class="px-2 py-1 rounded-[6px] gh-btn-ghost text-[11.5px] font-medium flex items-center space-x-1"
+            title="View processed files in File Browser"
+          >
+            <FolderOpen class="w-3.5 h-3.5 gh-accent" />
+            <span>Processed</span>
+          </router-link>
         </div>
       </div>
 
-      <!-- RIGHT COLUMN (5 Cols): Output Inspector & Local Raster Workspace Browser -->
-      <div class="lg:col-span-5 overflow-y-auto space-y-4 pr-1">
-        <!-- OUTPUT RESULT & STATS CARD -->
-        <div v-if="toolResult || toolError" class="bg-slate-900 border border-slate-700 rounded-xl p-4 space-y-3">
-          <div class="flex items-center justify-between border-b border-slate-800 pb-2">
-            <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-400">
-              {{ toolError ? '⚠️ Geoprocessing Error' : '✅ Geoprocessing Result' }}
-            </h3>
-            <button @click="toolResult = null; toolError = null" class="text-[11px] text-slate-400 hover:text-white">
+      <div class="flex-1 overflow-y-auto divide-y gh-divide">
+        <!-- Error Notice -->
+        <div v-if="toolError" class="p-4 gh-error-soft-bg gh-error text-[12px] font-mono space-y-1">
+          <div class="font-semibold flex items-center space-x-1.5">
+            <AlertTriangle class="w-3.5 h-3.5 shrink-0" />
+            <span>Geoprocessing Error</span>
+          </div>
+          <p class="break-words">{{ toolError }}</p>
+        </div>
+
+        <!-- Output Summary -->
+        <div v-if="toolResult" class="p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="gh-label">Output Metadata</span>
+            <button @click="toolResult = null; toolError = null" class="text-[11.5px] gh-text-muted hover:gh-text-primary cursor-pointer">
               Clear
             </button>
           </div>
 
-          <div v-if="toolError" class="p-3 rounded bg-red-950/50 border border-red-800 text-xs text-red-300">
-            {{ toolError }}
+          <div v-if="toolResult.output_path" class="p-3 rounded-[8px] gh-surface-secondary border gh-border space-y-1.5 font-mono text-[11.5px]">
+            <div class="flex justify-between gap-2">
+              <span class="gh-text-muted">File</span>
+              <span class="gh-text-primary font-semibold truncate">{{ toolResult.output_path.split('/').pop() }}</span>
+            </div>
+            <div v-if="toolResult.crs" class="flex justify-between gap-2">
+              <span class="gh-text-muted">CRS</span>
+              <span class="gh-accent">{{ toolResult.crs }}</span>
+            </div>
+            <div v-if="toolResult.width" class="flex justify-between gap-2">
+              <span class="gh-text-muted">Dimensions</span>
+              <span class="gh-text-primary">{{ toolResult.width }} x {{ toolResult.height }} px ({{ toolResult.band_count || toolResult.count || 1 }}B)</span>
+            </div>
+            <div v-if="toolResult.min_val !== undefined" class="flex justify-between gap-2">
+              <span class="gh-text-muted">Range / Mean</span>
+              <span class="gh-text-primary">
+                {{ toolResult.min_val?.toFixed(3) }} .. {{ toolResult.max_val?.toFixed(3) }} ({{ toolResult.mean_val?.toFixed(3) }})
+              </span>
+            </div>
           </div>
 
-          <div v-if="toolResult" class="space-y-3 text-xs">
-            <div v-if="toolResult.output_path" class="p-2.5 rounded bg-slate-950 border border-slate-800 space-y-1 font-mono text-[11px]">
-              <div class="text-slate-400">Output File: <span class="text-white font-bold">{{ toolResult.output_path.split('/').pop() }}</span></div>
-              <div v-if="toolResult.crs" class="text-slate-400">CRS: <span class="text-emerald-300">{{ toolResult.crs }}</span></div>
-              <div v-if="toolResult.width" class="text-slate-400">
-                Dimensions: <span class="text-white">{{ toolResult.width }} × {{ toolResult.height }} px ({{ toolResult.band_count || toolResult.count || 1 }} band(s))</span>
-              </div>
-              <div v-if="toolResult.min_val !== undefined" class="text-slate-400">
-                Min / Max / Mean: <span class="text-white">{{ toolResult.min_val?.toFixed(3) }} / {{ toolResult.max_val?.toFixed(3) }} / {{ toolResult.mean_val?.toFixed(3) }}</span>
-              </div>
-            </div>
+          <div v-if="toolResult.output_path" class="flex items-center gap-2">
+            <a
+              :href="getDownloadUrlForOutput(toolResult.output_path)"
+              target="_blank"
+              class="flex-1 py-2 px-3 rounded-[8px] gh-btn-primary text-[12.5px] font-semibold flex items-center justify-center space-x-1.5"
+            >
+              <Download class="w-3.5 h-3.5" />
+              <span>Download GeoTIFF</span>
+            </a>
+            <button
+              @click="useOutputAsInput(toolResult.output_path)"
+              class="py-2 px-3 rounded-[8px] gh-btn-secondary text-[12px] font-medium cursor-pointer flex items-center space-x-1"
+              title="Chain this output raster into the next tool"
+            >
+              <CornerDownRight class="w-3.5 h-3.5 gh-accent" />
+              <span>Use Input</span>
+            </button>
+          </div>
 
-            <!-- Action Buttons on Single Output File -->
-            <div v-if="toolResult.output_path" class="flex items-center space-x-2">
-              <a
-                :href="getDownloadUrlForOutput(toolResult.output_path)"
-                target="_blank"
-                class="flex-1 py-2 px-3 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-center text-xs bw-primary-btn"
-              >
-                ⬇ Download Output GeoTIFF
-              </a>
-              <button
-                @click="useOutputAsInput(toolResult.output_path)"
-                class="py-2 px-3 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold cursor-pointer"
-                title="Chain this output raster into the next tool"
-              >
-                ↪ Use as Next Input
-              </button>
+          <!-- Per-Band Zonal Statistics -->
+          <div v-if="toolResult.bands && toolResult.bands.length > 0" class="space-y-3 pt-1">
+            <div class="text-[11.5px] font-mono gh-text-secondary">
+              CRS: {{ toolResult.crs }} &bull; {{ toolResult.width }}x{{ toolResult.height }} px
             </div>
-
-            <!-- Batch Recipe Output Assets List -->
-            <div v-if="toolResult.output_assets && toolResult.output_assets.length > 0" class="space-y-2">
-              <div class="text-[11px] font-bold text-slate-300">
-                Generated Recipe Outputs ({{ toolResult.output_assets.length }} file(s))
+            <div
+              v-for="b in toolResult.bands"
+              :key="b.band"
+              class="p-3 rounded-[8px] gh-surface-secondary border gh-border space-y-2"
+            >
+              <div class="flex items-center justify-between text-[12px] font-semibold gh-text-primary">
+                <span>Band {{ b.band }} ({{ b.description }})</span>
+                <span class="font-mono text-[11px] gh-text-muted">{{ b.dtype }}</span>
               </div>
-              <div
-                v-if="toolResult.checkpoint?.skipped_files?.length"
-                class="p-2 rounded bg-amber-950/30 border border-amber-800/50 text-[11px] text-amber-300"
-              >
-                Skipped {{ toolResult.checkpoint.skipped_files.length }} non-overlapping tile(s) outside AOI.
-              </div>
-              <div class="max-h-48 overflow-y-auto space-y-1.5 pr-1">
-                <div
-                  v-for="outFile in toolResult.output_assets"
-                  :key="outFile"
-                  class="p-2 rounded bg-slate-950 border border-slate-800 flex items-center justify-between gap-2 text-[11px]"
-                >
-                  <span class="font-mono text-slate-200 truncate flex-1" :title="outFile">{{ outFile.split('/').pop() }}</span>
-                  <div class="flex items-center space-x-1 shrink-0">
-                    <button
-                      type="button"
-                      @click="useOutputAsInput(outFile)"
-                      class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer"
-                    >
-                      Use
-                    </button>
-                    <a
-                      :href="getDownloadUrlForOutput(outFile)"
-                      target="_blank"
-                      class="px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold bw-primary-btn"
-                      title="Download Processed GeoTIFF"
-                    >
-                      ⬇
-                    </a>
-                  </div>
+              <div v-if="b.min !== null" class="grid grid-cols-4 gap-1.5 font-mono text-[11px] text-center">
+                <div class="p-1.5 rounded-[6px] gh-workspace-bg border gh-border">
+                  <div class="text-[9.5px] gh-text-muted">MIN</div>
+                  <div class="gh-text-primary font-semibold">{{ b.min.toFixed(2) }}</div>
+                </div>
+                <div class="p-1.5 rounded-[6px] gh-workspace-bg border gh-border">
+                  <div class="text-[9.5px] gh-text-muted">MAX</div>
+                  <div class="gh-text-primary font-semibold">{{ b.max.toFixed(2) }}</div>
+                </div>
+                <div class="p-1.5 rounded-[6px] gh-workspace-bg border gh-border">
+                  <div class="text-[9.5px] gh-text-muted">MEAN</div>
+                  <div class="gh-accent font-semibold">{{ b.mean.toFixed(2) }}</div>
+                </div>
+                <div class="p-1.5 rounded-[6px] gh-workspace-bg border gh-border">
+                  <div class="text-[9.5px] gh-text-muted">STD</div>
+                  <div class="gh-text-primary font-semibold">{{ b.std.toFixed(2) }}</div>
                 </div>
               </div>
-            </div>
-
-            <!-- Zonal Statistics Per-Band Table -->
-            <div v-if="toolResult.bands && toolResult.bands.length > 0" class="space-y-2">
-              <div class="text-[11px] font-bold text-slate-300">
-                Raster CRS: {{ toolResult.crs }} • {{ toolResult.width }}×{{ toolResult.height }} px
-              </div>
-              <div
-                v-for="b in toolResult.bands"
-                :key="b.band"
-                class="p-2.5 rounded bg-slate-950 border border-slate-800 space-y-2"
-              >
-                <div class="flex items-center justify-between font-bold text-white">
-                  <span>Band {{ b.band }} ({{ b.description }})</span>
-                  <span class="font-mono text-[10px] text-slate-400">{{ b.dtype }}</span>
-                </div>
-                <div v-if="b.min !== null" class="grid grid-cols-4 gap-1.5 font-mono text-[11px] text-center">
-                  <div class="p-1 rounded bg-slate-900 border border-slate-800">
-                    <div class="text-[9px] text-slate-400">MIN</div>
-                    <div>{{ b.min.toFixed(2) }}</div>
-                  </div>
-                  <div class="p-1 rounded bg-slate-900 border border-slate-800">
-                    <div class="text-[9px] text-slate-400">MAX</div>
-                    <div>{{ b.max.toFixed(2) }}</div>
-                  </div>
-                  <div class="p-1 rounded bg-slate-900 border border-slate-800">
-                    <div class="text-[9px] text-slate-400">MEAN</div>
-                    <div>{{ b.mean.toFixed(2) }}</div>
-                  </div>
-                  <div class="p-1 rounded bg-slate-900 border border-slate-800">
-                    <div class="text-[9px] text-slate-400">STD</div>
-                    <div>{{ b.std.toFixed(2) }}</div>
-                  </div>
-                </div>
-                <!-- Mini Visual Histogram -->
-                <div v-if="b.histogram_counts && b.histogram_counts.length > 0" class="pt-1">
-                  <div class="text-[9px] text-slate-400 mb-1">12-Bin Pixel Value Distribution</div>
-                  <div class="h-12 flex items-end space-x-1 bg-slate-900 p-1.5 rounded border border-slate-800">
-                    <div
-                      v-for="(cnt, idx) in b.histogram_counts"
-                      :key="idx"
-                      class="flex-1 bg-emerald-500 rounded-t"
-                      :style="{ height: `${Math.max(8, Math.round((cnt / Math.max(...b.histogram_counts, 1)) * 100))}%` }"
-                      :title="`Count: ${cnt}`"
-                    ></div>
-                  </div>
+              <div v-if="b.histogram_counts && b.histogram_counts.length > 0" class="pt-1">
+                <div class="text-[10.5px] font-mono gh-text-muted mb-1">12-Bin Distribution</div>
+                <div class="h-12 flex items-end space-x-1 gh-workspace-bg p-1.5 rounded-[6px] border gh-border">
+                  <div
+                    v-for="(cnt, idx) in b.histogram_counts"
+                    :key="idx"
+                    class="flex-1 gh-progress-fill rounded-t-[2px]"
+                    :style="{ height: `${Math.max(8, Math.round((cnt / Math.max(...b.histogram_counts, 1)) * 100))}%` }"
+                    :title="`Count: ${cnt}`"
+                  ></div>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- LOCAL RASTERS WORKSPACE BROWSER -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
-          <div class="flex items-center justify-between border-b border-slate-800 pb-2">
-            <div>
-              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-200">📁 Local Raster Workspace</h3>
-              <p class="text-[11px] text-slate-400">Select a downloaded folder, browse custom folders, or upload custom raster data.</p>
-            </div>
-            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 shrink-0">
-              {{ displayedWorkspaceRasters.length }}<template v-if="workspaceSearch.trim()"> / {{ localRasters.length }}</template> files
-            </span>
-          </div>
-
-          <!-- Folder Selector & Custom Data Controls -->
-          <div class="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 space-y-2">
-            <div class="space-y-1">
-              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Source Folder (Downloaded / Processed / Custom)
-              </label>
-              <select
-                v-model="selectedDirectory"
-                @change="onFolderSelectionChange"
-                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-mono focus:outline-none focus:border-teal-500"
-              >
-                <option value="">All Workspace Folders ({{ totalIndexedFiles }} indexed)</option>
-                <optgroup v-if="downloadedFolderOptions.length > 0" label="📥 Downloaded Folders">
-                  <option
-                    v-for="folder in downloadedFolderOptions"
-                    :key="folder.id"
-                    :value="folder.path"
-                  >
-                    {{ folder.depth === 0 ? '📁 ' : '  ↳ ' }}{{ folder.label }} ({{ folder.file_count }})
-                  </option>
-                </optgroup>
-                <optgroup v-if="otherFolderOptions.length > 0" label="⚙️ Processed &amp; Custom">
-                  <option
-                    v-for="folder in otherFolderOptions"
-                    :key="folder.id"
-                    :value="folder.path"
-                  >
-                    {{ folder.depth === 0 ? '📁 ' : '  ↳ ' }}{{ folder.label }} ({{ folder.file_count }})
-                  </option>
-                </optgroup>
-                <optgroup v-if="isCustomExternalDirectory" label="📂 Custom Selected Folder">
-                  <option :value="selectedDirectory">{{ selectedDirectory }}</option>
-                </optgroup>
-              </select>
-            </div>
-
-            <div class="flex flex-wrap items-center gap-1.5">
-              <button
-                type="button"
-                @click="showFolderPickerModal = true"
-                class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] font-semibold text-teal-300 cursor-pointer flex items-center space-x-1"
-                title="Browse filesystem to pick a custom raster folder"
-              >
-                <span>📂</span>
-                <span>Browse Custom Folder</span>
-              </button>
-
-              <input
-                ref="customRasterInputRef"
-                type="file"
-                accept=".tif,.tiff,.jp2,.img,.vrt"
-                class="hidden"
-                @change="handleCustomRasterUpload"
-              />
-              <button
-                type="button"
-                @click="triggerCustomRasterUpload"
-                :disabled="isUploadingCustomRaster"
-                class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-50 border border-slate-700 text-[11px] font-semibold text-emerald-300 cursor-pointer flex items-center space-x-1"
-                title="Upload a custom GeoTIFF / JP2 / IMG / VRT file into custom workspace"
-              >
-                <span>{{ isUploadingCustomRaster ? '⏳' : '📤' }}</span>
-                <span>{{ isUploadingCustomRaster ? 'Uploading...' : 'Select Custom Data' }}</span>
-              </button>
-
-              <button
-                v-if="selectedDirectory || workspaceSearch"
-                type="button"
-                @click="resetWorkspaceFilter"
-                class="px-2 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] text-slate-300 cursor-pointer"
-                title="Reset folder & search filters"
-              >
-                ✕ All
-              </button>
-            </div>
-
-            <div class="flex items-center gap-2">
-              <input
-                v-model="workspaceSearch"
-                type="text"
-                placeholder="Filter rasters by filename or subfolder..."
-                class="flex-1 min-w-0 bg-slate-900 border border-slate-800 rounded-md px-2.5 py-1 text-[11px] text-slate-200 placeholder-slate-500 focus:outline-none focus:border-slate-600"
-              />
-              <label
-                v-if="selectedDirectory"
-                class="flex items-center space-x-1 text-[11px] text-slate-400 shrink-0 cursor-pointer select-none"
-                title="Include rasters inside nested subdirectories"
-              >
-                <input
-                  v-model="recursiveScan"
-                  type="checkbox"
-                  @change="loadWorkspaceRasters()"
-                  class="rounded border-slate-700 bg-slate-900 text-teal-500"
-                />
-                <span>Subfolders</span>
-              </label>
-            </div>
-
-            <div
-              v-if="selectedDirectory"
-              class="text-[10px] font-mono text-teal-300/90 truncate"
-              :title="selectedDirectory"
+        <!-- Console / Execution Logs -->
+        <div class="p-4 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="gh-label">Execution Log</span>
+            <button
+              v-if="executionLogs.length > 0"
+              @click="executionLogs = []"
+              class="text-[11px] font-mono gh-text-muted hover:gh-text-primary cursor-pointer"
             >
-              Active folder: {{ selectedDirectory }}
-            </div>
-
-            <div
-              v-if="workspaceError"
-              class="p-2 rounded bg-red-950/50 border border-red-800 text-[11px] text-red-300"
-            >
-              {{ workspaceError }}
-            </div>
+              Clear Log
+            </button>
           </div>
-
-          <div
-            v-if="workspaceLoading"
-            class="p-6 text-center text-xs text-slate-400 border border-dashed border-slate-800 rounded-lg"
-          >
-            ⏳ Scanning folder for rasters...
-          </div>
-
-          <div
-            v-else-if="displayedWorkspaceRasters.length === 0"
-            class="p-6 text-center text-xs text-slate-500 border border-dashed border-slate-800 rounded-lg space-y-2"
-          >
-            <div v-if="selectedDirectory || workspaceSearch">
-              No raster files found matching the current folder or filter.
+          <div class="p-3 rounded-[8px] gh-code-bg border gh-border font-mono text-[11.5px] leading-relaxed min-h-[160px] max-h-[300px] overflow-y-auto space-y-1">
+            <div v-if="executionLogs.length === 0" class="gh-text-muted italic">
+              Ready. Configure tool parameters and run to inspect execution output.
             </div>
-            <div v-else>
-              No rasters in `data/downloads`, `data/processed`, or custom folder yet. Download a scene, browse a custom folder, or select custom data.
-            </div>
-            <div v-if="selectedDirectory && !recursiveScan" class="pt-1">
-              <button
-                type="button"
-                @click="recursiveScan = true; loadWorkspaceRasters()"
-                class="text-[11px] text-teal-400 underline cursor-pointer"
-              >
-                Include nested subfolders
-              </button>
-            </div>
-          </div>
-
-          <div v-else class="max-h-96 overflow-y-auto space-y-1.5 pr-1">
-            <div
-              v-for="r in displayedWorkspaceRasters"
-              :key="r.absolute_path"
-              class="p-2.5 rounded-lg bg-slate-950 border border-slate-800 hover:border-slate-700 flex items-center justify-between gap-2 text-xs"
-            >
-              <div class="min-w-0 flex-1 cursor-pointer" @click="selectRasterFromBrowser(r.absolute_path)">
-                <div class="font-mono font-semibold text-slate-200 truncate" :title="r.absolute_path">{{ r.name }}</div>
-                <div class="text-[10px] text-slate-400 font-mono truncate" :title="r.relative_path">
-                  [{{ r.subfolder || r.folder || r.root }}] • {{ formatBytes(r.size_bytes) }}
-                  <span v-if="r.crs"> • {{ r.crs }} ({{ r.bands || 1 }}b)</span>
-                </div>
-              </div>
-              <div class="flex items-center space-x-1 shrink-0">
-                <button
-                  @click="selectRasterFromBrowser(r.absolute_path)"
-                  class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] cursor-pointer"
-                >
-                  Use
-                </button>
-                <a
-                  v-if="r.storage_root && r.storage_rel_path"
-                  :href="api.getStorageDownloadUrl(r.storage_rel_path, r.storage_root)"
-                  target="_blank"
-                  class="px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold bw-primary-btn"
-                  title="Download GeoTIFF"
-                >
-                  ⬇
-                </a>
-              </div>
+            <div v-for="(entry, i) in executionLogs" :key="i" class="flex items-start space-x-2">
+              <span class="gh-text-muted shrink-0">[{{ entry.time }}]</span>
+              <span :class="entry.level === 'error' ? 'gh-error' : entry.level === 'success' ? 'gh-success' : 'gh-text-secondary'">
+                {{ entry.message }}
+              </span>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </aside>
 
     <DirectoryPickerModal
       v-model="showFolderPickerModal"
       :initial-path="selectedDirectory || activeDownloadDir || undefined"
       title="Select Custom Raster Folder"
-      subtitle="Browse downloaded folders or pick any custom directory containing GeoTIFF, JP2, IMG, or VRT rasters"
+      subtitle="Browse downloaded folders or pick any directory containing GeoTIFF, JP2, IMG, or VRT rasters"
       confirm-label="Select Folder"
       :hide-destination-preview="true"
       :allow-read-only="true"
@@ -1040,25 +843,107 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import {
+  AlertTriangle,
+  BarChart3,
+  ChevronRight,
+  Compass,
+  CornerDownRight,
+  Download,
+  FolderOpen,
+  FolderSearch,
+  FolderUp,
+  Grid,
+  Layers,
+  Mountain,
+  RefreshCw,
+  Scissors,
+  Search,
+  SlidersHorizontal,
+  Sprout,
+  Terminal,
+  Upload,
+  X,
+} from 'lucide-vue-next'
 import { api } from '../services/api'
 import { useHarvestStore } from '../stores/harvestStore'
 import DirectoryPickerModal from '../components/DirectoryPickerModal.vue'
-import type { CatalogDataset, ProcessingRecipe, ProcessingTaskResult } from '../types'
 
 const harvestStore = useHarvestStore()
 
-const tools = [
-  { id: 'clip' as const, icon: '✂️', name: 'Clip Raster' },
-  { id: 'mosaic' as const, icon: '🧩', name: 'Mosaic' },
-  { id: 'stack' as const, icon: '📚', name: 'Band Stack' },
-  { id: 'index' as const, icon: '🌿', name: 'Spectral Indices' },
-  { id: 'terrain' as const, icon: '⛰️', name: 'Terrain (DEM)' },
-  { id: 'reproject' as const, icon: '🌐', name: 'Reproject & COG' },
-  { id: 'stats' as const, icon: '📊', name: 'Zonal Stats' },
-  { id: 'recipe' as const, icon: '⚙️', name: 'Recipes' },
+const activeTool = computed(() => harvestStore.activeProcessingTool)
+
+const toolGroups = [
+  {
+    category: 'Raster',
+    items: [
+      { id: 'clip' as const, label: 'Clip Raster', icon: Scissors },
+      { id: 'mosaic' as const, label: 'Mosaic Tiles', icon: Grid },
+      { id: 'stack' as const, label: 'Band Stack', icon: Layers },
+      { id: 'reproject' as const, label: 'Reproject & Resample', icon: RefreshCw },
+    ],
+  },
+  {
+    category: 'Spectral',
+    items: [{ id: 'index' as const, label: 'Spectral Indices (NDVI)', icon: Sprout }],
+  },
+  {
+    category: 'Terrain',
+    items: [{ id: 'terrain' as const, label: 'DEM & Terrain Analysis', icon: Mountain }],
+  },
+  {
+    category: 'Vector & Zonal',
+    items: [{ id: 'stats' as const, label: 'Zonal Statistics & AOI', icon: BarChart3 }],
+  },
 ]
 
-const activeTool = computed(() => harvestStore.activeProcessingTool)
+const activeToolMeta = computed(() => {
+  const map: Record<string, { title: string; category: string; description: string; icon: any }> = {
+    clip: {
+      title: 'Clip Raster to AOI Polygon',
+      category: 'Raster',
+      description: 'Crop a GeoTIFF to the active study area boundary with NoData masking.',
+      icon: Scissors,
+    },
+    mosaic: {
+      title: 'Mosaic Seamless Raster Tiles',
+      category: 'Raster',
+      description: 'Merge multiple adjacent GeoTIFF scenes into a unified mosaic.',
+      icon: Grid,
+    },
+    stack: {
+      title: 'Multiband GeoTIFF Stacker',
+      category: 'Raster',
+      description: 'Combine single-band rasters into one georeferenced multiband GeoTIFF.',
+      icon: Layers,
+    },
+    reproject: {
+      title: 'Reproject, Resample & COG Builder',
+      category: 'Raster',
+      description: 'Transform CRS (UTM/WGS84), adjust resolution, and build COG overviews.',
+      icon: RefreshCw,
+    },
+    index: {
+      title: 'Spectral Index Calculator',
+      category: 'Spectral',
+      description: 'Compute NDVI, NDWI, MNDWI, NDSI, NDBI, SAVI, NBR, or custom band math.',
+      icon: Sprout,
+    },
+    terrain: {
+      title: 'DEM Terrain & Surface Analysis',
+      category: 'Terrain',
+      description: 'Derive Slope, Hillshade, Aspect, TRI, or TPI surfaces from a DEM.',
+      icon: Mountain,
+    },
+    stats: {
+      title: 'Zonal Statistics & Band Histograms',
+      category: 'Vector & Zonal',
+      description: 'Compute band statistics and 12-bin distributions constrained to the AOI polygon.',
+      icon: BarChart3,
+    },
+  }
+  return map[activeTool.value] || map.clip
+})
 
 // Local rasters list & folder filter state
 const localRasters = ref<Array<{
@@ -1148,7 +1033,7 @@ const indexPresets = [
   { id: 'ndvi', label: 'NDVI', desc: 'Vegetation (NIR, Red)' },
   { id: 'ndwi', label: 'NDWI', desc: 'Water (Green, NIR)' },
   { id: 'mndwi', label: 'MNDWI', desc: 'Water (Green, SWIR1)' },
-  { id: 'ndsi', label: 'NDSI', desc: 'Snow/Glacier (Green, SWIR1)' },
+  { id: 'ndsi', label: 'NDSI', desc: 'Snow (Green, SWIR1)' },
   { id: 'ndbi', label: 'NDBI', desc: 'Built-Up (SWIR1, NIR)' },
   { id: 'savi', label: 'SAVI', desc: 'Soil-Adjusted Veg' },
   { id: 'nbr', label: 'NBR', desc: 'Burn Ratio (NIR, SWIR2)' },
@@ -1176,44 +1061,57 @@ const hillshadeAltitude = ref(45)
 const terrainZFactor = ref(1.0)
 
 const terrainOps = [
-  { id: 'slope' as const, label: 'Slope', sub: 'Steepness (0-90°)' },
-  { id: 'hillshade' as const, label: 'Hillshade', sub: '3D Shaded Relief' },
-  { id: 'aspect' as const, label: 'Aspect', sub: 'Compass (0-360°)' },
-  { id: 'tri' as const, label: 'TRI', sub: 'Ruggedness Index' },
-  { id: 'tpi' as const, label: 'TPI', sub: 'Topographic Pos' },
+  { id: 'slope' as const, label: 'Slope', sub: '0-90 deg' },
+  { id: 'hillshade' as const, label: 'Hillshade', sub: 'Shaded relief' },
+  { id: 'aspect' as const, label: 'Aspect', sub: '0-360 deg' },
+  { id: 'tri' as const, label: 'TRI', sub: 'Ruggedness' },
+  { id: 'tpi' as const, label: 'TPI', sub: 'Position idx' },
 ]
 
-// Execution state
+// Execution & logs state
 const isExecuting = ref(false)
 const toolResult = ref<any | null>(null)
 const toolError = ref<string | null>(null)
+const executionLogs = ref<Array<{ time: string; level: 'info' | 'success' | 'error'; message: string }>>([])
 
-// Recipe state
-const recipeInputMode = ref<'folder' | 'catalog'>('folder')
-const selectedRecipeFilePaths = ref<string[]>([])
-const datasets = ref<CatalogDataset[]>([])
-const selectedDatasetId = ref('')
-const selectedAssetIds = ref<string[]>([])
-const recipes = ref<ProcessingRecipe[]>([])
-const selectedRecipeId = ref('s2-aoi-cog')
-const runningPipeline = ref(false)
-const activeTask = ref<(ProcessingTaskResult & { progress?: number }) | null>(null)
+function appendLog(level: 'info' | 'success' | 'error', message: string) {
+  const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  executionLogs.value.push({ time, level, message })
+}
 
 const defaultLadakhPolygon = {
   type: 'Polygon',
   coordinates: [[[77.1, 33.8], [78.2, 33.8], [78.2, 34.6], [77.1, 34.6], [77.1, 33.8]]],
 }
 
-function syncToolInputsFromRasters(resetRecipeFiles: boolean = false) {
-  const availablePaths = localRasters.value.map((r) => r.absolute_path)
-  if (resetRecipeFiles || selectedRecipeFilePaths.value.length === 0) {
-    selectedRecipeFilePaths.value = availablePaths
-  } else {
-    const availableSet = new Set(availablePaths)
-    const kept = selectedRecipeFilePaths.value.filter((p) => availableSet.has(p))
-    selectedRecipeFilePaths.value = kept.length > 0 ? kept : availablePaths
+function isRasterSelected(absPath: string): boolean {
+  if (activeTool.value === 'mosaic' || activeTool.value === 'stack') {
+    return multiInputPaths.value.includes(absPath)
   }
+  if (activeTool.value === 'index') {
+    return band1Path.value === absPath || band2Path.value === absPath
+  }
+  return singleInputPath.value === absPath
+}
 
+function toggleMultiInput(absPath: string) {
+  if (multiInputPaths.value.includes(absPath)) {
+    multiInputPaths.value = multiInputPaths.value.filter((p) => p !== absPath)
+  } else {
+    multiInputPaths.value = [...multiInputPaths.value, absPath]
+  }
+}
+
+function selectAllRastersForMulti() {
+  multiInputPaths.value = localRasters.value.map((r) => r.absolute_path)
+}
+
+function clearMultiInputs() {
+  multiInputPaths.value = []
+}
+
+function syncToolInputsFromRasters() {
+  const availablePaths = localRasters.value.map((r) => r.absolute_path)
   const firstRaster = localRasters.value[0]
   if (!firstRaster) return
 
@@ -1229,7 +1127,7 @@ function syncToolInputsFromRasters(resetRecipeFiles: boolean = false) {
   }
 }
 
-async function loadWorkspaceRasters(resetRecipeSelection: boolean = true) {
+async function loadWorkspaceRasters() {
   workspaceLoading.value = true
   workspaceError.value = null
   try {
@@ -1238,11 +1136,10 @@ async function loadWorkspaceRasters(resetRecipeSelection: boolean = true) {
       recursive: recursiveScan.value,
     })
     localRasters.value = rasters || []
-    syncToolInputsFromRasters(resetRecipeSelection)
+    syncToolInputsFromRasters()
   } catch (e: any) {
     workspaceError.value = e.message || 'Failed to load rasters from selected folder'
     localRasters.value = []
-    selectedRecipeFilePaths.value = []
   } finally {
     workspaceLoading.value = false
   }
@@ -1284,6 +1181,7 @@ async function handleCustomRasterUpload(event: Event) {
     await refreshWorkspace()
     if (uploaded?.absolute_path) {
       selectRasterFromBrowser(uploaded.absolute_path)
+      appendLog('info', `Uploaded raster ${uploaded.name}`)
     }
   } catch (e: any) {
     workspaceError.value = e.message || 'Failed to upload custom raster'
@@ -1296,7 +1194,7 @@ async function handleCustomRasterUpload(event: Event) {
 async function refreshWorkspace() {
   workspaceError.value = null
   try {
-    const [rasters, folderData, dsList, recipeList] = await Promise.all([
+    const [rasters, folderData] = await Promise.all([
       api.getLocalRasters({
         directory: selectedDirectory.value || undefined,
         recursive: recursiveScan.value,
@@ -1307,40 +1205,21 @@ async function refreshWorkspace() {
         custom_dir: '',
         folders: [],
       })),
-      api.getCatalogDatasets().catch(() => []),
-      api.getProcessingRecipes().catch(() => []),
     ])
     localRasters.value = rasters || []
     localFolders.value = folderData.folders || []
     activeDownloadDir.value = folderData.active_download_dir || ''
-    datasets.value = dsList || []
-    recipes.value = recipeList || []
 
     syncToolInputsFromRasters()
-    const firstDataset = datasets.value[0]
-    if (firstDataset && !selectedDatasetId.value) {
-      selectedDatasetId.value = firstDataset.id
-      selectAllDatasetAssets()
-    }
   } catch (e: any) {
     workspaceError.value = e.message || 'Failed to refresh workspace'
-    console.warn('Failed to refresh workspace:', e)
-  }
-}
-
-function selectAllDatasetAssets() {
-  const ds = datasets.value.find((d) => d.id === selectedDatasetId.value)
-  if (ds) {
-    selectedAssetIds.value = ds.assets.map((a) => a.id)
   }
 }
 
 function selectRasterFromBrowser(absPath: string) {
   singleInputPath.value = absPath
   if (activeTool.value === 'mosaic' || activeTool.value === 'stack') {
-    if (!multiInputPaths.value.includes(absPath)) {
-      multiInputPaths.value.push(absPath)
-    }
+    toggleMultiInput(absPath)
   } else if (activeTool.value === 'index') {
     if (!band1Path.value) band1Path.value = absPath
     else band2Path.value = absPath
@@ -1350,6 +1229,7 @@ function selectRasterFromBrowser(absPath: string) {
 function useOutputAsInput(outputPath: string) {
   singleInputPath.value = outputPath
   band1Path.value = outputPath
+  appendLog('info', `Assigned ${outputPath.split('/').pop()} as active input`)
   refreshWorkspace()
 }
 
@@ -1365,6 +1245,7 @@ async function executeClip() {
   isExecuting.value = true
   toolError.value = null
   toolResult.value = null
+  appendLog('info', `Clipping ${singleInputPath.value.split('/').pop()} to AOI...`)
   try {
     const geom = harvestStore.currentAoiGeometry || defaultLadakhPolygon
     toolResult.value = await api.clipRaster({
@@ -1373,9 +1254,11 @@ async function executeClip() {
       output_filename: outputFilename.value.trim() || undefined,
       to_cog: exportAsCog.value,
     })
+    appendLog('success', `Clip complete: ${toolResult.value.output_path?.split('/').pop()}`)
     await refreshWorkspace()
   } catch (e: any) {
     toolError.value = e.message
+    appendLog('error', e.message || 'Clip failed')
   } finally {
     isExecuting.value = false
   }
@@ -1385,6 +1268,7 @@ async function executeMosaic() {
   isExecuting.value = true
   toolError.value = null
   toolResult.value = null
+  appendLog('info', `Mosaicking ${multiInputPaths.value.length} tiles...`)
   try {
     const geom = clipToAOI.value ? (harvestStore.currentAoiGeometry || undefined) : undefined
     toolResult.value = await api.executeMosaicClip({
@@ -1393,9 +1277,11 @@ async function executeMosaic() {
       target_crs: targetCRS.value.trim() || undefined,
       to_cog: exportAsCog.value,
     })
+    appendLog('success', `Mosaic complete: ${toolResult.value.output_path?.split('/').pop()}`)
     await refreshWorkspace()
   } catch (e: any) {
     toolError.value = e.message
+    appendLog('error', e.message || 'Mosaic failed')
   } finally {
     isExecuting.value = false
   }
@@ -1405,6 +1291,7 @@ async function executeStackBands() {
   isExecuting.value = true
   toolError.value = null
   toolResult.value = null
+  appendLog('info', `Stacking ${multiInputPaths.value.length} bands...`)
   try {
     const geom = clipToAOI.value ? (harvestStore.currentAoiGeometry || undefined) : undefined
     toolResult.value = await api.stackBands({
@@ -1414,9 +1301,11 @@ async function executeStackBands() {
       output_filename: outputFilename.value.trim() || undefined,
       to_cog: exportAsCog.value,
     })
+    appendLog('success', `Band stack complete: ${toolResult.value.output_path?.split('/').pop()}`)
     await refreshWorkspace()
   } catch (e: any) {
     toolError.value = e.message
+    appendLog('error', e.message || 'Band stacking failed')
   } finally {
     isExecuting.value = false
   }
@@ -1426,6 +1315,7 @@ async function executeSpectralIndex() {
   isExecuting.value = true
   toolError.value = null
   toolResult.value = null
+  appendLog('info', `Computing ${spectralIndexType.value.toUpperCase()} spectral index...`)
   try {
     toolResult.value = await api.calculateSpectralIndex({
       index_type: spectralIndexType.value,
@@ -1437,9 +1327,11 @@ async function executeSpectralIndex() {
       output_filename: outputFilename.value.trim() || undefined,
       to_cog: exportAsCog.value,
     })
+    appendLog('success', `${spectralIndexType.value.toUpperCase()} raster created: ${toolResult.value.output_path?.split('/').pop()}`)
     await refreshWorkspace()
   } catch (e: any) {
     toolError.value = e.message
+    appendLog('error', e.message || 'Spectral index failed')
   } finally {
     isExecuting.value = false
   }
@@ -1449,6 +1341,7 @@ async function executeTerrain() {
   isExecuting.value = true
   toolError.value = null
   toolResult.value = null
+  appendLog('info', `Generating ${terrainOp.value.toUpperCase()} surface derivative...`)
   try {
     toolResult.value = await api.runTerrainAnalysis({
       dem_path: singleInputPath.value,
@@ -1459,9 +1352,11 @@ async function executeTerrain() {
       output_filename: outputFilename.value.trim() || undefined,
       to_cog: exportAsCog.value,
     })
+    appendLog('success', `Terrain derivative created: ${toolResult.value.output_path?.split('/').pop()}`)
     await refreshWorkspace()
   } catch (e: any) {
     toolError.value = e.message
+    appendLog('error', e.message || 'Terrain analysis failed')
   } finally {
     isExecuting.value = false
   }
@@ -1471,6 +1366,7 @@ async function executeReproject() {
   isExecuting.value = true
   toolError.value = null
   toolResult.value = null
+  appendLog('info', `Reprojecting ${singleInputPath.value.split('/').pop()} -> ${targetCRS.value || 'native'} (${resamplingMethod.value})...`)
   try {
     toolResult.value = await api.reprojectResampleRaster({
       input_path: singleInputPath.value,
@@ -1480,9 +1376,11 @@ async function executeReproject() {
       output_filename: outputFilename.value.trim() || undefined,
       to_cog: exportAsCog.value,
     })
+    appendLog('success', `Reprojection complete: ${toolResult.value.output_path?.split('/').pop()}`)
     await refreshWorkspace()
   } catch (e: any) {
     toolError.value = e.message
+    appendLog('error', e.message || 'Reprojection failed')
   } finally {
     isExecuting.value = false
   }
@@ -1492,14 +1390,17 @@ async function executeStats() {
   isExecuting.value = true
   toolError.value = null
   toolResult.value = null
+  appendLog('info', `Computing zonal statistics for ${singleInputPath.value.split('/').pop()}...`)
   try {
     const geom = clipToAOI.value ? (harvestStore.currentAoiGeometry || undefined) : undefined
     toolResult.value = await api.getRasterStats({
       input_path: singleInputPath.value,
       aoi_geometry: geom,
     })
+    appendLog('success', `Zonal stats ready (${toolResult.value.bands?.length || 0} bands analyzed)`)
   } catch (e: any) {
     toolError.value = e.message
+    appendLog('error', e.message || 'Raster stats failed')
   } finally {
     isExecuting.value = false
   }
@@ -1511,64 +1412,10 @@ async function recommendCRSForLadakh() {
     const res = await api.recommendCRS(undefined, bbox)
     if (res.recommended_crs) {
       targetCRS.value = res.recommended_crs
+      appendLog('info', `Recommended UTM CRS: ${res.recommended_crs}`)
     }
-  } catch (e) {}
-}
-
-async function runPipeline() {
-  if (recipeInputMode.value === 'folder' && selectedRecipeFilePaths.value.length === 0) return
-  if (recipeInputMode.value === 'catalog' && selectedAssetIds.value.length === 0) return
-
-  runningPipeline.value = true
-  toolError.value = null
-  toolResult.value = null
-  activeTask.value = null
-  try {
-    const geom = clipToAOI.value ? (harvestStore.currentAoiGeometry || defaultLadakhPolygon) : undefined
-    const queued = await api.executeProcessing({
-      recipe_id: selectedRecipeId.value,
-      ...(recipeInputMode.value === 'folder'
-        ? {
-            input_file_paths: selectedRecipeFilePaths.value,
-            directory: selectedDirectory.value || undefined,
-            recursive: recursiveScan.value,
-          }
-        : {
-            input_asset_ids: selectedAssetIds.value,
-          }),
-      target_crs: targetCRS.value.trim() || 'auto_utm',
-      aoi_geometry: geom,
-      clip_to_aoi: clipToAOI.value,
-    })
-
-    activeTask.value = { ...queued, progress: 0 }
-
-    // Poll processing task until completion or failure
-    let finalTask: any = queued
-    for (let attempt = 0; attempt < 240; attempt++) {
-      await new Promise((resolve) => setTimeout(resolve, 750))
-      const statusRes = await api.getProcessingTask(queued.task_id)
-      activeTask.value = statusRes
-      finalTask = statusRes
-      const st = String(statusRes.status || '').toLowerCase()
-      if (st === 'completed' || st === 'failed') {
-        break
-      }
-    }
-
-    if (String(finalTask.status || '').toLowerCase() === 'failed') {
-      throw new Error(finalTask.error || 'Recipe pipeline failed')
-    }
-
-    toolResult.value = {
-      ...finalTask,
-      output_assets: finalTask.output_assets || [],
-    }
-    await refreshWorkspace()
-  } catch (e: any) {
-    toolError.value = e.message || 'Failed to run recipe pipeline'
-  } finally {
-    runningPipeline.value = false
+  } catch {
+    // ignore
   }
 }
 
@@ -1591,6 +1438,7 @@ function onSelectStudioAoi() {
   const found = harvestStore.savedAois.find((a) => a.id === selectedStudioAoiId.value)
   if (found) {
     harvestStore.restoreSavedAoi(found)
+    appendLog('info', `Loaded AOI geometry: ${found.name}`)
   }
 }
 
@@ -1603,9 +1451,11 @@ async function handleStudioAoiUpload(event: Event) {
     if (analysis.valid) {
       const cleanName = file.name.replace(/\.(geojson|json|kml|wkt)$/i, '')
       await harvestStore.setAoi(analysis.normalized_geometry, analysis, cleanName, true)
+      appendLog('info', `Uploaded AOI geometry: ${cleanName}`)
     }
   } catch (e: any) {
     toolError.value = e.message || 'Failed to upload AOI file'
+    appendLog('error', toolError.value || 'AOI upload failed')
   } finally {
     input.value = ''
   }

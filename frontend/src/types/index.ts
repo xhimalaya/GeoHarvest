@@ -62,10 +62,49 @@ export interface DownloadProgress {
   attempt_count: number
   speed_bytes_sec?: number
   error?: string | null
+  scene_id?: string | null
+  band?: string | null
+  final_output_path?: string | null
+}
+
+export interface SceneBandProgress {
+  download_id: string
+  band: string
+  label: string
+  status: string
+  downloaded_bytes: number
+  total_bytes: number
+  progress_percentage: number
+  error?: string | null
+}
+
+export interface SceneProgressItem {
+  scene_id: string
+  collection?: string | null
+  dataset_dir?: string | null
+  datetime?: string | null
+  year?: string | null
+  month?: string | null
+  mode: string
+  stack_enabled: boolean
+  status: string
+  output_filename?: string | null
+  final_output_path?: string | null
+  relative_output_path?: string | null
+  selected_bands: string[]
+  completed_bands: number
+  total_bands: number
+  downloaded_bytes: number
+  total_bytes: number
+  progress_percentage: number
+  bands: SceneBandProgress[]
+  output_metadata?: Record<string, any> | null
+  error?: string | null
 }
 
 export interface JobDetail {
   id: string
+  name?: string | null
   type: string
   status: 'PENDING' | 'QUEUED' | 'RUNNING' | 'PAUSED' | 'RETRYING' | 'PROCESSING' | 'VERIFYING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
   progress: number
@@ -80,6 +119,7 @@ export interface JobDetail {
   speed_bytes_sec?: number
   eta_seconds?: number | null
   downloads?: DownloadProgress[]
+  scenes?: SceneProgressItem[]
   job_metadata?: any
 }
 

@@ -7,8 +7,14 @@ algorithm specifications, sensor documentation, and geospatial entity retrieval.
 
 import logging
 from typing import Dict, Any, List, Optional
-from qdrant_client import QdrantClient
-from qdrant_client.http import models as qmodels
+try:
+    from qdrant_client import QdrantClient
+    from qdrant_client.http import models as qmodels
+    QDRANT_AVAILABLE = True
+except ImportError:
+    QdrantClient = Any  # type: ignore
+    qmodels = None  # type: ignore
+    QDRANT_AVAILABLE = False
 
 from backend.app.dependencies.config import settings
 
@@ -36,6 +42,8 @@ class QdrantVectorService:
 
     def get_client(self) -> QdrantClient:
         """Returns or lazily creates a QdrantClient instance."""
+        if not QDRANT_AVAILABLE:
+            raise RuntimeError("qdrant-client is not installed")
         if self._client is None:
             logger.info(f"Connecting to Qdrant vector database at {self.host}:{self.port}...")
             self._client = QdrantClient(

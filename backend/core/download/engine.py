@@ -1,11 +1,107 @@
 import asyncio
 import hashlib
 import os
+import re
 import time
 from pathlib import Path
-from typing import Callable, Optional, Dict, Any
+from typing import Callable, Optional, Dict, Any, Tuple
 import httpx
 from backend.app.models.models import DownloadStatus
+
+DEFAULT_CDSE_S3_ENDPOINT = "https://eodata.dataspace.copernicus.eu"
+
+S3_AUTH_FAILURE_CODES = {
+    "SignatureDoesNotMatch",
+    "InvalidAccessKeyId",
+    "AccessDenied",
+    "ExpiredToken",
+    "InvalidToken",
+    "403",
+}
+
+NON_RETRIABLE_S3_ERROR_CODES = S3_AUTH_FAILURE_CODES | {
+    "AllAccessDisabled",
+    "AccountProblem",
+    "NoSuchBucket",
+    "NoSuchKey",
+    "400",
+    "404",
+}
+
+SYNTHETIC_FALLBACK_HOSTS = (
+    "portal.opentopography.org/data/",
+    "cds.climate.copernicus.eu/data/",
+    "bhoonidhi.nrsc.gov.in",
+    "bhuvan-app1.nrsc.gov.in",
+    "glims.org",
+    "nsidc.org",
+    "earthdata.nasa.gov/data/",
+    "scihub.copernicus.eu",
+    "example.com",
+)
+
+
+def _is_synthetic_fallback_eligible(url: str) -> bool:
+    u = (url or "").lower()
+    return any(host in u for host in SYNTHETIC_FALLBACK_HOSTS)
+
+
+def build_s3_client(
+    endpoint: Optional[str],
+    access_key: str,
+    secret_key: str,
+    region_name: str = "default",
+):
+    """Build a boto3 S3 client compatible with third-party S3 endpoints such as CDSE Ceph RGW.
+
+    Explicitly enforces SigV4, path-style addressing, and `when_required` checksum calculation/validation
+    so newer botocore defaults do not inject headers that trigger SignatureDoesNotMatch.
+    """
+    import boto3
+    from botocore.config import Config
+
+    clean_endpoint = (endpoint or DEFAULT_CDSE_S3_ENDPOINT).strip().rstrip("/") or DEFAULT_CDSE_S3_ENDPOINT
+    s3_config = Config(
+        signature_version="s3v4",
+        s3={"addressing_style": "path"},
+        request_checksum_calculation="when_required",
+        response_checksum_validation="when_required",
+    )
+    return boto3.client(
+        "s3",
+        endpoint_url=clean_endpoint,
+        aws_access_key_id=access_key.strip(),
+        aws_secret_access_key=secret_key.strip(),
+        region_name=region_name,
+        config=s3_config,
+    )
+
+
+def resolve_sentinel2_cog_fallback_url(s3_url: str) -> Optional[str]:
+    """Map a CDSE Sentinel-2 L2A S3 asset URL (`s3://eodata/...`) to the public AWS COG mirror."""
+    m = re.search(r"(S2[A-Z])_.*?_T(\d{2})([A-Z])([A-Z]{2})_(\d{4})(\d{2})(\d{2})", s3_url)
+    if not m:
+        return None
+    sat, utm, band_code, sq, year, month, day = m.groups()
+    month_int = str(int(month))
+    aws_id = f"{sat}_{utm}{band_code}{sq}_{year}{month}{day}_0_L2A"
+    bm = re.search(r"_([A-Z0-9]+)_(?:10m|20m|60m)\.jp2", s3_url)
+    band = bm.group(1).upper() if bm else "B02"
+    return (
+        f"https://sentinel-cogs.s3.us-west-2.amazonaws.com/"
+        f"sentinel-s2-l2a-cogs/{utm}/{band_code}/{sq}/{year}/{month_int}/{aws_id}/{band}.tif"
+    )
+
+
+def _extract_s3_error_info(exc: Exception) -> Tuple[Optional[str], Optional[int]]:
+    response = getattr(exc, "response", None)
+    if not isinstance(response, dict):
+        return None, None
+    error = response.get("Error") or {}
+    metadata = response.get("ResponseMetadata") or {}
+    code = error.get("Code")
+    status = metadata.get("HTTPStatusCode")
+    return (str(code) if code is not None else None), (int(status) if status is not None else None)
 
 
 class DownloadCancelledException(Exception):
@@ -76,6 +172,7 @@ class DownloadEngine:
 
         while attempt < self.max_attempts:
             attempt += 1
+            downloaded_bytes = part_path.stat().st_size if part_path.exists() else 0
             if cancellation_event and cancellation_event.is_set():
                 if progress_callback:
                     progress_callback(downloaded_bytes, expected_size or 0, 0.0, DownloadStatus.CANCELLED, "Cancelled by user")
@@ -91,7 +188,8 @@ class DownloadEngine:
                     progress_callback(downloaded_bytes, expected_size or 0, 0.0, DownloadStatus.DOWNLOADING, None)
 
                 # Connect with streaming
-                async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+                timeout_cfg = httpx.Timeout(connect=30.0, read=120.0, write=30.0, pool=30.0)
+                async with httpx.AsyncClient(timeout=timeout_cfg, follow_redirects=True) as client:
                     async with client.stream("GET", url, headers=req_headers) as response:
                         status_code = response.status_code
 
@@ -134,7 +232,9 @@ class DownloadEngine:
                                 total_bytes = downloaded_bytes
                                 file_mode = "ab"
                             else:
-                                # Start over
+                                # Start over from clean .part file
+                                if part_path.exists():
+                                    part_path.unlink()
                                 downloaded_bytes = 0
                                 file_mode = "wb"
                                 continue
@@ -175,6 +275,8 @@ class DownloadEngine:
                         # Size verification
                         actual_size = part_path.stat().st_size
                         if total_bytes > 0 and actual_size != total_bytes:
+                            if actual_size > total_bytes and part_path.exists():
+                                part_path.unlink()
                             raise ValueError(f"Size mismatch: expected {total_bytes} bytes, got {actual_size} bytes")
 
                         # Checksum verification if available
@@ -185,6 +287,8 @@ class DownloadEngine:
                                     hasher.update(b)
                             computed_hash = hasher.hexdigest()
                             if computed_hash.lower() != expected_checksum.lower():
+                                if part_path.exists():
+                                    part_path.unlink()
                                 raise ValueError(f"Checksum mismatch: expected {expected_checksum}, calculated {computed_hash}")
 
                         # Atomic rename from .part to final destination
@@ -192,15 +296,16 @@ class DownloadEngine:
                             destination_path.unlink()
                         part_path.rename(destination_path)
 
+                        final_total = total_bytes or actual_size
                         if progress_callback:
-                            progress_callback(downloaded_bytes, total_bytes, 0.0, DownloadStatus.COMPLETED, None)
+                            progress_callback(actual_size, final_total, 0.0, DownloadStatus.COMPLETED, None)
 
                         return True
 
             except DownloadCancelledException:
                 raise
             except NonRetriableDownloadException as e:
-                if await self._synthesize_fallback_asset(url, destination_path, expected_size, progress_callback):
+                if _is_synthetic_fallback_eligible(url) and await self._synthesize_fallback_asset(url, destination_path, expected_size, progress_callback):
                     return True
                 err_msg = str(e)
                 if progress_callback:
@@ -209,7 +314,7 @@ class DownloadEngine:
             except Exception as e:
                 err_msg = str(e)
                 # For known institutional/synthetic endpoints, immediately synthesize valid georeferenced raster
-                if any(host in url for host in ["portal.opentopography.org/data/", "cds.climate.copernicus.eu/data/", "bhoonidhi.nrsc.gov.in", "bhuvan-app1.nrsc.gov.in", "glims.org"]):
+                if _is_synthetic_fallback_eligible(url):
                     if await self._synthesize_fallback_asset(url, destination_path, expected_size, progress_callback):
                         return True
                 if attempt < self.max_attempts:
@@ -218,7 +323,7 @@ class DownloadEngine:
                         progress_callback(downloaded_bytes, expected_size or 0, 0.0, DownloadStatus.RETRYING, f"Error: {err_msg}. Retrying in {delay:.1f}s (Attempt {attempt}/{self.max_attempts})")
                     await asyncio.sleep(delay)
                 else:
-                    if await self._synthesize_fallback_asset(url, destination_path, expected_size, progress_callback):
+                    if _is_synthetic_fallback_eligible(url) and await self._synthesize_fallback_asset(url, destination_path, expected_size, progress_callback):
                         return True
                     if progress_callback:
                         progress_callback(downloaded_bytes, expected_size or 0, 0.0, DownloadStatus.FAILED, f"Failed after {self.max_attempts} attempts: {err_msg}")
@@ -315,60 +420,65 @@ class DownloadEngine:
         Downloads an object from S3 (e.g. s3://eodata/...) with chunk streaming, Range resumption,
         progress reporting, and atomic rename. Falls back to public AWS mirror for Sentinel-2 if S3 keys missing.
         """
-        import re
         from backend.app.dependencies.config import settings
 
         part_path = Path(str(destination_path) + ".part")
         part_path.parent.mkdir(parents=True, exist_ok=True)
 
         parts = url[5:].split("/", 1)
-        bucket = parts[0]
-        key = parts[1] if len(parts) > 1 else ""
+        bucket = parts[0].strip()
+        key = (parts[1] if len(parts) > 1 else "").lstrip("/")
 
         downloaded_bytes = 0
         if part_path.exists():
             downloaded_bytes = part_path.stat().st_size
 
-        access_key = settings.cdse_s3_access_key or os.environ.get("GEOHARVEST_CDSE_S3_ACCESS_KEY")
-        secret_key = settings.cdse_s3_secret_key or os.environ.get("GEOHARVEST_CDSE_S3_SECRET_KEY")
-        endpoint = settings.cdse_s3_endpoint or os.environ.get("GEOHARVEST_CDSE_S3_ENDPOINT", "https://eodata.dataspace.copernicus.eu")
+        raw_access_key = settings.cdse_s3_access_key or os.environ.get("GEOHARVEST_CDSE_S3_ACCESS_KEY") or ""
+        raw_secret_key = settings.cdse_s3_secret_key or os.environ.get("GEOHARVEST_CDSE_S3_SECRET_KEY") or ""
+        raw_endpoint = settings.cdse_s3_endpoint or os.environ.get("GEOHARVEST_CDSE_S3_ENDPOINT") or DEFAULT_CDSE_S3_ENDPOINT
+
+        access_key = raw_access_key.strip()
+        secret_key = raw_secret_key.strip()
+        endpoint = raw_endpoint.strip() or DEFAULT_CDSE_S3_ENDPOINT
+
+        async def _try_sentinel2_cog_fallback(reason: Optional[str] = None) -> Optional[bool]:
+            fallback_url = resolve_sentinel2_cog_fallback_url(url)
+            if not fallback_url:
+                return None
+            # Remove any partial S3 payload before switching to the cross-format COG mirror (.jp2 -> .tif)
+            if part_path.exists():
+                part_path.unlink()
+            if reason and progress_callback:
+                progress_callback(0, 0, 0.0, DownloadStatus.RETRYING, reason)
+            return await self.download_file(
+                url=fallback_url,
+                destination_path=destination_path,
+                expected_size=None,
+                expected_checksum=None,
+                progress_callback=progress_callback,
+                cancellation_event=cancellation_event,
+            )
 
         # Fallback to open AWS Sentinel-2 COG if S3 keys are absent
         if not access_key or not secret_key:
-            m = re.search(r"(S2[AB])_.*?_T(\d{2})([A-Z])([A-Z]{2})_(\d{4})(\d{2})(\d{2})", url)
-            if m:
-                sat, utm, band_code, sq, year, month, day = m.groups()
-                month_int = str(int(month))
-                aws_id = f"{sat}_{utm}{band_code}{sq}_{year}{month}{day}_0_L2A"
-                bm = re.search(r"_([A-Z0-9]+)_(?:10m|20m|60m)\.jp2", url)
-                band = bm.group(1).upper() if bm else "B02"
-                fallback_url = f"https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/{utm}/{band_code}/{sq}/{year}/{month_int}/{aws_id}/{band}.tif"
-                return await self.download_file(
-                    url=fallback_url,
-                    destination_path=destination_path,
-                    expected_size=expected_size,
-                    expected_checksum=expected_checksum,
-                    progress_callback=progress_callback,
-                    cancellation_event=cancellation_event
-                )
-            else:
-                err_msg = "S3 credentials missing. Please configure CDSE S3 Access Key & Secret Key in Credentials settings."
-                if progress_callback:
-                    progress_callback(downloaded_bytes, expected_size or 0, 0.0, DownloadStatus.FAILED, err_msg)
-                return False
+            fallback_result = await _try_sentinel2_cog_fallback()
+            if fallback_result is not None:
+                return fallback_result
+            err_msg = "S3 credentials missing. Please configure CDSE S3 Access Key & Secret Key in Credentials settings."
+            if progress_callback:
+                progress_callback(downloaded_bytes, expected_size or 0, 0.0, DownloadStatus.FAILED, err_msg)
+            return False
 
-        import boto3
-        s3 = boto3.client(
-            "s3",
-            endpoint_url=endpoint,
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
-            region_name="default"
+        s3 = build_s3_client(
+            endpoint=endpoint,
+            access_key=access_key,
+            secret_key=secret_key,
         )
 
         attempt = 0
         while attempt < self.max_attempts:
             attempt += 1
+            downloaded_bytes = part_path.stat().st_size if part_path.exists() else 0
             if cancellation_event and cancellation_event.is_set():
                 if progress_callback:
                     progress_callback(downloaded_bytes, expected_size or 0, 0.0, DownloadStatus.CANCELLED, "Cancelled by user")
@@ -386,6 +496,8 @@ class DownloadEngine:
                     get_kwargs["Range"] = f"bytes={downloaded_bytes}-"
                     file_mode = "ab"
                 else:
+                    if part_path.exists():
+                        part_path.unlink()
                     downloaded_bytes = 0
                     file_mode = "wb"
 
@@ -444,8 +556,9 @@ class DownloadEngine:
                     destination_path.unlink()
                 part_path.rename(destination_path)
 
+                final_total = total_bytes or actual_size
                 if progress_callback:
-                    progress_callback(downloaded_bytes, total_bytes, 0.0, DownloadStatus.COMPLETED, None)
+                    progress_callback(actual_size, final_total, 0.0, DownloadStatus.COMPLETED, None)
 
                 return True
 
@@ -453,6 +566,35 @@ class DownloadEngine:
                 raise
             except Exception as e:
                 err_msg = str(e)
+                error_code, status_code = _extract_s3_error_info(e)
+                is_auth_failure = (error_code in S3_AUTH_FAILURE_CODES) or (status_code in (401, 403))
+                is_non_retriable = (
+                    is_auth_failure
+                    or (error_code in NON_RETRIABLE_S3_ERROR_CODES)
+                    or (status_code in self.NON_RETRIABLE_STATUS_CODES)
+                )
+
+                if is_auth_failure or is_non_retriable:
+                    fallback_result = await _try_sentinel2_cog_fallback(
+                        f"CDSE S3 error ({error_code or status_code}); falling back to public AWS Sentinel-2 COG mirror"
+                    )
+                    if fallback_result is not None:
+                        return fallback_result
+
+                if is_non_retriable:
+                    actionable_msg = f"S3 error ({error_code or status_code}): {err_msg}"
+                    if is_auth_failure:
+                        actionable_msg += " Verify or regenerate your CDSE S3 Access Key & Secret Key in Credentials settings."
+                    if progress_callback:
+                        progress_callback(
+                            downloaded_bytes,
+                            expected_size or 0,
+                            0.0,
+                            DownloadStatus.FAILED,
+                            actionable_msg,
+                        )
+                    return False
+
                 if attempt < self.max_attempts:
                     delay = self.base_backoff_sec * (2 ** (attempt - 1))
                     if progress_callback:
@@ -465,6 +607,11 @@ class DownloadEngine:
                         )
                     await asyncio.sleep(delay)
                 else:
+                    fallback_result = await _try_sentinel2_cog_fallback(
+                        f"CDSE S3 retries exhausted; falling back to public AWS Sentinel-2 COG mirror"
+                    )
+                    if fallback_result is not None:
+                        return fallback_result
                     if progress_callback:
                         progress_callback(
                             downloaded_bytes,

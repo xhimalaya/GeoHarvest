@@ -7,6 +7,10 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['"Source Sans 3"', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+      },
       spacing: {
         '88': '22rem',
         '96': '24rem',
@@ -15,18 +19,18 @@ export default {
       },
       colors: {
         brand: {
-          50: '#f0f9ff',
-          100: '#e0f2fe',
-          500: '#0ea5e9',
-          600: '#0284c7',
-          700: '#0369a1',
-          900: '#0c4a6e',
+          50: '#F8EDF0',
+          100: '#F0D8E0',
+          500: '#7D2142',
+          600: '#641832',
+          700: '#54162C',
+          900: '#421B2A',
         },
         slate: {
-          750: '#293548',
-          850: '#152033',
-          925: '#0c1322',
-          950: '#080d1a',
+          750: '#2D3733',
+          850: '#252D2A',
+          925: '#1D2422',
+          950: '#1D2422',
         }
       }
     },
