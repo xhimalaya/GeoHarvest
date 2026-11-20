@@ -11,6 +11,14 @@ import type {
   StorageDestinationInfo,
 } from '../types'
 
+let latestWeatherRequestId = 0
+
+function normalizeLatLon(lat: number, lon: number): { lat: number; lon: number } {
+  const normLat = Math.max(-90, Math.min(90, lat))
+  const normLon = ((((lon + 180) % 360) + 360) % 360) - 180
+  return { lat: normLat, lon: normLon }
+}
+
 export const useHarvestStore = defineStore('harvest', {
   state: () => ({
     aoi: null as any,
@@ -95,6 +103,8 @@ export const useHarvestStore = defineStore('harvest', {
     cloudCoverOpacity: 0.65,
     showWeatherHud: true,
     liveWeather: null as LiveWeatherReport | null,
+    selectedWeatherPoint: null as { lat: number; lon: number } | null,
+    weatherError: null as string | null,
     isLoadingWeather: false,
 
     // Discovery Mode: 'satellite' | 'toposheet'
@@ -560,15 +570,45 @@ export const useHarvestStore = defineStore('harvest', {
       this.inspectingSatellite = null
     },
 
-    async fetchLiveWeather(lat: number, lon: number) {
+    async fetchLiveWeather(lat: number, lon: number, refresh: boolean = false) {
+      const point = normalizeLatLon(lat, lon)
+      const prev = this.selectedWeatherPoint
+      const samePoint =
+        prev !== null &&
+        Math.abs(prev.lat - point.lat) < 1e-6 &&
+        Math.abs(prev.lon - point.lon) < 1e-6
+
+      if (!refresh && !samePoint) {
+        this.liveWeather = null
+      }
+
+      const requestId = ++latestWeatherRequestId
+      this.selectedWeatherPoint = point
+      this.weatherError = null
       this.isLoadingWeather = true
       try {
-        this.liveWeather = await api.getLiveWeather(lat, lon)
-      } catch (e) {
+        const report = await api.getLiveWeather(point.lat, point.lon, refresh)
+        if (requestId === latestWeatherRequestId) {
+          this.liveWeather = report
+        }
+      } catch (e: any) {
         console.warn('Failed to load live weather telemetry:', e)
+        if (requestId === latestWeatherRequestId) {
+          this.weatherError = e?.message || 'Failed to load area weather telemetry'
+        }
       } finally {
-        this.isLoadingWeather = false
+        if (requestId === latestWeatherRequestId) {
+          this.isLoadingWeather = false
+        }
       }
+    },
+
+    clearLiveWeather() {
+      latestWeatherRequestId++
+      this.selectedWeatherPoint = null
+      this.liveWeather = null
+      this.weatherError = null
+      this.isLoadingWeather = false
     },
 
     async setAoi(geojson: any, analysis: AOIValidationResponse, name?: string, autoSave: boolean = true) {
@@ -579,13 +619,6 @@ export const useHarvestStore = defineStore('harvest', {
         ? `Drawn Polygon (${Math.round(analysis.area_km2).toLocaleString()} km²)`
         : 'Drawn Area of Interest'
       this.aoiName = name || defaultName
-
-      // Automatically fetch live atmospheric telemetry for the center of the AOI
-      if (analysis?.bbox && analysis.bbox.length === 4) {
-        const centerLon = (analysis.bbox[0] + analysis.bbox[2]) / 2
-        const centerLat = (analysis.bbox[1] + analysis.bbox[3]) / 2
-        this.fetchLiveWeather(centerLat, centerLon)
-      }
 
       // Persist active AOI in localStorage
       try {

@@ -418,8 +418,11 @@ export const api = {
     return res.json()
   },
 
-  async getLiveWeather(lat: number, lon: number): Promise<LiveWeatherReport> {
-    const res = await fetch(`${BASE_URL}/weather/live?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`)
+  async getLiveWeather(lat: number, lon: number, refresh: boolean = false): Promise<LiveWeatherReport> {
+    const refreshParam = refresh ? '&refresh=true' : ''
+    const res = await fetch(
+      `${BASE_URL}/weather/live?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}${refreshParam}`
+    )
     if (!res.ok) throw new Error('Failed to fetch live weather telemetry')
     return res.json()
   },

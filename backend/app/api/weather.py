@@ -84,7 +84,8 @@ def _get_weather_description(code: int) -> str:
 @router.get("/live", response_model=LiveWeatherReport)
 async def get_live_weather(
     lat: float = Query(..., ge=-90.0, le=90.0, description="Latitude"),
-    lon: float = Query(..., ge=-180.0, le=180.0, description="Longitude")
+    lon: float = Query(..., ge=-180.0, le=180.0, description="Longitude"),
+    refresh: bool = Query(False, description="Bypass short-lived weather cache"),
 ):
     """
     Fetches real-time atmospheric weather and cloud cover % from Open-Meteo,
@@ -93,10 +94,10 @@ async def get_live_weather(
     cache_key = f"{round(lat, 2)}:{round(lon, 2)}"
     now = time.time()
 
-    if cache_key in _weather_cache:
+    if not refresh and cache_key in _weather_cache:
         cached = _weather_cache[cache_key]
         if now - cached["timestamp"] < CACHE_TTL_SECONDS:
-            return cached["data"]
+            return cached["data"].model_copy(update={"latitude": lat, "longitude": lon})
 
     url = (
         f"https://api.open-meteo.com/v1/forecast?"
@@ -231,7 +232,8 @@ async def get_nasa_gibs_info():
 
     temp_air_template = (
         f"https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/AIRS_L3_Surface_Air_Temperature_Daily_Day/default/"
-        f"{valid_date}/GoogleMapsCompatible_Level6/{{z}}/{{y}}/{{x}}.png"
+        # AIRS daily tiles can lag; GIBS default time resolves to the latest available day.
+        f"default/GoogleMapsCompatible_Level6/{{z}}/{{y}}/{{x}}.png"
     )
 
     return NasaGibsInfo(

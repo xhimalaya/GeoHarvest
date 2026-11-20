@@ -318,7 +318,10 @@
                 </div>
 
                 <label class="flex items-center justify-between cursor-pointer py-0.5 pt-1.5 border-t gh-divider">
-                  <span class="text-[13px] gh-text-primary">Atmospheric Weather HUD</span>
+                  <div>
+                    <span class="text-[13px] gh-text-primary">Atmospheric Weather HUD</span>
+                    <div class="text-[11px] gh-text-muted">Click on map to inspect area weather</div>
+                  </div>
                   <input
                     v-model="harvestStore.showWeatherHud"
                     type="checkbox"
@@ -744,9 +747,9 @@
       </template>
     </div>
 
-    <!-- Floating Top-Left: Live Atmospheric Weather HUD -->
+    <!-- Floating Top-Left: Live Atmospheric Weather HUD (shown only for clicked map point) -->
     <div
-      v-if="harvestStore.showWeatherHud && harvestStore.liveWeather"
+      v-if="harvestStore.showWeatherHud && harvestStore.selectedWeatherPoint"
       :class="[
         'absolute top-16 z-10 gh-surface-elevated border gh-border rounded-[10px] p-3.5 text-[12.5px] gh-text-primary gh-shadow-dialog w-72 space-y-2.5',
         props.isLeftPanelOpen ? 'left-3.5' : 'left-[132px]'
@@ -757,43 +760,88 @@
           <span class="w-2 h-2 rounded-full gh-accent-bg"></span>
           <span>Atmospheric Weather</span>
         </div>
-        <button
-          @click="refreshLiveWeather"
-          :disabled="harvestStore.isLoadingWeather"
-          class="gh-btn-ghost p-1 cursor-pointer"
-          title="Refresh Weather Telemetry"
+        <div class="flex items-center space-x-1">
+          <button
+            @click="refreshLiveWeather"
+            :disabled="harvestStore.isLoadingWeather"
+            class="gh-btn-ghost p-1 cursor-pointer"
+            title="Refresh Weather Telemetry"
+          >
+            <svg
+              :class="['w-3.5 h-3.5', harvestStore.isLoadingWeather ? 'animate-spin' : '']"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+          <button
+            @click="harvestStore.clearLiveWeather()"
+            class="gh-btn-ghost p-1 cursor-pointer"
+            title="Close Weather Details"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between text-[11.5px] font-mono gh-text-secondary">
+        <span>
+          {{ clickedWeatherCoordText }}
+        </span>
+        <span
+          v-if="harvestStore.liveWeather?.weather_description"
+          class="gh-accent truncate max-w-[115px] text-right"
+          :title="harvestStore.liveWeather.weather_description"
         >
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-        </button>
+          {{ harvestStore.liveWeather.weather_description }}
+        </span>
       </div>
 
-      <div class="grid grid-cols-2 gap-2 text-[12px]">
-        <div class="p-2 gh-surface-secondary rounded-[6px] border gh-border">
-          <div class="gh-text-muted">Cloud Cover</div>
-          <div class="font-semibold font-mono gh-text-primary">{{ harvestStore.liveWeather.cloud_cover_percent }}%</div>
-        </div>
-        <div class="p-2 gh-surface-secondary rounded-[6px] border gh-border">
-          <div class="gh-text-muted">Temperature</div>
-          <div class="font-semibold font-mono gh-text-primary">{{ harvestStore.liveWeather.temperature_c }}&deg;C</div>
-        </div>
-        <div class="p-2 gh-surface-secondary rounded-[6px] border gh-border">
-          <div class="gh-text-muted">Humidity</div>
-          <div class="font-semibold font-mono gh-text-primary">{{ harvestStore.liveWeather.relative_humidity_percent }}%</div>
-        </div>
-        <div class="p-2 gh-surface-secondary rounded-[6px] border gh-border">
-          <div class="gh-text-muted">Wind</div>
-          <div class="font-semibold font-mono gh-text-primary">{{ harvestStore.liveWeather.wind_speed_kmh }} km/h</div>
-        </div>
+      <div
+        v-if="harvestStore.isLoadingWeather && !harvestStore.liveWeather"
+        class="p-3 rounded-[8px] border gh-border gh-surface-secondary text-[12px] gh-text-secondary text-center"
+      >
+        Fetching weather details for clicked point...
       </div>
 
-      <div class="p-2.5 rounded-[8px] border gh-border gh-surface-secondary text-[12px] space-y-1">
-        <div class="font-semibold font-mono gh-accent">
-          Optical Viability: {{ harvestStore.liveWeather.optical_viability }}
-        </div>
-        <div class="gh-text-secondary leading-relaxed">{{ harvestStore.liveWeather.recommendation }}</div>
+      <div
+        v-else-if="harvestStore.weatherError && !harvestStore.liveWeather"
+        class="p-2.5 rounded-[8px] border gh-border gh-surface-secondary text-[12px] gh-error"
+      >
+        {{ harvestStore.weatherError }}
       </div>
+
+      <template v-else-if="harvestStore.liveWeather">
+        <div class="grid grid-cols-2 gap-2 text-[12px]">
+          <div class="p-2 gh-surface-secondary rounded-[6px] border gh-border">
+            <div class="gh-text-muted">Cloud Cover</div>
+            <div class="font-semibold font-mono gh-text-primary">{{ harvestStore.liveWeather.cloud_cover_percent }}%</div>
+          </div>
+          <div class="p-2 gh-surface-secondary rounded-[6px] border gh-border">
+            <div class="gh-text-muted">Temperature</div>
+            <div class="font-semibold font-mono gh-text-primary">{{ harvestStore.liveWeather.temperature_c }}&deg;C</div>
+          </div>
+          <div class="p-2 gh-surface-secondary rounded-[6px] border gh-border">
+            <div class="gh-text-muted">Humidity</div>
+            <div class="font-semibold font-mono gh-text-primary">{{ harvestStore.liveWeather.relative_humidity_percent }}%</div>
+          </div>
+          <div class="p-2 gh-surface-secondary rounded-[6px] border gh-border">
+            <div class="gh-text-muted">Wind</div>
+            <div class="font-semibold font-mono gh-text-primary">{{ harvestStore.liveWeather.wind_speed_kmh }} km/h</div>
+          </div>
+        </div>
+
+        <div class="p-2.5 rounded-[8px] border gh-border gh-surface-secondary text-[12px] space-y-1">
+          <div class="font-semibold font-mono gh-accent">
+            Optical Viability: {{ harvestStore.liveWeather.optical_viability }}
+          </div>
+          <div class="gh-text-secondary leading-relaxed">{{ harvestStore.liveWeather.recommendation }}</div>
+        </div>
+      </template>
     </div>
 
     <!-- Hover Scene Tooltip Overlay -->
@@ -881,13 +929,14 @@ import VectorSource from 'ol/source/Vector'
 import GeoJSON from 'ol/format/GeoJSON'
 import Draw, { createBox } from 'ol/interaction/Draw'
 import { Style, Stroke, Fill, Text, Circle as CircleStyle } from 'ol/style'
+import Feature from 'ol/Feature'
 import LineString from 'ol/geom/LineString'
 import Point from 'ol/geom/Point'
 import { getLength, getDistance } from 'ol/sphere'
 import { fromLonLat, toLonLat, transformExtent } from 'ol/proj'
 import { useHarvestStore } from '../stores/harvestStore'
 import { api } from '../services/api'
-import type { SearchResultItem } from '../types'
+import type { NasaGibsInfo, SearchResultItem } from '../types'
 import SearchableSelect, { type SelectOption } from './SearchableSelect.vue'
 
 const harvestStore = useHarvestStore()
@@ -1027,8 +1076,11 @@ let aoiSource: VectorSource = new VectorSource()
 let scenesSource: VectorSource = new VectorSource()
 let scenesLayer: VectorLayer | null = null
 let temperatureRadarLayer: TileLayer | null = null
+let nasaGibsInfo: NasaGibsInfo | null = null
 let measureSource: VectorSource = new VectorSource()
 let measureLayer: VectorLayer | null = null
+let weatherPointSource: VectorSource = new VectorSource()
+let weatherPointLayer: VectorLayer | null = null
 let wmsLayerGroup: Group | null = null
 let currentDrawInteraction: Draw | null = null
 
@@ -1222,6 +1274,19 @@ onMounted(() => {
     zIndex: 10,
   })
 
+  // 9.5. Clicked Atmospheric Weather Point Marker (z: 14)
+  weatherPointLayer = new VectorLayer({
+    source: weatherPointSource,
+    style: new Style({
+      image: new CircleStyle({
+        radius: 6,
+        fill: new Fill({ color: '#E5AF35' }),
+        stroke: new Stroke({ color: '#ffffff', width: 2 }),
+      }),
+    }),
+    zIndex: 14,
+  })
+
   // 10. Aerial Distance Measurement Layer (z: 15)
   measureLayer = new VectorLayer({
     source: measureSource,
@@ -1242,6 +1307,7 @@ onMounted(() => {
       temperatureRadarLayer,
       wmsLayerGroup,
       aoiLayer,
+      weatherPointLayer,
       measureLayer,
     ],
     view: new View({
@@ -1289,7 +1355,7 @@ onMounted(() => {
     }
   })
 
-  // Click handler: toggle selection of scene directly on map
+  // Click handler: toggle scene selection and inspect clicked area weather
   olMap.on('singleclick', (evt) => {
     if (activeDrawType.value) return // Drawing takes precedence
     olMap?.forEachFeatureAtPixel(evt.pixel, (feature, layer) => {
@@ -1301,6 +1367,11 @@ onMounted(() => {
         }
       }
     })
+
+    if (harvestStore.showWeatherHud) {
+      const [lon, lat] = toLonLat(evt.coordinate)
+      harvestStore.fetchLiveWeather(lat, lon)
+    }
   })
 
   // Global listeners
@@ -1923,33 +1994,74 @@ watch(
 
 // Live Weather & Temperature Radar Helper Methods
 function getTemperatureRadarSource(mode: 'surface' | 'air') {
-  if (mode === 'air') {
-    return new XYZ({
-      url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/AIRS_L3_Surface_Air_Temperature_Daily_Day/default/default/GoogleMapsCompatible_Level6/{z}/{y}/{x}.png',
-      attributions: '© NASA GIBS AIRS Surface Air Temperature',
-      maxZoom: 6,
-      crossOrigin: 'anonymous',
-    })
-  }
+  const url = mode === 'air'
+    ? nasaGibsInfo?.temperature_air_url_template
+    : nasaGibsInfo?.temperature_surface_url_template
   return new XYZ({
-    url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_Land_Surface_Temp_Day/default/default/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png',
-    attributions: '© NASA GIBS MODIS Land Surface Temp',
-    maxZoom: 7,
+    url: url || (mode === 'air'
+      ? 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/AIRS_L3_Surface_Air_Temperature_Daily_Day/default/default/GoogleMapsCompatible_Level6/{z}/{y}/{x}.png'
+      : 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_Land_Surface_Temp_Day/default/default/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png'),
+    attributions: mode === 'air'
+      ? '© NASA GIBS AIRS Surface Air Temperature'
+      : '© NASA GIBS MODIS Land Surface Temp',
+    maxZoom: mode === 'air' ? 6 : 7,
     crossOrigin: 'anonymous',
   })
 }
 
-async function refreshLiveWeather() {
-  if (harvestStore.aoiAnalysis?.bbox && harvestStore.aoiAnalysis.bbox.length === 4) {
-    const centerLon = (harvestStore.aoiAnalysis.bbox[0] + harvestStore.aoiAnalysis.bbox[2]) / 2
-    const centerLat = (harvestStore.aoiAnalysis.bbox[1] + harvestStore.aoiAnalysis.bbox[3]) / 2
-    await harvestStore.fetchLiveWeather(centerLat, centerLon)
-  } else if (olMap) {
-    const center = toLonLat(olMap.getView().getCenter() || [0, 0])
-    await harvestStore.fetchLiveWeather(center[1], center[0])
-  } else {
-    await harvestStore.fetchLiveWeather(34.15, 77.5)
+async function refreshTemperatureRadarSource() {
+  try {
+    nasaGibsInfo = await api.getNasaGibsInfo()
+    temperatureRadarLayer?.setSource(getTemperatureRadarSource(harvestStore.temperatureRadarMode))
+  } catch (error) {
+    console.warn('Could not load the latest NASA GIBS temperature layer metadata:', error)
   }
+}
+
+const clickedWeatherCoordText = computed(() => {
+  const pt = harvestStore.selectedWeatherPoint
+  if (!pt) return ''
+  return `${pt.lat.toFixed(4)}°, ${pt.lon.toFixed(4)}°`
+})
+
+function syncWeatherPointMarker() {
+  weatherPointSource.clear()
+  if (harvestStore.showWeatherHud && harvestStore.selectedWeatherPoint) {
+    const { lat, lon } = harvestStore.selectedWeatherPoint
+    weatherPointSource.addFeature(
+      new Feature({
+        geometry: new Point(fromLonLat([lon, lat])),
+      })
+    )
+  }
+}
+
+watch(
+  () => harvestStore.selectedWeatherPoint,
+  () => {
+    syncWeatherPointMarker()
+  },
+  { deep: true }
+)
+
+watch(
+  () => harvestStore.showWeatherHud,
+  (visible) => {
+    if (!visible) {
+      harvestStore.clearLiveWeather()
+    }
+    syncWeatherPointMarker()
+  }
+)
+
+async function refreshLiveWeather() {
+  const pt =
+    harvestStore.selectedWeatherPoint ||
+    (harvestStore.liveWeather
+      ? { lat: harvestStore.liveWeather.latitude, lon: harvestStore.liveWeather.longitude }
+      : null)
+  if (!pt) return
+  await harvestStore.fetchLiveWeather(pt.lat, pt.lon, true)
 }
 
 // Watch Temperature Radar toggle
