@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from backend.app.dependencies.database import get_db
 from backend.app.models.models import ProcessingTask, Asset, AssetLineage
+from backend.core.crs.engine import STRICT_OUTPUT_CRS, enforce_strict_epsg4326
 from backend.core.processing.recipes import recipe_registry
 from backend.core.processing.pipeline import pipeline_runner
 from backend.core.processing.raster_ops import RasterOps
@@ -96,6 +97,11 @@ async def list_recipes():
 
 @router.post("/execute")
 async def execute_recipe(request: ExecuteProcessingRequest, db: Session = Depends(get_db)):
+    try:
+        strict_crs = enforce_strict_epsg4326(request.target_crs, reject_invalid=True)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     resolved_files = await _resolve_execute_inputs(request, db)
 
     task_id = f"proc_{uuid.uuid4().hex[:12]}"
@@ -115,7 +121,7 @@ async def execute_recipe(request: ExecuteProcessingRequest, db: Session = Depend
         input_assets=resolved_files,
         parameters={
             "recipe_id": request.recipe_id,
-            "target_crs": request.target_crs,
+            "target_crs": strict_crs,
             "directory": request.directory,
             "clip_to_aoi": request.clip_to_aoi,
             "input_count": len(resolved_files),
@@ -139,7 +145,7 @@ async def execute_recipe(request: ExecuteProcessingRequest, db: Session = Depend
             input_file_paths=resolved_files,
             recipe_id=request.recipe_id,
             aoi_geometry=request.aoi_geometry,
-            target_crs=request.target_crs,
+            target_crs=strict_crs,
             clip_to_aoi=request.clip_to_aoi,
         )
     )
@@ -411,6 +417,11 @@ async def execute_job_mosaic_clip(
     db.add(proc_job)
     db.flush()
 
+    try:
+        strict_crs = enforce_strict_epsg4326(request.target_crs, reject_invalid=True)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     task = ProcessingTask(
         id=task_id,
         job_id=proc_job_id,
@@ -419,7 +430,7 @@ async def execute_job_mosaic_clip(
         parameters={
             "job_id": job_id,
             "band": request.band,
-            "target_crs": request.target_crs,
+            "target_crs": strict_crs,
             "to_cog": request.to_cog,
             "output_path": out_path,
             "has_aoi": aoi_geom is not None
@@ -437,7 +448,7 @@ async def execute_job_mosaic_clip(
             input_file_paths=input_paths,
             output_path=out_path,
             aoi_geometry=aoi_geom,
-            target_crs=request.target_crs,
+            target_crs=strict_crs,
             nodata=request.nodata,
             to_cog=request.to_cog
         )
@@ -485,13 +496,18 @@ async def execute_mosaic_clip(request: MosaicClipRequest, db: Session = Depends(
         db.add(proc_job)
         db.flush()
 
+    try:
+        strict_crs = enforce_strict_epsg4326(request.target_crs, reject_invalid=True)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     task = ProcessingTask(
         id=task_id,
         job_id=proc_job_id,
         task_type="mosaic-clip-aoi",
         input_assets=valid_paths,
         parameters={
-            "target_crs": request.target_crs,
+            "target_crs": strict_crs,
             "to_cog": request.to_cog,
             "output_path": out_path,
             "has_aoi": request.aoi_geometry is not None
@@ -508,7 +524,7 @@ async def execute_mosaic_clip(request: MosaicClipRequest, db: Session = Depends(
         input_file_paths=valid_paths,
         output_path=out_path,
         aoi_geometry=request.aoi_geometry,
-        target_crs=request.target_crs,
+        target_crs=strict_crs,
         nodata=request.nodata,
         to_cog=request.to_cog
     )
@@ -884,6 +900,11 @@ def _save_uploaded_raster_sync(file_obj: Any, original_filename: str) -> Dict[st
             raise ValueError("Uploaded file is empty")
         with rasterio.open(str(target_path)) as src:
             _ = src.width, src.height, src.count
+
+        # Strictly enforce EPSG:4326 on all saved/uploaded rasters
+        from backend.core.processing.scene_stacker import reproject_file_to_crs_task
+        reproj_res = reproject_file_to_crs_task(str(target_path), STRICT_OUTPUT_CRS)
+        target_path = Path(reproj_res.get("output_path") or target_path)
     except Exception as exc:
         if target_path.exists():
             target_path.unlink(missing_ok=True)
@@ -996,13 +1017,18 @@ async def execute_band_stack(req: BandStackRequest):
     out_path = str((processed_dir / out_name).resolve())
 
     try:
+        strict_crs = enforce_strict_epsg4326(req.target_crs, reject_invalid=True)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
         final_path = await GeoProcessExecutor.run_cpu_bound(
             RasterOps.stack_bands,
             input_paths=req.input_file_paths,
             output_path=out_path,
             band_names=req.band_names,
             aoi_geometry=req.aoi_geometry,
-            target_crs=req.target_crs,
+            target_crs=strict_crs,
             to_cog=req.to_cog,
             resampling_method=req.resampling_method,
         )
@@ -1118,11 +1144,16 @@ async def execute_reproject_resample(req: ReprojectResampleRequest):
     out_path = str((processed_dir / out_name).resolve())
 
     try:
+        strict_crs = enforce_strict_epsg4326(req.target_crs, reject_invalid=True)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
         temp_reproj = out_path if not req.to_cog else str((processed_dir / f"_tmp_{out_name}").resolve())
         await GeoProcessExecutor.run_cpu_bound(
             RasterOps.reproject_raster,
             input_path=str(in_p.resolve()),
-            target_crs=req.target_crs,
+            target_crs=strict_crs,
             output_path=temp_reproj,
             resampling_method=req.resampling_method,
         )

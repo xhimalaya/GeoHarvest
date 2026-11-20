@@ -946,7 +946,7 @@ export const useHarvestStore = defineStore('harvest', {
           bands: this.selectedBands,
           aoi: this.aoi,
           destination_dir: finalDest,
-          target_crs: this.outputCrs || 'EPSG:4326',
+          target_crs: 'EPSG:4326',
         })
         return job
       } catch (e: any) {
@@ -1131,7 +1131,7 @@ export const useHarvestStore = defineStore('harvest', {
             geometry: item.geometry,
           }],
           destination_dir: dest,
-          target_crs: this.outputCrs || 'EPSG:4326',
+          target_crs: 'EPSG:4326',
         })
         this.toposheetHarvestMessage = `Harvest job started (${res.id}) for sheet ${item.sheet_number}! Saving to ${dest}`
         return res
@@ -1171,7 +1171,7 @@ export const useHarvestStore = defineStore('harvest', {
           name: `Batch_TopoSheet_Harvest_${sheets.length}`,
           sheets,
           destination_dir: dest,
-          target_crs: this.outputCrs || 'EPSG:4326',
+          target_crs: 'EPSG:4326',
         })
         let msg = `Batch harvest job started (${res.id}) for ${sheets.length} sheet(s)! Saving to ${dest}`
         if (portalOnlySheets.length > 0) {
@@ -1234,16 +1234,47 @@ export const useHarvestStore = defineStore('harvest', {
       opacity?: number
       zoomToBbox?: boolean
     }) {
-      const cleanUrl = layer.url.split('?')[0]
-      const id = layer.id || `${cleanUrl}__${layer.name}`
+      const stdKeys = new Set([
+        'service', 'request', 'version', 'layers', 'layer', 'styles', 'style',
+        'srs', 'crs', 'bbox', 'width', 'height', 'format', 'transparent',
+        'tiled', 'exceptions', 'bgcolor',
+      ])
+      let cleanUrl = (layer.url || '').trim()
+      try {
+        const u = new URL(cleanUrl)
+        const kept = new URLSearchParams()
+        u.searchParams.forEach((v, k) => {
+          if (!stdKeys.has(k.toLowerCase().trim())) {
+            kept.set(k, v)
+          }
+        })
+        const qs = kept.toString()
+        cleanUrl = `${u.origin}${u.pathname}${qs ? '?' + qs : ''}`
+      } catch {
+        cleanUrl = cleanUrl.split('?')[0]
+      }
+
+      const isRegionalBbox = (b?: number[]) =>
+        Array.isArray(b) &&
+        b.length === 4 &&
+        b.every((n) => typeof n === 'number' && Number.isFinite(n)) &&
+        b[0] < b[2] &&
+        b[1] < b[3] &&
+        (b[2] - b[0] < 300 || b[3] - b[1] < 140)
+
+      const normalizedBbox = isRegionalBbox(layer.bbox) ? [...layer.bbox!] : undefined
+      const id = layer.id || `${cleanUrl.split('?')[0]}__${layer.name}`
       const existing = this.activeWmsLayers.find((l) => l.id === id)
       if (existing) {
         existing.visible = true
+        existing.url = cleanUrl
         if (layer.styles !== undefined) existing.styles = layer.styles
         if (layer.format !== undefined) existing.format = layer.format
         if (layer.version !== undefined) existing.version = layer.version
-        if (layer.bbox && layer.zoomToBbox) {
-          this.triggerMapCommand('ZoomToBBox', layer.bbox)
+        if (layer.crs !== undefined) existing.crs = layer.crs
+        if (normalizedBbox) existing.bbox = normalizedBbox
+        if (normalizedBbox && layer.zoomToBbox) {
+          this.triggerMapCommand('ZoomToBBox', normalizedBbox)
         }
         return
       }
@@ -1256,12 +1287,12 @@ export const useHarvestStore = defineStore('harvest', {
         styles: layer.styles || '',
         format: layer.format || 'image/png',
         crs: layer.crs || 'EPSG:4326',
-        bbox: layer.bbox,
+        bbox: normalizedBbox,
         opacity: layer.opacity ?? 0.85,
         visible: true,
       })
-      if (layer.bbox && layer.zoomToBbox) {
-        this.triggerMapCommand('ZoomToBBox', layer.bbox)
+      if (normalizedBbox && layer.zoomToBbox) {
+        this.triggerMapCommand('ZoomToBBox', normalizedBbox)
       }
     },
 

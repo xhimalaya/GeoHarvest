@@ -673,7 +673,7 @@ class SceneStackingService:
     def validate_stacked_output(
         self,
         output_path: Union[str, Path],
-        expected_bands: Union[int, Sequence[Union[str, SceneBandInput, Mapping[str, Any]]]],
+        expected_bands: Optional[Union[int, Sequence[Union[str, SceneBandInput, Mapping[str, Any]]]]] = None,
         *,
         expected_crs: Optional[str] = None,
         expected_shape: Optional[Tuple[int, int]] = None,
@@ -1458,8 +1458,10 @@ class SceneStackingService:
 
     def _parse_expected_bands(
         self,
-        expected_bands: Union[int, Sequence[Union[str, SceneBandInput, Mapping[str, Any]]]],
+        expected_bands: Optional[Union[int, Sequence[Union[str, SceneBandInput, Mapping[str, Any]]]]],
     ) -> Tuple[Optional[int], Optional[List[set[str]]]]:
+        if expected_bands is None:
+            return None, None
         if isinstance(expected_bands, int):
             return expected_bands, None
 

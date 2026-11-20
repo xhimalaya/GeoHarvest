@@ -106,11 +106,10 @@ async def get_ladakh_sample():
 async def save_aoi(req: SaveAOIRequest):
     """Saves a drawn or imported AOI as a downloadable GeoJSON file."""
     try:
-        analysis = req.analysis
-        if not analysis:
-            analysis = AOIEngine.validate_and_analyze(geojson_data=req.geojson)
-            if not analysis.get("valid"):
-                raise HTTPException(status_code=400, detail=analysis.get("error", "Invalid geometry"))
+        validated = AOIEngine.validate_and_analyze(geojson_data=req.geojson)
+        if not validated.get("valid"):
+            raise HTTPException(status_code=400, detail=validated.get("error", "Invalid geometry"))
+        analysis = validated
 
         aoi_id = f"aoi_{uuid.uuid4().hex[:8]}"
         created_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -118,32 +117,24 @@ async def save_aoi(req: SaveAOIRequest):
         default_name = f"Drawn Polygon ({round(area_km2, 1)} km²)" if area_km2 > 0 else "Drawn AOI Polygon"
         name = req.name or default_name
 
-        raw = req.geojson
-        if raw.get("type") == "FeatureCollection":
-            feature_collection = raw
-        elif raw.get("type") == "Feature":
-            feature_collection = {
-                "type": "FeatureCollection",
-                "features": [raw]
-            }
-        else:
-            feature_collection = {
-                "type": "FeatureCollection",
-                "features": [
-                    {
-                        "type": "Feature",
-                        "geometry": raw,
-                        "properties": {
-                            "name": name,
-                            "id": aoi_id,
-                            "area_km2": area_km2,
-                            "crs": analysis.get("crs", "EPSG:4326"),
-                            "created_at": created_at
-                        },
-                        "bbox": analysis.get("bbox")
-                    }
-                ]
-            }
+        normalized_geom = analysis["normalized_geometry"]
+        feature_collection = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": normalized_geom,
+                    "properties": {
+                        "name": name,
+                        "id": aoi_id,
+                        "area_km2": area_km2,
+                        "crs": "EPSG:4326",
+                        "created_at": created_at
+                    },
+                    "bbox": analysis.get("bbox")
+                }
+            ]
+        }
 
         file_path = settings.aois_dir / f"{aoi_id}.geojson"
         with open(file_path, "w", encoding="utf-8") as f:
@@ -154,7 +145,7 @@ async def save_aoi(req: SaveAOIRequest):
             "name": name,
             "created_at": created_at,
             "area_km2": area_km2,
-            "crs": analysis.get("crs", "EPSG:4326"),
+            "crs": "EPSG:4326",
             "bbox": analysis.get("bbox", []),
             "file_name": f"{aoi_id}.geojson",
             "download_url": f"/api/aoi/download/{aoi_id}"

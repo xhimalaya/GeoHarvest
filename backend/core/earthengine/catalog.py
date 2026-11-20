@@ -530,13 +530,16 @@ else:
         denom[denom == 0] = np.nan
         ndvi = (nir - red) / denom
 
-        # Save output to processed_dir
+        # Save output strictly in EPSG:4326 to processed_dir
         out_path = Path(processed_dir) / "local_ndvi_output.tif"
         meta = src.meta.copy()
         meta.update(count=1, dtype=rasterio.float32, nodata=-9999.0)
 
         with rasterio.open(out_path, "w", **meta) as dst:
             dst.write(ndvi.astype(rasterio.float32), 1)
+        if src.crs and src.crs.to_string() != "EPSG:4326":
+            from backend.core.processing.scene_stacker import reproject_file_to_crs_task
+            reproject_file_to_crs_task(str(out_path), "EPSG:4326")
 
         print(f"Saved processed NDVI raster to: {out_path}")
         mean_val = float(np.nanmean(ndvi))
@@ -591,6 +594,9 @@ else:
             out_path = Path(processed_dir) / f"clipped_{Path(input_tif).name}"
             with rasterio.open(out_path, "w", **out_meta) as dst:
                 dst.write(out_img)
+            if src.crs and src.crs.to_string() != "EPSG:4326":
+                from backend.core.processing.scene_stacker import reproject_file_to_crs_task
+                reproject_file_to_crs_task(str(out_path), "EPSG:4326")
 
             print(f"Clipped raster saved to: {out_path}")
             data["clipped_width"] = out_img.shape[2]

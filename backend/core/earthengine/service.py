@@ -7,6 +7,7 @@ import httpx
 
 from backend.core.earthengine.auth import ee_auth_manager
 from backend.core.earthengine.catalog import ee_catalog, EEDatasetSpec
+from backend.core.crs.engine import STRICT_OUTPUT_CRS, enforce_strict_epsg4326
 
 logger = logging.getLogger("geoharvest.earthengine.service")
 
@@ -328,6 +329,9 @@ class EarthEngineService:
         """
         from backend.app.dependencies.config import settings
 
+        # Strictly enforce EPSG:4326 for all Earth Engine exports and saved GeoTIFFs
+        crs = enforce_strict_epsg4326(crs, reject_invalid=True)
+
         clean_name = dataset_id.replace("/", "_").lower()
         filename = f"gee_{clean_name}_{vis_mode}.tif"
         target_dir = Path(destination_dir) if (destination_dir and destination_dir != "/home/himalaya/Desktop/divakar/test/gee") else (settings.data_dir / "processed")
@@ -361,7 +365,7 @@ class EarthEngineService:
                 width=w,
                 count=1,
                 dtype="float32",
-                crs=crs or "EPSG:4326",
+                crs=STRICT_OUTPUT_CRS,
                 transform=transform,
                 compress="deflate",
             ) as dst:
@@ -453,8 +457,15 @@ class EarthEngineService:
                 resp = await client.get(download_url)
                 if resp.status_code == 200:
                     local_path.write_bytes(resp.content)
+                    # Guarantee strict EPSG:4326 on disk even if remote tile returned another CRS
+                    try:
+                        from backend.core.processing.scene_stacker import reproject_file_to_crs_task
+                        reproj = reproject_file_to_crs_task(str(local_path), STRICT_OUTPUT_CRS)
+                        local_path = Path(reproj.get("output_path") or local_path)
+                    except Exception as reproj_exc:
+                        logger.warning(f"Post-download EPSG:4326 check skipped for GEE export {local_path}: {reproj_exc}")
                     local_filepath = str(local_path)
-                    logger.info(f"Downloaded GEE GeoTIFF to {local_path} ({len(resp.content)} bytes)")
+                    logger.info(f"Downloaded GEE GeoTIFF to {local_path} ({local_path.stat().st_size} bytes)")
         except Exception as e:
             logger.warning(f"Could not automatically stream GeoTIFF to disk: {e}")
 

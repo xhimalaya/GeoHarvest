@@ -157,8 +157,12 @@ async def visualize_dataset(req: VisualizeRequest):
 async def export_dataset(req: ExportRequest):
     """
     Clips the Earth Engine dataset to the study area and streams or downloads a GeoTIFF to disk.
+    Strictly saves outputs in EPSG:4326.
     """
+    from backend.core.crs.engine import enforce_strict_epsg4326
+
     try:
+        strict_crs = enforce_strict_epsg4326(req.crs, reject_invalid=True)
         result = await ee_service.export_dataset(
             dataset_id=req.dataset_id,
             geometry=req.geometry,
@@ -169,7 +173,7 @@ async def export_dataset(req: ExportRequest):
             vis_mode=req.vis_mode or "true_color",
             destination_dir=req.destination_dir,
             scale=req.scale or 30.0,
-            crs=req.crs or "EPSG:4326",
+            crs=strict_crs,
         )
         return result
     except ValueError as e:

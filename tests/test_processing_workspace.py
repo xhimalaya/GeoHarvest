@@ -182,7 +182,7 @@ def test_upload_custom_raster_validation_and_persistence(client, isolated_worksp
     assert payload["status"] == "uploaded"
     assert payload["raster"]["name"] == "user_custom_scene.tif"
     assert payload["raster"]["bands"] == 2
-    assert payload["raster"]["crs"] == "EPSG:32644"
+    assert payload["raster"]["crs"] == "EPSG:4326"
     assert payload["raster"]["storage_root"] == "data"
     assert Path(payload["raster"]["absolute_path"]).exists()
 

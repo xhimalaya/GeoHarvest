@@ -485,15 +485,15 @@
                   class="px-2 py-1.5 rounded-[6px] gh-btn-secondary text-[11.5px] cursor-pointer shrink-0"
                 >Browse</button>
               </div>
-              <div class="flex items-center gap-1.5">
+              <div class="flex items-center justify-between gap-1.5">
                 <span class="gh-label shrink-0">Output CRS</span>
-                <select
-                  v-model="harvestStore.outputCrs"
-                  class="min-w-0 flex-1 gh-input px-2 py-1.5 text-[11.5px] font-mono cursor-pointer"
+                <div
+                  class="min-w-0 flex-1 gh-input px-2 py-1.5 text-[11.5px] font-mono gh-text-secondary flex items-center justify-between"
+                  title="All downloaded and saved outputs are strictly reprojected and saved in EPSG:4326 (WGS 84)"
                 >
-                  <option value="EPSG:4326">EPSG:4326 (WGS 84)</option>
-                  <option value="native">Native Sensor CRS</option>
-                </select>
+                  <span>EPSG:4326 (WGS 84)</span>
+                  <span class="text-[10px] font-sans font-semibold gh-accent uppercase tracking-wide">Strict</span>
+                </div>
               </div>
             </section>
           </section>

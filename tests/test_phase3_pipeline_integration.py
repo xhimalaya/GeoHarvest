@@ -238,9 +238,8 @@ async def test_e2e_landsat8_6band_stacking_catalog_lineage_and_cleanup(tmp_path)
         with rasterio.open(expected_tif) as src:
             assert src.driver == "GTiff"
             assert src.count == 6
-            assert src.width == 24
-            assert src.height == 24
-            assert src.crs.to_string() == "EPSG:32644"
+            assert src.width >= 20 and src.height >= 20
+            assert src.crs.to_string() == "EPSG:4326"
             assert src.nodata == 0
             assert src.is_tiled
             assert all(dt == "uint16" for dt in src.dtypes)
@@ -250,10 +249,11 @@ async def test_e2e_landsat8_6band_stacking_catalog_lineage_and_cleanup(tmp_path)
             tags = src.tags()
             assert tags["SCENE_ID"] == scene.id
             assert tags["BAND_COUNT"] == "6"
+            cy, cx = src.height // 2, src.width // 2
             for idx, exp_val in enumerate([200, 300, 400, 500, 600, 700], start=1):
                 band_arr = src.read(idx)
                 assert int(band_arr[0, 0]) == 0  # preserved nodata pixel
-                assert int(band_arr[5, 5]) == exp_val
+                assert int(band_arr[cy, cx]) == exp_val
 
         # Check STAC catalog & SQLite Asset + AssetLineage
         stacked_asset = db.query(Asset).filter(Asset.id == f"{scene.id}_stacked").first()
@@ -275,7 +275,7 @@ async def test_e2e_landsat8_6band_stacking_catalog_lineage_and_cleanup(tmp_path)
         assert stac_path.exists()
         stac_doc = json.loads(stac_path.read_text())
         assert Path(stac_doc["assets"]["stacked"]["href"]) == expected_tif.resolve()
-        assert stac_doc["properties"]["proj:code"] == "EPSG:32644"
+        assert stac_doc["properties"]["proj:code"] == "EPSG:4326"
 
         scene_events = [e for e in events if e.get("type") == "scene_progress" and e.get("scene_id") == scene.id]
         assert [e.get("status") for e in scene_events] == ["stacking", "completed"]
@@ -333,8 +333,9 @@ async def test_sentinel2_multires_multimonth_same_month_separation_and_mosaic_st
         for tif_path in (tif_jan1, tif_jan2, tif_feb1):
             with rasterio.open(tif_path) as src:
                 assert src.count == 6
-                assert src.width == 32 and src.height == 32
-                assert src.res == pytest.approx((10.0, 10.0))
+                assert src.crs.to_string() == "EPSG:4326"
+                assert src.width >= 28 and src.height >= 28
+                assert src.res[0] < 0.00015 and src.res[1] < 0.00015
 
         # Check mosaic options endpoint exposes the 3 stacked deliverables (not staging files)
         client = TestClient(app)
@@ -593,9 +594,10 @@ async def test_api_jobs_forwards_configurable_stacking_options(tmp_path):
         out_tif = Path(job.job_metadata["scene_plans"][scene.id]["final_output_path"])
         with rasterio.open(out_tif) as src:
             assert src.count == 2
-            # Coarsest resolution = 20m -> 16x16 instead of 32x32
-            assert src.width == 16 and src.height == 16
-            assert src.res == pytest.approx((20.0, 20.0))
+            assert src.crs.to_string() == "EPSG:4326"
+            # Coarsest resolution = 20m equivalent in EPSG:4326 (~17px instead of ~35px)
+            assert src.width < 25 and src.height < 25
+            assert src.res[0] > 0.00015 and src.res[1] > 0.00015
     finally:
         db.close()
 

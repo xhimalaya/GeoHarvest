@@ -13,7 +13,7 @@ from backend.app.models.models import ProcessingTask, Asset, AssetLineage
 from backend.core.processing.recipes import recipe_registry, ProcessingRecipe
 from backend.core.processing.raster_ops import RasterOps
 from backend.core.processing.executor import GeoProcessExecutor
-from backend.core.crs.engine import crs_engine
+from backend.core.crs.engine import STRICT_OUTPUT_CRS, crs_engine, enforce_strict_epsg4326
 
 
 _BAND_ALIASES: Dict[str, List[str]] = {
@@ -48,27 +48,8 @@ def _match_band_file(files: List[Path], band_key: str) -> Optional[Path]:
 
 
 def _resolve_target_crs(target_crs: Optional[str], aoi_geometry: Optional[Dict[str, Any]], sample_file: str) -> str:
-    """Resolve auto_utm, native, or empty CRS cleanly from AOI geometry or raster extent."""
-    crs_norm = (target_crs or "").strip().lower()
-    if crs_norm == "native":
-        import rasterio
-        with rasterio.open(sample_file) as src:
-            return src.crs.to_string() if src.crs else "EPSG:4326"
-    if target_crs and crs_norm != "auto_utm":
-        return target_crs
-    if aoi_geometry:
-        return crs_engine.recommend(aoi_geometry)["recommended_crs"]
-
-    import rasterio
-    from rasterio.warp import transform_bounds
-
-    with rasterio.open(sample_file) as src:
-        if src.crs and not src.crs.is_geographic:
-            return src.crs.to_string()
-        if src.crs:
-            bbox = list(transform_bounds(src.crs, "EPSG:4326", *src.bounds))
-            return crs_engine.recommend(bbox)["recommended_crs"]
-    return "EPSG:4326"
+    """Strictly enforce EPSG:4326 for all saved processing pipeline outputs."""
+    return enforce_strict_epsg4326(target_crs, reject_invalid=False)
 
 
 def _is_aoi_non_overlap_error(exc: Exception) -> bool:
@@ -533,13 +514,16 @@ class ProcessingPipelineRunner:
             task.progress = 10.0
             db.commit()
 
+            # Strictly enforce EPSG:4326 for all mosaic & clip outputs
+            resolved_target_crs = enforce_strict_epsg4326(target_crs, reject_invalid=False)
+
             # Execute mosaic & clip in a dedicated process pool so it doesn't block the async event loop
             final_path = await GeoProcessExecutor.run_cpu_bound(
                 RasterOps.mosaic_rasters,
                 input_paths=input_file_paths,
                 output_path=output_path,
                 aoi_geometry=aoi_geometry,
-                target_crs=target_crs,
+                target_crs=resolved_target_crs,
                 nodata=nodata,
                 to_cog=to_cog
             )
@@ -614,7 +598,7 @@ class ProcessingPipelineRunner:
                         metadata_info={
                             "task_id": task_id,
                             "output_path": final_path,
-                            "target_crs": target_crs,
+                            "target_crs": resolved_target_crs,
                             "has_aoi_clip": aoi_geometry is not None
                         }
                     )

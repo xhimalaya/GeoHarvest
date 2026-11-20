@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { Globe, X, Search, Download, FolderUp } from 'lucide-vue-next'
 import { api } from '../services/api'
 import { useHarvestStore } from '../stores/harvestStore'
@@ -12,6 +13,7 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void
 }>()
 
+const router = useRouter()
 const harvestStore = useHarvestStore()
 const activeTab = ref<'custom' | 'presets' | 'active'>('custom')
 
@@ -53,7 +55,6 @@ const detectedConfig = ref<{
 const configBaseUrl = ref('https://vedas.sac.gov.in/geoserver/vedas/wms')
 const configLayer = ref('vedas:INDIA_500KDSM2018_19')
 const configStyles = ref('VEDAS_DSM_SLD_2011_13')
-const configCrs = ref('EPSG:4326')
 const configFormat = ref('image/png')
 const exportWidth = ref(1586)
 const exportHeight = ref(1137)
@@ -128,7 +129,7 @@ function parseWmsUrlInstant(rawInput: string) {
     const version = ciParams['version'] || (ciParams['srs'] ? '1.1.1' : '1.3.0')
     const layers = ciParams['layers'] || ciParams['layer'] || ''
     const styles = ciParams['styles'] || ciParams['style'] || ''
-    const crs = ciParams['srs'] || ciParams['crs'] || 'EPSG:4326'
+    const crs = 'EPSG:4326'
     const format = ciParams['format'] || 'image/png'
     const transparent = (ciParams['transparent'] || 'true').toLowerCase() !== 'false'
     const width = parseInt(ciParams['width'] || '', 10) || 1400
@@ -169,7 +170,6 @@ function parseWmsUrlInstant(rawInput: string) {
     customVersion.value = version
     if (layers) configLayer.value = layers
     configStyles.value = styles
-    configCrs.value = crs
     configFormat.value = format
     if (ciParams['width']) exportWidth.value = width
     if (ciParams['height']) exportHeight.value = height
@@ -356,6 +356,17 @@ async function connectCustomWms() {
   }
 }
 
+function isRegionalExtent(b?: number[] | null): boolean {
+  return (
+    Array.isArray(b) &&
+    b.length === 4 &&
+    b.every((n) => typeof n === 'number' && Number.isFinite(n)) &&
+    b[0] < b[2] &&
+    b[1] < b[3] &&
+    (b[2] - b[0] < 300 || b[3] - b[1] < 140)
+  )
+}
+
 function addLayerToMap(
   url: string,
   layerName: string,
@@ -363,9 +374,18 @@ function addLayerToMap(
   version: string = '1.1.1',
   styles: string = '',
   format: string = 'image/png',
-  bbox?: number[]
+  bbox?: number[],
+  useFormExtentFallback: boolean = false
 ) {
-  const targetBbox = bbox || activeExportBbox.value
+  let targetBbox: number[] | undefined
+  if (isRegionalExtent(bbox)) {
+    targetBbox = bbox
+  } else if (useFormExtentFallback && isRegionalExtent(activeExportBbox.value)) {
+    targetBbox = activeExportBbox.value
+  } else if (isRegionalExtent(harvestStore.aoiAnalysis?.bbox)) {
+    targetBbox = harvestStore.aoiAnalysis!.bbox
+  }
+
   harvestStore.addWmsLayer({
     url,
     name: layerName,
@@ -373,12 +393,28 @@ function addLayerToMap(
     version,
     styles,
     format,
+    crs: 'EPSG:4326',
     bbox: targetBbox,
     opacity: 0.85,
-    zoomToBbox: true,
+    zoomToBbox: Boolean(targetBbox),
   })
   exportMessage.value = `Added WMS layer "${layerTitle}" (${layerName}) to Map Canvas.`
   exportDownloadUrl.value = null
+
+  if (router.currentRoute.value.path !== '/harvest') {
+    router.push('/harvest')
+  }
+  close()
+}
+
+function viewActiveLayerOnMap(layer: { bbox?: number[] }) {
+  if (isRegionalExtent(layer.bbox)) {
+    harvestStore.triggerMapCommand('ZoomToBBox', layer.bbox)
+  }
+  if (router.currentRoute.value.path !== '/harvest') {
+    router.push('/harvest')
+  }
+  close()
 }
 
 function isLayerOnMap(url: string, layerName: string): boolean {
@@ -409,7 +445,7 @@ async function exportLayerToGeoTiff(
       layers: layerName,
       styles,
       version,
-      crs: configCrs.value || 'EPSG:4326',
+      crs: 'EPSG:4326',
       format: format || configFormat.value || 'image/png',
       bbox,
       aoi_geometry: activeExportGeometry.value,
@@ -767,8 +803,14 @@ onMounted(() => {
                   <input v-model="configStyles" type="text" class="w-full gh-input px-2.5 py-1.5 text-[12.5px] font-mono" />
                 </div>
                 <div>
-                  <label class="block text-[11.5px] gh-text-muted font-medium mb-0.5">CRS</label>
-                  <input v-model="configCrs" type="text" class="w-full gh-input px-2.5 py-1.5 text-[12.5px] font-mono" />
+                  <label class="block text-[11.5px] gh-text-muted font-medium mb-0.5">CRS (Strict)</label>
+                  <input
+                    value="EPSG:4326"
+                    type="text"
+                    readonly
+                    title="All WMS exports and map overlays strictly use EPSG:4326"
+                    class="w-full gh-input px-2.5 py-1.5 text-[12.5px] font-mono opacity-90 cursor-not-allowed"
+                  />
                 </div>
                 <div>
                   <label class="block text-[11.5px] gh-text-muted font-medium mb-0.5">Format</label>
@@ -788,11 +830,11 @@ onMounted(() => {
 
                 <div class="col-span-2 sm:col-span-4 flex flex-wrap gap-2 justify-end">
                   <button
-                    @click="addLayerToMap(configBaseUrl, configLayer, configLayer, customVersion, configStyles, configFormat, activeExportBbox)"
+                    @click="addLayerToMap(configBaseUrl || customUrl, configLayer, configLayer, customVersion, configStyles, configFormat, activeExportBbox, true)"
                     :disabled="!configLayer"
                     class="px-3.5 py-2 gh-btn-primary text-[12.5px] cursor-pointer"
                   >
-                    {{ isLayerOnMap(configBaseUrl, configLayer) ? 'Active on Map (Zoom)' : '+ Add Layer to Map' }}
+                    {{ isLayerOnMap(configBaseUrl || customUrl, configLayer) ? 'View on Map (Zoom)' : '+ Add Layer to Map' }}
                   </button>
                   <button
                     @click="exportLayerToGeoTiff(configBaseUrl, configLayer, configLayer, customVersion, configStyles, configFormat)"
@@ -982,6 +1024,12 @@ onMounted(() => {
                 <span class="text-[12px] font-mono gh-text-primary w-9">{{ Math.round(layer.opacity * 100) }}%</span>
               </div>
 
+              <button
+                @click="viewActiveLayerOnMap(layer)"
+                class="px-2.5 py-1 gh-btn-primary text-[12px] cursor-pointer"
+              >
+                View on Map
+              </button>
               <button
                 @click="exportLayerToGeoTiff(layer.url, layer.name, layer.title, layer.version, layer.styles || '', layer.format || 'image/png')"
                 class="px-2.5 py-1 gh-btn-secondary text-[12px] cursor-pointer"

@@ -23,6 +23,7 @@ from backend.app.models.models import (
 from backend.app.schemas.schemas import SearchResultItem
 from backend.core.download.engine import DownloadEngine, DownloadCancelledException
 from backend.core.catalog.engine import catalog_engine
+from backend.core.crs.engine import STRICT_OUTPUT_CRS, enforce_strict_epsg4326
 from backend.core.processing.executor import GeoProcessExecutor
 from backend.core.processing.scene_stacker import (
     scene_stacking_service,
@@ -170,7 +171,7 @@ class JobEngine:
         order_by: Optional[str] = None,
     ) -> Job:
         try:
-            resolved_target_crs = normalize_target_crs(target_crs)
+            resolved_target_crs = enforce_strict_epsg4326(target_crs, reject_invalid=True)
         except Exception as exc:
             raise ValueError(f"Invalid target_crs '{target_crs}': {exc}") from exc
 
@@ -481,10 +482,7 @@ class JobEngine:
             )
             dl_to_scene: Dict[str, str] = dict(meta_snapshot.get("dl_to_scene") or {})
             stacking_cfg: Dict[str, Any] = dict(meta_snapshot.get("stacking_config") or {})
-            try:
-                job_target_crs = normalize_target_crs(stacking_cfg.get("target_crs"))
-            except Exception:
-                job_target_crs = None
+            job_target_crs = STRICT_OUTPUT_CRS
 
             # Map asset url lookup
             asset_urls: Dict[str, str] = {}
@@ -1321,13 +1319,37 @@ class JobEngine:
                     job.completed_at = datetime.datetime.utcnow()
                     job.progress = 100.0
 
-                    # Catalog all scenes in local STAC catalog
+                    # Strictly enforce EPSG:4326 on all legacy raster downloads before cataloging
+                    legacy_raster_exts = {".tif", ".tiff", ".jp2", ".img", ".vrt"}
                     for s_id, s_info in scene_info_map.items():
                         scene_dls = [d for d in all_dls if d.asset_id and d.asset_id.startswith(s_id)]
                         downloaded_assets: Dict[str, Path] = {}
                         for dl in scene_dls:
                             a_key = dl.asset_id.split(f"{s_id}_")[-1]
-                            downloaded_assets[a_key] = Path(dl.destination)
+                            dest_p = Path(dl.destination)
+                            if (
+                                dest_p.exists()
+                                and dest_p.is_file()
+                                and dest_p.suffix.lower() in legacy_raster_exts
+                            ):
+                                try:
+                                    reproj_res = await GeoProcessExecutor.run_cpu_bound(
+                                        reproject_file_to_crs_task,
+                                        str(dest_p),
+                                        STRICT_OUTPUT_CRS,
+                                        stacking_cfg.get("resampling_method", "bilinear"),
+                                    )
+                                    out_p = Path(reproj_res.get("output_path") or dest_p)
+                                    if out_p != dest_p or reproj_res.get("reprojected"):
+                                        dest_p = out_p
+                                        dl.destination = str(out_p)
+                                        if out_p.exists():
+                                            sz = out_p.stat().st_size
+                                            dl.total_bytes = sz
+                                            dl.downloaded_bytes = sz
+                                except Exception as reproj_exc:
+                                    logger.warning(f"Legacy raster reprojection skipped for {dest_p}: {reproj_exc}")
+                            downloaded_assets[a_key] = dest_p
 
                         catalog_engine.add_scene_to_catalog(
                             collection_id=s_info.get("collection", "sentinel-2-l2a"),

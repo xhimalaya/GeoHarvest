@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 import shutil
 import numpy as np
@@ -11,11 +12,40 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 import shapely.geometry
 import shapely.ops
-from backend.core.crs.engine import crs_engine
+from backend.core.crs.engine import STRICT_OUTPUT_CRS, crs_engine, enforce_strict_epsg4326, is_epsg4326
 
 
 class RasterOps:
     """Core raster transformations using Rasterio and NumPy."""
+
+    @staticmethod
+    def ensure_epsg4326(
+        input_path: str,
+        output_path: Optional[str] = None,
+        resampling_method: str = "bilinear",
+    ) -> str:
+        """Guarantees a saved raster is strictly in EPSG:4326, reprojecting atomically when needed."""
+        in_p = Path(input_path).resolve()
+        out_p = Path(output_path).resolve() if output_path else in_p
+        with rasterio.open(str(in_p)) as src:
+            needs_warp = src.crs is not None and not is_epsg4326(src.crs)
+        if not needs_warp:
+            if out_p != in_p:
+                out_p.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(str(in_p), str(out_p))
+            return str(out_p)
+
+        if out_p == in_p:
+            tmp_out = in_p.with_name(f"{in_p.stem}.epsg4326.tmp.tif")
+            try:
+                RasterOps.reproject_raster(str(in_p), STRICT_OUTPUT_CRS, str(tmp_out), resampling_method)
+                os.replace(str(tmp_out), str(in_p))
+            finally:
+                if tmp_out.exists():
+                    tmp_out.unlink(missing_ok=True)
+            return str(in_p)
+
+        return RasterOps.reproject_raster(str(in_p), STRICT_OUTPUT_CRS, str(out_p), resampling_method)
 
     @staticmethod
     def _extract_geometry(aoi_geometry: Dict[str, Any]) -> Dict[str, Any]:
@@ -86,6 +116,7 @@ class RasterOps:
             with rasterio.open(str(out_p), "w", **out_meta) as dst:
                 dst.write(out_image)
 
+        RasterOps.ensure_epsg4326(str(out_p))
         return str(out_p.resolve())
 
     @staticmethod
@@ -121,6 +152,7 @@ class RasterOps:
             with rasterio.open(str(out_p), "w", **out_meta) as dst:
                 dst.write(masked_data)
 
+        RasterOps.ensure_epsg4326(str(out_p), resampling_method="nearest")
         return str(out_p.resolve())
 
     @staticmethod
@@ -172,24 +204,36 @@ class RasterOps:
         out_p = Path(output_path)
         out_p.parent.mkdir(parents=True, exist_ok=True)
 
-        with rasterio.open(input_path) as src:
-            profile = src.profile.copy()
-            profile.update({
-                "driver": "GTiff",
-                "tiled": True,
-                "blockxsize": tile_size,
-                "blockysize": tile_size,
-                "compress": compress,
-                "interleave": "pixel" if src.count > 1 else "band"
-            })
+        temp_reproj = None
+        source_for_cog = input_path
+        try:
+            with rasterio.open(input_path) as check_src:
+                if check_src.crs is not None and not is_epsg4326(check_src.crs):
+                    temp_reproj = Path(tempfile.mkdtemp(prefix="geoharvest_cog4326_"))
+                    reproj_path = str(temp_reproj / "epsg4326.tif")
+                    source_for_cog = RasterOps.reproject_raster(input_path, STRICT_OUTPUT_CRS, reproj_path)
 
-            with rasterio.open(str(out_p), "w", **profile) as dst:
-                for i in range(1, src.count + 1):
-                    dst.write(src.read(i), i)
+            with rasterio.open(source_for_cog) as src:
+                profile = src.profile.copy()
+                profile.update({
+                    "driver": "GTiff",
+                    "tiled": True,
+                    "blockxsize": tile_size,
+                    "blockysize": tile_size,
+                    "compress": compress,
+                    "interleave": "pixel" if src.count > 1 else "band"
+                })
 
-                # Build internal overview pyramids
-                dst.build_overviews(overview_levels, RResampling.average)
-                dst.update_tags(ns="rio_overview", resampling="average")
+                with rasterio.open(str(out_p), "w", **profile) as dst:
+                    for i in range(1, src.count + 1):
+                        dst.write(src.read(i), i)
+
+                    # Build internal overview pyramids
+                    dst.build_overviews(overview_levels, RResampling.average)
+                    dst.update_tags(ns="rio_overview", resampling="average")
+        finally:
+            if temp_reproj is not None:
+                shutil.rmtree(temp_reproj, ignore_errors=True)
 
         return str(out_p.resolve())
 
@@ -217,6 +261,7 @@ class RasterOps:
             with rasterio.open(str(out_p), "w", **out_meta) as dst:
                 dst.write(index.astype(np.float32), 1)
 
+        RasterOps.ensure_epsg4326(str(out_p))
         return str(out_p.resolve())
 
     @staticmethod
@@ -245,32 +290,15 @@ class RasterOps:
 
         temp_dir = Path(tempfile.mkdtemp(prefix="geoharvest_mosaic_"))
         try:
-            # 1. Determine target CRS
-            unified_crs = None
-            crs_norm = (target_crs or "").strip().lower()
-            if target_crs is not None and crs_norm in ("", "native"):
-                unified_crs = None
-            elif target_crs and crs_norm != "auto_utm":
-                unified_crs = target_crs
-            elif aoi_geometry:
-                try:
-                    norm_geom = RasterOps._extract_geometry(aoi_geometry)
-                    rec = crs_engine.recommend(norm_geom)
-                    unified_crs = rec.get("recommended_crs")
-                except Exception:
-                    pass
-
-            # Fallback to CRS of first raster if not determined
-            if not unified_crs:
-                with rasterio.open(valid_paths[0]) as first_src:
-                    unified_crs = first_src.crs.to_string() if first_src.crs else "EPSG:4326"
+            # 1. Strictly enforce EPSG:4326 as unified output CRS
+            unified_crs = enforce_strict_epsg4326(target_crs, reject_invalid=True)
 
             # 2. Check CRS of all input rasters and reproject differing inputs to unified_crs
             harmonized_paths = []
             for idx, p in enumerate(valid_paths):
                 with rasterio.open(p) as src:
-                    curr_crs = src.crs.to_string() if src.crs else "EPSG:4326"
-                if curr_crs != unified_crs:
+                    needs_warp = src.crs is not None and not is_epsg4326(src.crs)
+                if needs_warp:
                     reproj_path = str(temp_dir / f"reproj_{idx}.tif")
                     RasterOps.reproject_raster(
                         input_path=p,
@@ -406,19 +434,12 @@ class RasterOps:
 
             current_path = stack_raw_path
 
-            # Optional target CRS reproject
-            if target_crs and target_crs.lower() not in ("native", ""):
-                resolved_crs = target_crs
-                if target_crs.lower() == "auto_utm" and aoi_geometry:
-                    try:
-                        norm_geom = RasterOps._extract_geometry(aoi_geometry)
-                        resolved_crs = crs_engine.recommend(norm_geom).get("recommended_crs", str(ref_crs))
-                    except Exception:
-                        resolved_crs = str(ref_crs)
-                if resolved_crs and str(ref_crs) != resolved_crs:
-                    reproj_path = str(temp_dir / "stack_reproj.tif")
-                    RasterOps.reproject_raster(current_path, resolved_crs, reproj_path, resampling_method)
-                    current_path = reproj_path
+            # Strictly enforce EPSG:4326 on output band stack
+            resolved_crs = enforce_strict_epsg4326(target_crs, reject_invalid=True)
+            if ref_crs is not None and not is_epsg4326(ref_crs):
+                reproj_path = str(temp_dir / "stack_reproj.tif")
+                RasterOps.reproject_raster(current_path, resolved_crs, reproj_path, resampling_method)
+                current_path = reproj_path
 
             # Optional AOI clip
             if aoi_geometry:
@@ -516,6 +537,8 @@ class RasterOps:
                 dst.write(result, 1)
                 dst.set_band_description(1, idx_mode.upper())
 
+            RasterOps.ensure_epsg4326(raw_out)
+
             if to_cog:
                 RasterOps.build_cog(raw_out, str(out_final))
             else:
@@ -605,6 +628,8 @@ class RasterOps:
             with rasterio.open(raw_out, "w", **meta) as dst:
                 dst.write(out_arr, 1)
                 dst.set_band_description(1, op.upper())
+
+            RasterOps.ensure_epsg4326(raw_out)
 
             if to_cog:
                 RasterOps.build_cog(raw_out, str(out_final))
@@ -744,6 +769,8 @@ class RasterOps:
             with rasterio.open(temp_out, "w", **meta) as dst:
                 dst.write(classified, 1)
 
+            RasterOps.ensure_epsg4326(temp_out, resampling_method="nearest")
+
             if to_cog:
                 RasterOps.build_cog(temp_out, str(out_p))
                 Path(temp_out).unlink(missing_ok=True)
@@ -787,12 +814,17 @@ class RasterOps:
         with rasterio.open(input_path) as src:
             data = src.read(1)
             nodata = src.nodata
+            src_crs_str = src.crs.to_string() if src.crs else STRICT_OUTPUT_CRS
+            needs_geom_reproj = src.crs is not None and not is_epsg4326(src.crs)
             mask = data != nodata if nodata is not None else None
 
             for shape_dict, val in shapes(data, mask=mask, transform=src.transform):
                 int_val = int(val)
                 if target_classes is not None and int_val not in target_classes:
                     continue
+
+                if needs_geom_reproj:
+                    shape_dict = crs_engine.transform_geometry(shape_dict, src_crs_str, STRICT_OUTPUT_CRS)
 
                 geom = shapely.geometry.shape(shape_dict)
                 if not geom.is_valid:
@@ -872,6 +904,8 @@ class RasterOps:
             temp_out = str(out_p) if not to_cog else str(out_p.with_name(f"_tmp_{out_p.name}"))
             with rasterio.open(temp_out, "w", **meta) as dst:
                 dst.write(diff, 1)
+
+            RasterOps.ensure_epsg4326(temp_out)
 
             if to_cog:
                 RasterOps.build_cog(temp_out, str(out_p))

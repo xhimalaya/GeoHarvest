@@ -6,6 +6,43 @@ from shapely.ops import transform
 import rasterio
 
 
+STRICT_OUTPUT_CRS = "EPSG:4326"
+_STRICT_CRS_OBJ = CRS.from_epsg(4326)
+_CRS_SENTINELS = {"", "native", "source", "none", "auto_utm", "crs:84"}
+
+
+def is_epsg4326(crs_value: Any) -> bool:
+    """Return True when the given CRS object or string is equivalent to EPSG:4326."""
+    if crs_value is None:
+        return False
+    try:
+        return CRS.from_user_input(crs_value) == _STRICT_CRS_OBJ
+    except Exception:
+        return False
+
+
+def enforce_strict_epsg4326(
+    requested_crs: Optional[str] = None,
+    *,
+    reject_invalid: bool = True,
+) -> str:
+    """
+    Enforce GeoHarvest's strict EPSG:4326 policy for all data downloading and saving.
+
+    If an explicit non-sentinel CRS string is supplied and ``reject_invalid`` is True,
+    malformed CRS identifiers still raise ValueError so API callers receive HTTP 400.
+    All valid requests resolve strictly to ``EPSG:4326``.
+    """
+    if requested_crs is not None:
+        cleaned = str(requested_crs).strip()
+        if cleaned.lower() not in _CRS_SENTINELS and reject_invalid:
+            try:
+                CRS.from_user_input(cleaned)
+            except Exception as exc:
+                raise ValueError(f"Invalid CRS '{requested_crs}': {exc}") from exc
+    return STRICT_OUTPUT_CRS
+
+
 class CRSEngine:
     """Geospatial Coordinate Reference System Engine with Auto-UTM detection and multi-zone warnings."""
 

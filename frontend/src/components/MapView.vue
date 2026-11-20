@@ -23,10 +23,10 @@
           </svg>
           <span>Layers</span>
           <span
-            v-if="renderedImageryCount > 0 && harvestStore.showSatelliteImagery"
+            v-if="totalActiveOverlayCount > 0"
             class="px-1.5 py-0.5 rounded-[5px] text-[12px] font-mono font-semibold gh-selected-bg gh-accent"
           >
-            {{ renderedImageryCount }}
+            {{ totalActiveOverlayCount }}
           </span>
           <svg
             :class="['w-3.5 h-3.5 gh-text-muted transition-transform', showLayersMenu ? 'rotate-180' : '']"
@@ -53,10 +53,10 @@
             </div>
             <div class="flex items-center space-x-2">
               <span
-                v-if="renderedImageryCount > 0"
+                v-if="totalActiveOverlayCount > 0"
                 class="px-2 py-0.5 rounded-[6px] text-[12px] font-mono font-semibold gh-selected-bg gh-accent"
               >
-                {{ renderedImageryCount }} active
+                {{ totalActiveOverlayCount }} active
               </span>
               <button
                 @click="showLayersMenu = false"
@@ -148,6 +148,81 @@
                     class="rounded cursor-pointer w-4 h-4"
                   />
                 </label>
+              </div>
+
+              <!-- Section 1.5: OGC WMS Overlays -->
+              <div class="gh-surface-primary border gh-border rounded-[8px] p-3 space-y-2.5">
+                <div class="flex items-center justify-between pb-1.5 border-b gh-divider">
+                  <span class="gh-label">OGC WMS Overlays</span>
+                  <button
+                    type="button"
+                    @click="showLayersMenu = false; harvestStore.isWmsModalOpen = true"
+                    class="text-[11.5px] font-mono gh-accent hover:underline cursor-pointer"
+                  >
+                    + Add / Manage
+                  </button>
+                </div>
+
+                <div
+                  v-if="harvestStore.activeWmsLayers.length === 0"
+                  class="text-[12px] gh-text-muted py-1"
+                >
+                  No WMS layers added yet.
+                </div>
+
+                <div
+                  v-for="wms in harvestStore.activeWmsLayers"
+                  :key="wms.id"
+                  class="p-2 rounded-[6px] gh-surface-secondary border gh-border space-y-1.5"
+                >
+                  <div class="flex items-center justify-between gap-2">
+                    <label class="flex items-center space-x-2 min-w-0 flex-1 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        :checked="wms.visible"
+                        @change="harvestStore.toggleWmsLayer(wms.id)"
+                        class="rounded cursor-pointer w-3.5 h-3.5 shrink-0"
+                      />
+                      <span class="text-[12.5px] font-medium gh-text-primary truncate" :title="wms.title">
+                        {{ wms.title }}
+                      </span>
+                    </label>
+                    <div class="flex items-center space-x-1 shrink-0">
+                      <button
+                        v-if="wms.bbox && wms.bbox.length === 4"
+                        type="button"
+                        @click="fitMapToBBox(wms.bbox)"
+                        class="px-1.5 py-0.5 rounded-[5px] gh-btn-secondary text-[11px] font-mono cursor-pointer"
+                        title="Zoom to WMS layer extent"
+                      >
+                        Zoom
+                      </button>
+                      <button
+                        type="button"
+                        @click="harvestStore.removeWmsLayer(wms.id)"
+                        class="px-1.5 py-0.5 rounded-[5px] gh-btn-ghost gh-error text-[11px] cursor-pointer"
+                        title="Remove WMS layer"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  </div>
+
+                  <div v-if="wms.visible" class="flex items-center space-x-2 pt-0.5">
+                    <span class="text-[11px] gh-text-secondary">Opacity</span>
+                    <input
+                      v-model.number="wms.opacity"
+                      type="range"
+                      min="0.1"
+                      max="1.0"
+                      step="0.05"
+                      class="flex-1 cursor-pointer h-1 rounded"
+                    />
+                    <span class="text-[11px] font-mono gh-text-primary w-8 text-right">
+                      {{ Math.round(wms.opacity * 100) }}%
+                    </span>
+                  </div>
+                </div>
               </div>
 
               <!-- Section 2: Weather & Thermal -->
@@ -1042,6 +1117,10 @@ const targetScenesToRender = computed<SearchResultItem[]>(() => {
 })
 
 const renderedImageryCount = computed(() => targetScenesToRender.value.length)
+const activeWmsCount = computed(() => harvestStore.activeWmsLayers.filter((l) => l.visible).length)
+const totalActiveOverlayCount = computed(
+  () => (harvestStore.showSatelliteImagery ? renderedImageryCount.value : 0) + activeWmsCount.value
+)
 
 onMounted(() => {
   if (!mapContainer.value) return
@@ -1231,6 +1310,14 @@ onMounted(() => {
   // Initialize scene raster layers
   updateSceneImageLayers()
   updateWmsLayers()
+
+  if (
+    harvestStore.mapCommand?.type === 'ZoomToBBox' &&
+    Array.isArray(harvestStore.mapCommand.payload) &&
+    Date.now() - (harvestStore.mapCommand.timestamp || 0) < 10000
+  ) {
+    fitMapToBBox(harvestStore.mapCommand.payload)
+  }
 
   // Fetch initial live atmospheric telemetry for default view
   harvestStore.fetchLiveWeather(34.15, 77.5)
@@ -1915,6 +2002,32 @@ watch(
   }
 )
 
+function fitMapToBBox(bbox?: number[]) {
+  if (!olMap || !Array.isArray(bbox) || bbox.length !== 4) return
+  try {
+    const minLon = Math.max(-180, Math.min(180, Number(bbox[0])))
+    const minLat = Math.max(-85, Math.min(85, Number(bbox[1])))
+    const maxLon = Math.max(-180, Math.min(180, Number(bbox[2])))
+    const maxLat = Math.max(-85, Math.min(85, Number(bbox[3])))
+    if (
+      !Number.isFinite(minLon) ||
+      !Number.isFinite(minLat) ||
+      !Number.isFinite(maxLon) ||
+      !Number.isFinite(maxLat) ||
+      minLon >= maxLon ||
+      minLat >= maxLat
+    ) {
+      return
+    }
+    const ext3857 = transformExtent([minLon, minLat, maxLon, maxLat], 'EPSG:4326', 'EPSG:3857')
+    if (ext3857.every((n) => Number.isFinite(n))) {
+      olMap.getView().fit(ext3857, { padding: [50, 50, 50, 50], duration: 500, maxZoom: 14 })
+    }
+  } catch (e) {
+    console.warn('Could not fit bbox:', e)
+  }
+}
+
 // Synchronize OGC WMS TileWMS layers with harvestStore.activeWmsLayers
 function updateWmsLayers() {
   if (!wmsLayerGroup) return
@@ -1929,21 +2042,29 @@ function updateWmsLayers() {
   }
 
   for (const cfg of harvestStore.activeWmsLayers) {
+    const extentBboxStr =
+      Array.isArray(cfg.bbox) &&
+      cfg.bbox.length === 4 &&
+      (cfg.bbox[2] - cfg.bbox[0] < 300 || cfg.bbox[3] - cfg.bbox[1] < 140)
+        ? cfg.bbox.join(',')
+        : ''
+
+    const wmsParams: Record<string, any> = {
+      TARGET_URL: cfg.url,
+      LAYERS: cfg.name,
+      STYLES: cfg.styles || '',
+      FORMAT: cfg.format || 'image/png',
+      TRANSPARENT: true,
+      VERSION: '1.1.1',
+      EXTENT_BBOX: extentBboxStr,
+    }
+
     let layer = activeWmsTileLayers.get(cfg.id)
     if (!layer) {
-      const wmsParams: Record<string, any> = {
-        LAYERS: cfg.name,
-        TILED: true,
-        VERSION: cfg.version || '1.1.1',
-        FORMAT: cfg.format || 'image/png',
-        TRANSPARENT: true,
-      }
-      if (cfg.styles) {
-        wmsParams.STYLES = cfg.styles
-      }
       layer = new TileLayer({
         source: new TileWMS({
-          url: cfg.url,
+          url: '/api/wms/proxy',
+          projection: 'EPSG:4326',
           params: wmsParams,
           crossOrigin: 'anonymous',
         }),
@@ -1953,6 +2074,7 @@ function updateWmsLayers() {
       activeWmsTileLayers.set(cfg.id, layer)
       layersCollection.push(layer)
     } else {
+      layer.getSource()?.updateParams(wmsParams)
       layer.setOpacity(cfg.opacity)
       layer.setVisible(cfg.visible)
     }
@@ -1989,14 +2111,7 @@ watch(
         zoomToAoi()
         break
       case 'ZoomToBBox':
-        if (olMap && Array.isArray(cmd.payload) && cmd.payload.length === 4) {
-          try {
-            const ext3857 = transformExtent(cmd.payload, 'EPSG:4326', 'EPSG:3857')
-            olMap.getView().fit(ext3857, { padding: [50, 50, 50, 50], duration: 500, maxZoom: 14 })
-          } catch (e) {
-            console.warn('Could not fit bbox:', e)
-          }
-        }
+        fitMapToBBox(cmd.payload)
         break
       case 'ClearAOI':
         clearAoi()

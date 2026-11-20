@@ -315,11 +315,15 @@
             <div class="space-y-1.5">
               <div class="flex items-center justify-between">
                 <label class="text-[12.5px] font-semibold gh-text-primary">Target CRS</label>
-                <button type="button" @click="recommendCRSForLadakh" class="text-[11px] font-mono gh-accent hover:underline cursor-pointer">
-                  Auto UTM
-                </button>
+                <span class="text-[11px] font-mono gh-accent">Strict</span>
               </div>
-              <input v-model="targetCRS" type="text" placeholder="EPSG:4326" class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px] font-mono" />
+              <input
+                value="EPSG:4326 (WGS 84)"
+                type="text"
+                readonly
+                class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px] font-mono opacity-90 cursor-not-allowed"
+                title="All saved outputs strictly use EPSG:4326"
+              />
             </div>
 
             <div class="space-y-2 pb-1">
@@ -382,8 +386,14 @@
 
           <div class="pt-4 border-t gh-divider grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-1.5">
-              <label class="block text-[12.5px] font-semibold gh-text-primary">Target CRS (optional)</label>
-              <input v-model="targetCRS" type="text" placeholder="Keep reference CRS" class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px] font-mono" />
+              <label class="block text-[12.5px] font-semibold gh-text-primary">Target CRS (Strict)</label>
+              <input
+                value="EPSG:4326 (WGS 84)"
+                type="text"
+                readonly
+                class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px] font-mono opacity-90 cursor-not-allowed"
+                title="All saved outputs strictly use EPSG:4326"
+              />
             </div>
             <div class="space-y-1.5">
               <label class="block text-[12.5px] font-semibold gh-text-primary">Output Filename (optional)</label>
@@ -563,13 +573,10 @@
           <div class="space-y-1.5">
             <div class="flex items-center justify-between">
               <label class="text-[12.5px] font-semibold gh-text-primary">Input Raster File (.tif)</label>
-              <button
-                @click="recommendCRSForLadakh"
-                class="px-2.5 py-1 rounded-[7px] gh-btn-secondary text-[11.5px] font-mono gh-accent cursor-pointer flex items-center space-x-1"
-              >
+              <span class="px-2.5 py-1 rounded-[7px] gh-surface-secondary border gh-border text-[11.5px] font-mono gh-accent flex items-center space-x-1">
                 <Compass class="w-3.5 h-3.5" />
-                <span>Auto-Recommend UTM</span>
-              </button>
+                <span>Strict EPSG:4326 Output</span>
+              </span>
             </div>
             <select v-model="singleInputPath" class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px] font-mono">
               <option value="">-- Select Input Raster --</option>
@@ -579,8 +586,14 @@
 
           <div class="pt-4 border-t gh-divider grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div class="space-y-1.5">
-              <label class="block text-[12.5px] font-semibold gh-text-primary">Target CRS</label>
-              <input v-model="targetCRS" type="text" placeholder="EPSG:4326" class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px] font-mono" />
+              <label class="block text-[12.5px] font-semibold gh-text-primary">Target CRS (Strict)</label>
+              <input
+                value="EPSG:4326 (WGS 84)"
+                type="text"
+                readonly
+                class="w-full gh-input rounded-[7px] px-3 py-2 text-[12.5px] font-mono opacity-90 cursor-not-allowed"
+                title="All saved outputs strictly use EPSG:4326"
+              />
             </div>
             <div class="space-y-1.5">
               <label class="block text-[12.5px] font-semibold gh-text-primary">Resolution (m / deg)</label>
@@ -1017,7 +1030,6 @@ const multiInputPaths = ref<string[]>([])
 const outputFilename = ref('')
 const exportAsCog = ref(true)
 const clipToAOI = ref(true)
-const targetCRS = ref('EPSG:4326')
 const targetResolution = ref<number | undefined>(undefined)
 const resamplingMethod = ref('bilinear')
 
@@ -1274,7 +1286,7 @@ async function executeMosaic() {
     toolResult.value = await api.executeMosaicClip({
       input_file_paths: multiInputPaths.value,
       aoi_geometry: geom,
-      target_crs: targetCRS.value.trim() || undefined,
+      target_crs: 'EPSG:4326',
       to_cog: exportAsCog.value,
     })
     appendLog('success', `Mosaic complete: ${toolResult.value.output_path?.split('/').pop()}`)
@@ -1297,7 +1309,7 @@ async function executeStackBands() {
     toolResult.value = await api.stackBands({
       input_file_paths: multiInputPaths.value,
       aoi_geometry: geom,
-      target_crs: targetCRS.value.trim() || undefined,
+      target_crs: 'EPSG:4326',
       output_filename: outputFilename.value.trim() || undefined,
       to_cog: exportAsCog.value,
     })
@@ -1366,11 +1378,11 @@ async function executeReproject() {
   isExecuting.value = true
   toolError.value = null
   toolResult.value = null
-  appendLog('info', `Reprojecting ${singleInputPath.value.split('/').pop()} -> ${targetCRS.value || 'native'} (${resamplingMethod.value})...`)
+  appendLog('info', `Reprojecting ${singleInputPath.value.split('/').pop()} -> EPSG:4326 (${resamplingMethod.value})...`)
   try {
     toolResult.value = await api.reprojectResampleRaster({
       input_path: singleInputPath.value,
-      target_crs: targetCRS.value.trim() || undefined,
+      target_crs: 'EPSG:4326',
       resolution: targetResolution.value || undefined,
       resampling_method: resamplingMethod.value,
       output_filename: outputFilename.value.trim() || undefined,
@@ -1403,19 +1415,6 @@ async function executeStats() {
     appendLog('error', e.message || 'Raster stats failed')
   } finally {
     isExecuting.value = false
-  }
-}
-
-async function recommendCRSForLadakh() {
-  try {
-    const bbox = harvestStore.aoiAnalysis?.bbox || [76.1, 33.15, 79.2, 35.15]
-    const res = await api.recommendCRS(undefined, bbox)
-    if (res.recommended_crs) {
-      targetCRS.value = res.recommended_crs
-      appendLog('info', `Recommended UTM CRS: ${res.recommended_crs}`)
-    }
-  } catch {
-    // ignore
   }
 }
 

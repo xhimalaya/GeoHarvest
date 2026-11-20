@@ -18,7 +18,7 @@ DEFAULT_RECIPES = [
     ProcessingRecipe(
         id="s2-aoi-cog",
         name="Sentinel-2 AOI Processing & COG",
-        description="Clip raw Sentinel-2 bands to AOI polygon, reproject to optimal UTM zone, and generate tiled Cloud-Optimized GeoTIFFs (COG) with pyramids.",
+        description="Clip raw Sentinel-2 bands to AOI polygon, reproject to EPSG:4326 (WGS 84), and generate tiled Cloud-Optimized GeoTIFFs (COG) with pyramids.",
         steps=[
             RecipeStep(name="validate", parameters={}),
             RecipeStep(name="clip", parameters={"nodata": 0.0}),
@@ -53,7 +53,7 @@ DEFAULT_RECIPES = [
     ProcessingRecipe(
         id="landsat-aoi-cog",
         name="Landsat 8/9 AOI Processing & COG",
-        description="Clip raw Landsat 8/9 Surface Reflectance bands to AOI polygon, reproject to optimal UTM zone, and generate tiled Cloud-Optimized GeoTIFFs (COG) with pyramids.",
+        description="Clip raw Landsat 8/9 Surface Reflectance bands to AOI polygon, reproject to EPSG:4326 (WGS 84), and generate tiled Cloud-Optimized GeoTIFFs (COG) with pyramids.",
         steps=[
             RecipeStep(name="validate", parameters={}),
             RecipeStep(name="clip", parameters={"nodata": 0.0}),
@@ -76,7 +76,7 @@ DEFAULT_RECIPES = [
     ProcessingRecipe(
         id="s1-grd-cog",
         name="Sentinel-1 SAR Backscatter COG",
-        description="Clip Sentinel-1 SAR GRD VV/VH backscatter rasters to AOI polygon, reproject to optimal UTM zone, and export as tiled COG with pyramids.",
+        description="Clip Sentinel-1 SAR GRD VV/VH backscatter rasters to AOI polygon, reproject to EPSG:4326 (WGS 84), and export as tiled COG with pyramids.",
         steps=[
             RecipeStep(name="validate", parameters={}),
             RecipeStep(name="clip", parameters={"nodata": 0.0}),
@@ -87,7 +87,7 @@ DEFAULT_RECIPES = [
     ProcessingRecipe(
         id="dem-aoi-cog",
         name="Copernicus DEM Elevation COG",
-        description="Clip Copernicus DEM 30m elevation raster to AOI polygon, reproject to optimal UTM zone, and generate 32-bit elevation COG with overviews.",
+        description="Clip Copernicus DEM 30m elevation raster to AOI polygon, reproject to EPSG:4326 (WGS 84), and generate 32-bit elevation COG with overviews.",
         steps=[
             RecipeStep(name="validate", parameters={}),
             RecipeStep(name="clip", parameters={"nodata": -9999.0}),

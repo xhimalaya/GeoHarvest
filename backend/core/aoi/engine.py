@@ -3,11 +3,26 @@ from typing import Dict, Any, Tuple, Optional, List
 import shapely.geometry
 import shapely.validation
 from pyproj import Geod
+from backend.core.crs.engine import STRICT_OUTPUT_CRS, crs_engine, is_epsg4326
 
 geod = Geod(ellps="WGS84")
 
 
 class AOIEngine:
+    @staticmethod
+    def _extract_geojson_crs(data: Any) -> Optional[str]:
+        """Detect a legacy GeoJSON CRS specification if present."""
+        if not isinstance(data, dict):
+            return None
+        crs_obj = data.get("crs")
+        if isinstance(crs_obj, str) and crs_obj.strip():
+            return crs_obj.strip()
+        if isinstance(crs_obj, dict):
+            props = crs_obj.get("properties")
+            if isinstance(props, dict) and props.get("name"):
+                return str(props["name"]).strip()
+        return None
+
     @staticmethod
     def extract_geometry(data: Any) -> Optional[Dict[str, Any]]:
         """Extract a single geometry dict from GeoJSON Feature, FeatureCollection, or raw geometry."""
@@ -61,6 +76,9 @@ class AOIEngine:
                         "bbox": [0, 0, 0, 0],
                         "normalized_geometry": {}
                     }
+                declared_crs = cls._extract_geojson_crs(geojson_data)
+                if declared_crs and not is_epsg4326(declared_crs):
+                    raw_geom = crs_engine.transform_geometry(raw_geom, declared_crs, STRICT_OUTPUT_CRS)
                 geom = shapely.geometry.shape(raw_geom)
             else:
                 return {

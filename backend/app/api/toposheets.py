@@ -349,15 +349,18 @@ async def harvest_toposheets(request: ToposheetHarvestRequest, db: Session = Dep
             )
         )
 
-    job = job_engine.create_harvest_job(
-        name=request.name or "TopoSheet Harvest",
-        scenes=scenes,
-        selected_bands=["all"],
-        db=db,
-        destination_dir=request.destination_dir,
-        is_toposheet=True,
-        target_crs=request.target_crs,
-    )
+    try:
+        job = job_engine.create_harvest_job(
+            name=request.name or "TopoSheet Harvest",
+            scenes=scenes,
+            selected_bands=["all"],
+            db=db,
+            destination_dir=request.destination_dir,
+            is_toposheet=True,
+            target_crs=request.target_crs,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     downloads_count = db.query(Download).filter(Download.job_id == job.id).count()
     return JobResponse(

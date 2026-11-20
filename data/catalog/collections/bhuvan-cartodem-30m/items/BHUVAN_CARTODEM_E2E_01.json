@@ -1,0 +1,60 @@
+{
+  "stac_version": "1.0.0",
+  "type": "Feature",
+  "id": "BHUVAN_CARTODEM_E2E_01",
+  "collection": "bhuvan-cartodem-30m",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": []
+  },
+  "bbox": [
+    77.0,
+    34.0,
+    78.0,
+    35.0
+  ],
+  "properties": {
+    "datetime": "2024-01-01T00:00:00Z",
+    "proj:code": "EPSG:4326",
+    "proj:shape": [
+      16,
+      16
+    ],
+    "gsd": 0.0003,
+    "geoharvest:band_descriptions": [
+      "CartoDEM GeoTIFF"
+    ],
+    "geoharvest:band_keys": [
+      "cartodem"
+    ],
+    "geoharvest:band_count": 1
+  },
+  "assets": {
+    "stacked": {
+      "href": "/tmp/pytest-of-himalaya/pytest-6/test_full_bhuvan_harvest_job_w0/E2E_Bhuvan_Harvest/bhuvan-cartodem-30m/2024/01/BHUVAN_CARTODEM_E2E_01.tif",
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "file:size": 2103,
+      "roles": [
+        "data"
+      ],
+      "eo:bands": [
+        {
+          "name": "cartodem",
+          "description": "CartoDEM GeoTIFF"
+        }
+      ]
+    }
+  },
+  "links": [
+    {
+      "rel": "root",
+      "href": "../../../catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "../collection.json",
+      "type": "application/json"
+    }
+  ]
+}
