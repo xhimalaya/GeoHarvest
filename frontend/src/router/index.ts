@@ -57,6 +57,16 @@ const router = createRouter({
       name: 'ask',
       component: AskView,
     },
+    {
+      path: '/atlas/rasters',
+      name: 'atlas-rasters',
+      component: () => import('../views/RasterWorkflowsView.vue'),
+    },
+    {
+      path: '/wms-demo',
+      name: 'wms-demo',
+      component: () => import('../views/WmsDemoView.vue'),
+    },
   ],
 })
 

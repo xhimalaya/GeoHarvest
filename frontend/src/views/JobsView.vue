@@ -154,7 +154,7 @@
                   &bull; {{ failedScenesCount }} failed
                 </span>
               </template>
-              <span v-else>
+              <span v-else-if="jobStore.currentJob.type !== 'raster_workflow'">
                 {{ currentCompletedDownloads }} / {{ currentTotalDownloads }} files completed
               </span>
             </div>
@@ -170,6 +170,11 @@
 
           <!-- Job Controls -->
           <div class="flex flex-wrap items-center gap-2 shrink-0">
+            <router-link
+              v-if="jobStore.currentJob.type === 'raster_workflow' && jobStore.currentJob.status === 'COMPLETED'"
+              :to="{ name: 'atlas-rasters', query: { job: jobStore.currentJob.id } }"
+              class="px-3 py-1.5 rounded-[8px] gh-btn-primary text-[12.5px] font-medium"
+            >View in Atlas</router-link>
             <button
               @click="isTelemetryOpen = !isTelemetryOpen"
               :class="[
@@ -185,7 +190,7 @@
             </button>
 
             <button
-              v-if="jobStore.currentJob.status === 'RUNNING'"
+              v-if="jobStore.currentJob.status === 'RUNNING' && jobStore.currentJob.type !== 'raster_workflow'"
               @click="jobStore.pauseJob(jobStore.currentJob.id)"
               class="px-3 py-1.5 rounded-[8px] border gh-warning-border gh-warning-soft-bg gh-warning text-[12.5px] font-semibold flex items-center space-x-1.5 cursor-pointer"
             >
@@ -223,6 +228,7 @@
             </button>
 
             <button
+              v-if="jobStore.currentJob.type !== 'raster_workflow'"
               @click="openInFileManager(jobStore.currentJob)"
               class="px-3 py-1.5 rounded-[8px] gh-btn-secondary text-[12.5px] font-medium flex items-center space-x-1.5 cursor-pointer"
               title="Browse downloaded files in File Browser"

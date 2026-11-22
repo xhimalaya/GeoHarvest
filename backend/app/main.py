@@ -24,6 +24,7 @@ from backend.app.api.ws import router as ws_router
 from backend.app.api.sources import router as sources_router
 from backend.app.api.crs import router as crs_router
 from backend.app.api.processing import router as processing_router
+from backend.app.api.raster_workflows import router as raster_workflows_router
 from backend.app.api.satellites import router as satellites_router
 from backend.app.api.credentials import router as credentials_router
 from backend.app.api.weather import router as weather_router
@@ -82,6 +83,7 @@ app.include_router(search_router)
 app.include_router(storage_router)
 app.include_router(jobs_router)
 app.include_router(processing_router)
+app.include_router(raster_workflows_router)
 app.include_router(catalog_router)
 app.include_router(system_router)
 app.include_router(ws_router)

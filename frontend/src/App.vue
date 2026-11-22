@@ -81,7 +81,7 @@
 
         <router-link
           to="/ask"
-          :class="['gh-nav-item', $route.name === 'ask' ? 'gh-nav-item-active' : '']"
+          :class="['gh-nav-item', ['ask', 'atlas-rasters'].includes(String($route.name)) ? 'gh-nav-item-active' : '']"
         >
           <MessageSquare class="w-4 h-4 shrink-0" />
           <span>ATLAS</span>

@@ -1,4 +1,5 @@
 import io
+import math
 import uuid
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -12,6 +13,7 @@ import rasterio.mask
 import shapely.geometry
 from PIL import Image
 from rasterio.transform import from_bounds
+from rasterio.warp import transform_bounds
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
@@ -390,7 +392,7 @@ def _parse_bbox_csv(raw_bbox: Optional[str]) -> Optional[List[float]]:
         return None
     try:
         parts = [float(x.strip()) for x in raw_bbox.split(",") if x.strip()]
-        if len(parts) == 4 and parts[0] < parts[2] and parts[1] < parts[3]:
+        if len(parts) == 4 and all(map(math.isfinite, parts)) and parts[0] < parts[2] and parts[1] < parts[3]:
             return parts
     except Exception:
         pass
@@ -472,7 +474,7 @@ async def proxy_wms_getmap(request: Request):
     """
     Proxies OGC WMS GetMap tile requests from OpenLayers to avoid browser CORS blocks,
     government SSL certificate chain issues, and WMS 1.3.0 / EPSG:3857 CRS mismatches.
-    Falls back to a georeferenced RGBA preview tile when the remote server is offline.
+    Falls back to a georeferenced RGBA preview tile unless STRICT is enabled.
     """
     ci_params: Dict[str, str] = {}
     for k, v in request.query_params.multi_items():
@@ -489,10 +491,25 @@ async def proxy_wms_getmap(request: Request):
 
     styles = ci_params.get("styles") if "styles" in ci_params else (detected.get("styles") or "")
     img_format = ci_params.get("format") or detected.get("format") or "image/png"
-    crs = ci_params.get("srs") or ci_params.get("crs") or "EPSG:4326"
+    version = ci_params.get("version") or "1.1.1"
+    if version not in {"1.1.1", "1.3.0"}:
+        raise HTTPException(status_code=400, detail="WMS version must be 1.1.1 or 1.3.0.")
+    strict = ci_params.get("strict", "").lower() in {"1", "true", "yes"}
+    crs_key = "CRS" if version == "1.3.0" else "SRS"
+    crs = ci_params.get(crs_key.lower()) or ci_params.get("srs") or ci_params.get("crs") or "EPSG:4326"
+    if version == "1.1.1" and crs.upper() == "CRS:84":
+        crs = "EPSG:4326"
     bbox_str = ci_params.get("bbox") or ""
     extent_bbox = _parse_bbox_csv(ci_params.get("extent_bbox")) or detected.get("bbox")
-    tile_bbox = _parse_bbox_csv(bbox_str) or extent_bbox
+    request_bbox = _parse_bbox_csv(bbox_str)
+    latitude_first = version == "1.3.0" and crs.upper() == "EPSG:4326"
+    if not bbox_str:
+        bounds = extent_bbox or [-180, -90, 180, 90]
+        if crs.upper() == "EPSG:3857":
+            west, south, east, north = bounds
+            bounds = list(transform_bounds("EPSG:4326", crs, west, max(south, -85.051129), east, min(north, 85.051129)))
+        request_bbox = [bounds[i] for i in (1, 0, 3, 2)] if latitude_first else bounds
+        bbox_str = ",".join(map(str, request_bbox))
 
     try:
         width = max(64, min(int(float(ci_params.get("width") or 256)), 2048))
@@ -507,22 +524,25 @@ async def proxy_wms_getmap(request: Request):
     upstream_params = dict(detected.get("vendor_params") or {})
     upstream_params.update({
         "SERVICE": "WMS",
-        "VERSION": "1.1.1",
+        "VERSION": version,
         "REQUEST": "GetMap",
         "FORMAT": img_format,
         "TRANSPARENT": "true",
         "LAYERS": layers,
         "STYLES": styles,
-        "SRS": "EPSG:4326" if crs.upper() in ("EPSG:4326", "CRS:84") else crs,
+        crs_key: crs,
         "WIDTH": str(width),
         "HEIGHT": str(height),
-        "BBOX": bbox_str if bbox_str else (",".join(str(x) for x in tile_bbox) if tile_bbox else "-180,-90,180,90"),
+        "BBOX": bbox_str,
     })
     getmap_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, urlencode(upstream_params), ""))
 
+    upstream_error = "Upstream WMS returned no map image."
     try:
         async with httpx.AsyncClient(timeout=8.0, follow_redirects=True, verify=False) as client:
             resp = await client.get(getmap_url)
+            if resp.status_code != 200:
+                upstream_error = f"Upstream WMS returned HTTP {resp.status_code}."
             if resp.status_code == 200 and resp.content:
                 ct = (resp.headers.get("content-type") or "").lower()
                 head = resp.content[:300].decode("utf-8", errors="ignore").strip().lower()
@@ -535,15 +555,36 @@ async def proxy_wms_getmap(request: Request):
                     or head.startswith("<!doctype html")
                     or head.startswith("<html")
                 )
-                if not is_xml_or_html:
+                if is_xml_or_html:
+                    upstream_error = "Upstream WMS returned an XML or HTML document instead of a map."
+                else:
+                    media_type = resp.headers.get("content-type") or img_format
+                    if strict:
+                        with Image.open(io.BytesIO(resp.content)) as image:
+                            if image.size != (width, height):
+                                raise ValueError(f"Upstream WMS returned a {image.width}×{image.height} image for a {width}×{height} request.")
+                            media_type = Image.MIME.get(image.format, media_type)
+                            image.verify()
                     return Response(
                         content=resp.content,
-                        media_type=resp.headers.get("content-type") or img_format,
-                        headers={"Cache-Control": "public, max-age=300"},
+                        media_type=media_type,
+                        headers={"Cache-Control": "public, max-age=300", "X-GeoHarvest-WMS-Source": "upstream"},
                     )
-    except Exception:
-        pass
+    except (OSError, SyntaxError, Image.DecompressionBombError):
+        upstream_error = "Upstream WMS returned an unreadable map image."
+    except ValueError as exc:
+        upstream_error = str(exc)
+    except (httpx.HTTPError, httpx.InvalidURL):
+        upstream_error = "Could not reach the upstream WMS."
 
+    if strict:
+        raise HTTPException(status_code=502, detail=upstream_error, headers={"Cache-Control": "no-store"})
+
+    tile_bbox = request_bbox or extent_bbox
+    if request_bbox and latitude_first:
+        tile_bbox = [request_bbox[i] for i in (1, 0, 3, 2)]
+    elif request_bbox and crs.upper() == "EPSG:3857":
+        tile_bbox = list(transform_bounds("EPSG:3857", "EPSG:4326", *request_bbox))
     fallback_png = _synthesize_wms_tile_png(
         width=width,
         height=height,
@@ -553,7 +594,7 @@ async def proxy_wms_getmap(request: Request):
     return Response(
         content=fallback_png,
         media_type="image/png",
-        headers={"Cache-Control": "no-cache"},
+        headers={"Cache-Control": "no-cache", "X-GeoHarvest-WMS-Source": "fallback"},
     )
 
 

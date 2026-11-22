@@ -70,6 +70,11 @@
             </div>
           </div>
 
+          <label v-if="rasterLayer" class="flex items-center justify-between gap-3 gh-surface-primary border gh-border rounded-lg p-3">
+            <span>{{ rasterLayer.name }}</span>
+            <input v-model="rasterVisible" type="checkbox" aria-label="Show workflow raster" />
+          </label>
+
           <!-- 2-Column Layout -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <!-- Left Column: Imagery & Atmospheric Layers -->
@@ -944,11 +949,15 @@ const mapContainer = ref<HTMLElement | null>(null)
 
 interface Props {
   isLeftPanelOpen?: boolean
+  rasterLayer?: { id: string; name: string; url: string; bounds: number[] } | null
+  inspectRaster?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isLeftPanelOpen: true
 })
+const emit = defineEmits<{ rasterPoint: [lon: number, lat: number] }>()
+const rasterVisible = ref(true)
 
 function mapCtrlClass(isActive: boolean) {
   if (isActive) {
@@ -1082,6 +1091,7 @@ let measureLayer: VectorLayer | null = null
 let weatherPointSource: VectorSource = new VectorSource()
 let weatherPointLayer: VectorLayer | null = null
 let wmsLayerGroup: Group | null = null
+let workflowTileLayer: TileLayer<XYZ> | null = null
 let currentDrawInteraction: Draw | null = null
 
 // Active scene image layers indexed by scene ID
@@ -1172,6 +1182,7 @@ const renderedImageryCount = computed(() => targetScenesToRender.value.length)
 const activeWmsCount = computed(() => harvestStore.activeWmsLayers.filter((l) => l.visible).length)
 const totalActiveOverlayCount = computed(
   () => (harvestStore.showSatelliteImagery ? renderedImageryCount.value : 0) + activeWmsCount.value
+    + Number(!!props.rasterLayer && rasterVisible.value)
 )
 
 onMounted(() => {
@@ -1294,6 +1305,7 @@ onMounted(() => {
     zIndex: 15,
   })
 
+  workflowTileLayer = new TileLayer({ visible: false, zIndex: 9.5 })
   olMap = new OlMap({
     target: mapContainer.value,
     layers: [
@@ -1306,6 +1318,7 @@ onMounted(() => {
       scenesLayer,
       temperatureRadarLayer,
       wmsLayerGroup,
+      workflowTileLayer,
       aoiLayer,
       weatherPointLayer,
       measureLayer,
@@ -1358,6 +1371,11 @@ onMounted(() => {
   // Click handler: toggle scene selection and inspect clicked area weather
   olMap.on('singleclick', (evt) => {
     if (activeDrawType.value) return // Drawing takes precedence
+    if (props.inspectRaster && props.rasterLayer && rasterVisible.value) {
+      const [lon, lat] = toLonLat(evt.coordinate)
+      emit('rasterPoint', lon, lat)
+      return
+    }
     olMap?.forEachFeatureAtPixel(evt.pixel, (feature, layer) => {
       if (layer === scenesLayer) {
         const id = feature.getId() as string
@@ -1381,6 +1399,8 @@ onMounted(() => {
   // Initialize scene raster layers
   updateSceneImageLayers()
   updateWmsLayers()
+  updateWorkflowLayer()
+  if (props.rasterLayer) fitMapToBBox(props.rasterLayer.bounds)
 
   if (
     harvestStore.mapCommand?.type === 'ZoomToBBox' &&
@@ -2139,6 +2159,21 @@ function fitMapToBBox(bbox?: number[]) {
     console.warn('Could not fit bbox:', e)
   }
 }
+
+function updateWorkflowLayer() {
+  if (!workflowTileLayer) return
+  workflowTileLayer.setSource(props.rasterLayer ? new XYZ({
+    url: props.rasterLayer.url, tileSize: 256, maxZoom: 30, wrapX: false,
+  }) : null)
+  workflowTileLayer.setVisible(!!props.rasterLayer && rasterVisible.value)
+}
+
+watch(() => props.rasterLayer?.url, updateWorkflowLayer)
+watch(() => props.rasterLayer?.id, () => {
+  rasterVisible.value = true
+  if (props.rasterLayer) fitMapToBBox(props.rasterLayer.bounds)
+})
+watch(rasterVisible, (visible) => workflowTileLayer?.setVisible(visible && !!props.rasterLayer))
 
 // Synchronize OGC WMS TileWMS layers with harvestStore.activeWmsLayers
 function updateWmsLayers() {

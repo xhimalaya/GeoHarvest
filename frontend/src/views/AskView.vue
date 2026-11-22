@@ -100,6 +100,9 @@
         </div>
 
         <div class="flex items-center space-x-2 shrink-0">
+          <router-link to="/atlas/rasters" class="px-3 py-1.5 rounded-[7px] gh-btn-secondary text-[12.5px] font-medium">
+            Raster workflows
+          </router-link>
           <div
             class="hidden lg:flex items-center space-x-1.5 px-2 py-1 rounded-[7px] border gh-border gh-surface-secondary text-[11.5px] gh-text-secondary"
             role="note"

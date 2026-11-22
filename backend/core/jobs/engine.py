@@ -25,6 +25,7 @@ from backend.core.download.engine import DownloadEngine, DownloadCancelledExcept
 from backend.core.catalog.engine import catalog_engine
 from backend.core.crs.engine import STRICT_OUTPUT_CRS, enforce_strict_epsg4326
 from backend.core.processing.executor import GeoProcessExecutor
+from backend.core.processing.workflows import jobs as workflow_jobs
 from backend.core.processing.scene_stacker import (
     scene_stacking_service,
     run_scene_stack_task,
@@ -458,6 +459,11 @@ class JobEngine:
         try:
             job = db.query(Job).filter(Job.id == job_id).first()
             if not job or job.status in [JobStatus.PAUSED, JobStatus.CANCELLED]:
+                return
+
+            if job.type == workflow_jobs.WORKFLOW_JOB:
+                db.close()
+                await workflow_jobs.run(job_id, self._broadcast)
                 return
 
             job.status = JobStatus.RUNNING
@@ -1383,10 +1389,12 @@ class JobEngine:
                 del self._active_tasks[job_id]
 
     def pause_job(self, job_id: str, db: Session) -> bool:
+        job = db.query(Job).filter(Job.id == job_id).first()
+        if job and job.type == workflow_jobs.WORKFLOW_JOB:
+            return False
         if job_id in self._cancellation_events:
             self._cancellation_events[job_id].set()
 
-        job = db.query(Job).filter(Job.id == job_id).first()
         if job and job.status == JobStatus.RUNNING:
             job.status = JobStatus.PAUSED
             db.commit()
@@ -1398,6 +1406,8 @@ class JobEngine:
         job = db.query(Job).filter(Job.id == job_id).first()
         if not job or job.status not in [JobStatus.PAUSED, JobStatus.FAILED, JobStatus.QUEUED]:
             return False
+        if job.type == workflow_jobs.WORKFLOW_JOB:
+            return self._retry_workflow(job, db)
 
         # Reset paused/failed downloads to pending
         downloads = db.query(Download).filter(
@@ -1503,6 +1513,22 @@ class JobEngine:
         except RuntimeError:
             pass
 
+    def enqueue_workflow(self, job_id: str) -> None:
+        self._enqueue_job_execution(job_id)
+
+    def _retry_workflow(self, job: Job, db: Session) -> bool:
+        task = self._active_tasks.get(job.id)
+        if task and not task.done():
+            return False
+        job.status = JobStatus.QUEUED
+        job.progress = 0.0
+        job.error = None
+        job.completed_at = None
+        db.commit()
+        self._enqueue_job_execution(job.id)
+        self._broadcast({"type": "job_status", "job_id": job.id, "status": "QUEUED"})
+        return True
+
     @staticmethod
     def _unlink_download_files(dest_str: Optional[str]) -> None:
         if not dest_str:
@@ -1535,6 +1561,10 @@ class JobEngine:
         job = db.query(Job).filter(Job.id == job_id).first()
         if not job:
             return False
+        if job.type == workflow_jobs.WORKFLOW_JOB:
+            if job.status == JobStatus.RUNNING:
+                return False
+            return self._retry_workflow(job, db)
 
         all_dls = db.query(Download).filter(Download.job_id == job_id).all()
         dls_by_id = {d.id: d for d in all_dls}
@@ -1697,6 +1727,9 @@ class JobEngine:
             self._cancellation_events[job_id].set()
 
         job = db.query(Job).filter(Job.id == job_id).first()
+        if job and job.type == workflow_jobs.WORKFLOW_JOB:
+            if job.status not in (JobStatus.QUEUED, JobStatus.RUNNING):
+                return False
         if job:
             job.status = JobStatus.CANCELLED
             downloads = db.query(Download).filter(Download.job_id == job_id).all()

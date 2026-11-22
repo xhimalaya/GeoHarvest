@@ -495,13 +495,18 @@ onMounted(() => {
             </p>
           </div>
         </div>
-        <button
-          @click="close"
-          class="p-1.5 rounded-[6px] gh-btn-ghost cursor-pointer"
-          title="Close"
-        >
-          <X class="w-4 h-4" />
-        </button>
+        <div class="flex items-center gap-2 shrink-0">
+          <router-link to="/wms-demo" class="px-3 py-1.5 rounded-[7px] gh-btn-secondary text-xs font-medium" @click="close">
+            WMS test map
+          </router-link>
+          <button
+            @click="close"
+            class="p-1.5 rounded-[6px] gh-btn-ghost cursor-pointer"
+            title="Close"
+          >
+            <X class="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       <!-- Sub-navigation Tabs -->
