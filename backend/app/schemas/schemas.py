@@ -59,6 +59,7 @@ class AssetInfo(BaseModel):
 class ThumbnailGrid(BaseModel):
     crs: str
     bbox: Tuple[float, float, float, float]
+    wgs84_bbox: Optional[Tuple[float, float, float, float]] = None
 
 
 class SearchResultItem(BaseModel):
@@ -87,6 +88,7 @@ class SearchResponse(BaseModel):
     total_found: int
     items: List[SearchResultItem]
     recommended_ids: List[str] = Field(default_factory=list)
+    best_mosaic_ids: List[str] = Field(default_factory=list)
     months: List[MonthCoverage] = Field(default_factory=list)
 
 
@@ -95,6 +97,8 @@ class StorageEstimateRequest(BaseModel):
     selected_scenes: List[SearchResultItem]
     selected_bands: List[str] = Field(default_factory=lambda: ["visual", "red", "green", "blue", "nir"])
     destination_dir: Optional[str] = None
+    aoi: Optional[Dict[str, Any]] = None
+    target_resolution: Optional[Union[str, float]] = "finest"
 
 
 class StorageEstimateResponse(BaseModel):
