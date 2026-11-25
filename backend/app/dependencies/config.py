@@ -18,6 +18,36 @@ class Settings(BaseSettings):
     downloads_dir: Path = data_dir / "downloads"
     catalog_dir: Path = data_dir / "catalog"
     aois_dir: Path = data_dir / "aois"
+    geoserver_files_dir: Path = data_dir / "geoserver_files"
+    geoserver_enabled: bool = Field(default=False, validation_alias="GEOHARVEST_GEOSERVER_ENABLED")
+    geoserver_rest_url: str = Field(
+        default="http://localhost:8080/geoserver",
+        validation_alias="GEOHARVEST_GEOSERVER_REST_URL",
+    )
+    geoserver_public_url: str = Field(
+        default="http://localhost:8080/geoserver",
+        validation_alias="GEOHARVEST_GEOSERVER_PUBLIC_URL",
+    )
+    geoserver_admin_user: str = Field(
+        default="admin",
+        validation_alias="GEOHARVEST_GEOSERVER_ADMIN_USER",
+    )
+    geoserver_admin_password: str = Field(
+        default="geoserver-change-me",
+        validation_alias="GEOHARVEST_GEOSERVER_ADMIN_PASSWORD",
+    )
+    geoserver_workspace: str = Field(
+        default="geoharvest",
+        validation_alias="GEOHARVEST_GEOSERVER_WORKSPACE",
+    )
+    geoserver_downloads_mount: str = Field(
+        default="/opt/geoserver_data/downloads",
+        validation_alias="GEOHARVEST_GEOSERVER_DOWNLOADS_MOUNT",
+    )
+    geoserver_external_mount: str = Field(
+        default="/opt/geoserver_external",
+        validation_alias="GEOHARVEST_GEOSERVER_EXTERNAL_MOUNT",
+    )
     db_path: Path = data_dir / "geoharvest.db"
     host_home_path: Path = Field(
         default_factory=Path.home,
@@ -96,3 +126,4 @@ settings.data_dir.mkdir(parents=True, exist_ok=True)
 settings.downloads_dir.mkdir(parents=True, exist_ok=True)
 settings.catalog_dir.mkdir(parents=True, exist_ok=True)
 settings.aois_dir.mkdir(parents=True, exist_ok=True)
+settings.geoserver_files_dir.mkdir(parents=True, exist_ok=True)

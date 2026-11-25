@@ -22,6 +22,7 @@ from backend.app.models.models import (
 )
 from backend.app.schemas.schemas import SearchResultItem
 from backend.core.download.engine import DownloadEngine, DownloadCancelledException
+from backend.core.geoserver import geoserver_manager
 from backend.core.catalog.engine import catalog_engine
 from backend.core.crs.engine import STRICT_OUTPUT_CRS, enforce_strict_epsg4326
 from backend.core.processing.executor import GeoProcessExecutor
@@ -155,6 +156,27 @@ class JobEngine:
                 listener(event_data)
             except Exception:
                 pass
+
+    async def _publish_to_geoserver(self, path: Path) -> Optional[Dict[str, Any]]:
+        """Mirror/publish a finalized download to GeoServer without altering job completion."""
+        if not settings.geoserver_enabled or ".staging" in path.parts:
+            return None
+        try:
+            publish_result = await geoserver_manager.ingest(path)
+            if publish_result.get("published"):
+                logger.info(
+                    "Published raster to GeoServer WMS: %s",
+                    publish_result.get("layer"),
+                )
+            return publish_result
+        except Exception as geoserver_exc:
+            # GeoServer publishing must not change the download or scene's success state.
+            logger.warning(
+                "Download completed, but GeoServer sync failed for %s: %s",
+                path,
+                geoserver_exc,
+            )
+            return {"published": False, "error": str(geoserver_exc)}
 
     def create_harvest_job(
         self,
@@ -645,6 +667,10 @@ class JobEngine:
                                 )
                         finally:
                             cat_db.close()
+
+                        for asset_path in dict.fromkeys(downloaded_assets.values()):
+                            await self._publish_to_geoserver(asset_path)
+
                         await update_scene_plan_metadata(scene_id, status="completed", error=None)
                         self._broadcast({
                             "type": "scene_progress",
@@ -883,6 +909,10 @@ class JobEngine:
                         # Only clean temporary staging folder AFTER final stacked file is confirmed & cataloged
                         _cleanup_staging_dir(plan.get("staging_dir"))
 
+                        publish_result = await self._publish_to_geoserver(final_path)
+                        if publish_result:
+                            stacked_meta["geoserver"] = publish_result
+
                         await update_scene_plan_metadata(
                             scene_id,
                             status="completed",
@@ -1068,6 +1098,9 @@ class JobEngine:
                             "error": dl.last_error
                         })
                         update_and_broadcast_job_progress(sub_db, job_id)
+
+                        if success and ".staging" not in dest.parts and not (has_scene_plans and finalize_scene_id):
+                            await self._publish_to_geoserver(dest)
 
                     except DownloadCancelledException:
                         dl = sub_db.query(Download).filter(Download.id == dl_id).first()
@@ -1353,6 +1386,7 @@ class JobEngine:
                                             sz = out_p.stat().st_size
                                             dl.total_bytes = sz
                                             dl.downloaded_bytes = sz
+                                        await self._publish_to_geoserver(dest_p)
                                 except Exception as reproj_exc:
                                     logger.warning(f"Legacy raster reprojection skipped for {dest_p}: {reproj_exc}")
                             downloaded_assets[a_key] = dest_p

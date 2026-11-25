@@ -94,6 +94,25 @@ docker compose logs -f
 ```
 
 The application will be live at **`http://localhost:9009`**.
+The separate GeoServer instance will be available at **`http://localhost:8080/geoserver/web`**; its WMS 1.3.0 endpoint is **`http://localhost:8080/geoserver/wms`**.
+
+GeoServer keeps its catalog in a persistent Docker volume. It can read the shared `data/downloads/` directory, and downloads made to a custom folder are copied into `data/geoserver_files/`. GeoTIFF downloads (`.tif` and `.tiff`) are automatically published as WMS layers in the `geoharvest` workspace. Other downloaded files remain stored and accessible in the GeoServer container's mounted data folders.
+
+Set `GEOSERVER_ADMIN_PASSWORD` in `.env` before starting the stack if you want a different local admin password. GeoServer binds to `127.0.0.1` by default; set `GEOSERVER_BIND_ADDRESS` deliberately if you need access from another machine.
+
+### GeoServer WMS 1.3.0
+
+- `GET /api/geoserver/status`: GeoServer availability and WMS endpoint.
+- `GET /api/geoserver/layers`: Published layers in the `geoharvest` workspace.
+- `GET /api/geoserver/wms-url`: Build a WMS 1.3.0 `GetMap` URL for a published layer. Pass `layer`, `bbox`, `width`, `height`, and optional `crs`, `format`, `transparent`, `name`, `args`, and `styles` query parameters.
+
+For example, a URL returned by `/api/geoserver/wms-url` follows this shape:
+
+```text
+http://localhost:8080/geoserver/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&FORMAT=image%2Fpng&TRANSPARENT=true&name=Snow%20Melt&layers=geoharvest%3Agh_snow_melt_0123abcd&ARGS=merge_method%3Amax%3Bdataset_id%3AT4S3P1&STYLES=gh_ramp_0123456789ab&PROJECTION=EPSG%3A4326&WIDTH=256&HEIGHT=256&CRS=EPSG%3A4326&BBOX=35.33203125%2C76.11328125%2C35.5078125%2C76.2890625
+```
+
+When `styles` is supplied as a `[value:RGBA:value:RGBA:...]` ramp, GeoHarvest registers an equivalent SLD color map and puts its GeoServer style name in `STYLES`. A normal GeoServer named style can also be passed. `name` and `ARGS` are retained as extra URL parameters for client compatibility; GeoServer does not use them to select data or apply processing. Use the published `layers` value returned by the API. For EPSG:4326 with WMS 1.3.0, send `BBOX` in latitude,longitude axis order.
 
 To stop the container:
 ```bash
@@ -152,6 +171,9 @@ uv run pytest tests/ -v
 - `POST /api/jobs/{id}/resume`: Resume downloads with HTTP Range requests.
 - `POST /api/jobs/{id}/cancel`: Cancel job execution.
 - `GET /api/catalog/datasets`: List harvested scenes in the local STAC catalog.
+- `GET /api/geoserver/status`: GeoServer health and WMS 1.3.0 endpoint.
+- `GET /api/geoserver/layers`: List raster layers published from downloaded GeoTIFFs.
+- `GET /api/geoserver/wms-url`: Build a WMS 1.3.0 `GetMap` URL for a layer.
 - `GET /api/system/status`: Real-time CPU, RAM, and Disk hardware telemetry.
 - `WS /api/ws`: Real-time WebSocket connection for streaming download speeds and status updates.
 

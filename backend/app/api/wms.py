@@ -19,6 +19,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from backend.app.dependencies.config import settings
+from backend.core.geoserver import geoserver_manager
 from backend.core.aoi.engine import AOIEngine
 from backend.core.crs.engine import STRICT_OUTPUT_CRS, enforce_strict_epsg4326
 
@@ -370,6 +371,75 @@ def parse_wms_url_config(raw_url: str) -> Dict[str, Any]:
     }
 
 
+def _default_port(scheme: str) -> Optional[int]:
+    if scheme == "http":
+        return 80
+    if scheme == "https":
+        return 443
+    return None
+
+
+def _rewrite_geoserver_url(raw_url: str) -> tuple[str, bool]:
+    """Translate browser-facing GeoServer URLs to the internal Docker/REST base URL."""
+    if not settings.geoserver_enabled:
+        return raw_url, False
+
+    rest_base = settings.geoserver_rest_url.strip().rstrip("/")
+    if not rest_base:
+        return raw_url, False
+
+    parsed = urlparse(raw_url)
+    rest_parsed = urlparse(rest_base)
+    rest_scheme = rest_parsed.scheme.lower()
+    rest_host = (rest_parsed.hostname or "").lower()
+    rest_port = rest_parsed.port or _default_port(rest_scheme)
+    rest_path = rest_parsed.path.rstrip("/")
+
+    req_scheme = parsed.scheme.lower()
+    req_host = (parsed.hostname or "").lower()
+    req_port = parsed.port or _default_port(req_scheme)
+
+    if (
+        req_scheme == rest_scheme
+        and req_host == rest_host
+        and req_port == rest_port
+        and (parsed.path == rest_path or parsed.path.startswith(f"{rest_path}/"))
+    ):
+        return raw_url, True
+
+    public_base = settings.geoserver_public_url.strip().rstrip("/")
+    if not public_base:
+        return raw_url, False
+
+    pub_parsed = urlparse(public_base)
+    pub_scheme = pub_parsed.scheme.lower()
+    pub_host = (pub_parsed.hostname or "").lower()
+    pub_port = pub_parsed.port or _default_port(pub_scheme)
+    pub_path = pub_parsed.path.rstrip("/")
+
+    local_hosts = {"localhost", "127.0.0.1"}
+    allowed_hosts = local_hosts if pub_host in local_hosts else {pub_host}
+
+    if (
+        req_scheme == pub_scheme
+        and req_host in allowed_hosts
+        and req_port == pub_port
+        and (parsed.path == pub_path or parsed.path.startswith(f"{pub_path}/"))
+    ):
+        suffix = parsed.path[len(pub_path):]
+        rewritten = urlunparse((
+            rest_parsed.scheme,
+            rest_parsed.netloc,
+            f"{rest_path}{suffix}",
+            parsed.params,
+            parsed.query,
+            parsed.fragment,
+        ))
+        return rewritten, True
+
+    return raw_url, False
+
+
 def _build_capabilities_url(raw_url: str, version: str = "1.3.0") -> str:
     cfg = parse_wms_url_config(raw_url)
     parsed = urlparse(cfg["base_url"])
@@ -536,11 +606,13 @@ async def proxy_wms_getmap(request: Request):
         "BBOX": bbox_str,
     })
     getmap_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, urlencode(upstream_params), ""))
+    upstream_getmap_url, is_geoserver = _rewrite_geoserver_url(getmap_url)
 
     upstream_error = "Upstream WMS returned no map image."
     try:
-        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True, verify=False) as client:
-            resp = await client.get(getmap_url)
+        timeout = 30.0 if is_geoserver else 8.0
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, verify=False) as client:
+            resp = await client.get(upstream_getmap_url)
             if resp.status_code != 200:
                 upstream_error = f"Upstream WMS returned HTTP {resp.status_code}."
             if resp.status_code == 200 and resp.content:
@@ -635,12 +707,13 @@ async def fetch_wms_capabilities(req: WmsCapabilitiesRequest):
     detected = parse_wms_url_config(req.url)
     effective_version = req.version or detected["version"] or "1.3.0"
     cap_url = _build_capabilities_url(req.url, effective_version)
+    upstream_cap_url, _ = _rewrite_geoserver_url(cap_url)
 
     xml_text = None
     cap_error = None
     try:
         async with httpx.AsyncClient(timeout=20.0, follow_redirects=True, verify=False) as client:
-            resp = await client.get(cap_url)
+            resp = await client.get(upstream_cap_url)
             resp.raise_for_status()
             xml_text = resp.text
     except Exception as e:
@@ -828,11 +901,13 @@ async def export_wms_to_geotiff(req: WmsExportRequest):
         params["BBOX"] = f"{minx},{miny},{maxx},{maxy}"
 
     getmap_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, urlencode(params), ""))
+    upstream_getmap_url, is_geoserver = _rewrite_geoserver_url(getmap_url)
 
     content_bytes = None
     try:
-        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True, verify=False) as client:
-            resp = await client.get(getmap_url)
+        timeout = 30.0 if is_geoserver else 15.0
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, verify=False) as client:
+            resp = await client.get(upstream_getmap_url)
             if resp.status_code == 200 and resp.content:
                 head_text = resp.content[:300].decode("utf-8", errors="ignore").strip()
                 if not (head_text.startswith("<?xml") or "<ServiceException" in head_text or "<ows:Exception" in head_text):
@@ -903,6 +978,13 @@ async def export_wms_to_geotiff(req: WmsExportRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to convert WMS response to GeoTIFF: {str(e)}")
 
+    geoserver_result = None
+    if settings.geoserver_enabled:
+        try:
+            geoserver_result = await geoserver_manager.ingest(out_path)
+        except Exception as geoserver_exc:
+            geoserver_result = {"published": False, "error": str(geoserver_exc)}
+
     return {
         "status": "completed",
         "layer": target_layer,
@@ -920,4 +1002,5 @@ async def export_wms_to_geotiff(req: WmsExportRequest):
         "bands": count,
         "getmap_url": getmap_url,
         "download_url": f"/api/storage/download?path={out_path.name}&root=downloads",
+        "geoserver": geoserver_result,
     }

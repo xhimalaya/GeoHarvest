@@ -183,3 +183,140 @@ def test_wms_strict_surfaces_failed_map_instead_of_fallback(client, monkeypatch,
     })
     assert response.status_code == 502
     assert expected in response.json()["detail"]
+
+
+def test_wms_proxy_rewrites_geoserver_public_url_to_rest_url(client, monkeypatch):
+    from backend.app.dependencies.config import settings
+
+    monkeypatch.setattr(settings, "geoserver_enabled", True)
+    monkeypatch.setattr(settings, "geoserver_public_url", "http://localhost:8080/geoserver")
+    monkeypatch.setattr(settings, "geoserver_rest_url", "http://geoserver:8080/geoserver")
+
+    captured_urls = []
+    png = _png(256, 256)
+
+    class _Client:
+        def __init__(self, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return False
+
+        async def get(self, url):
+            captured_urls.append(url)
+            return httpx.Response(200, content=png, headers={"Content-Type": "image/png"})
+
+    monkeypatch.setattr("backend.app.api.wms.httpx.AsyncClient", _Client)
+
+    for public_base in (
+        "http://localhost:8080/geoserver/wms",
+        "http://127.0.0.1:8080/geoserver/geoharvest/wms",
+    ):
+        resp = client.get(
+            "/api/wms/proxy",
+            params={
+                "TARGET_URL": public_base,
+                "LAYERS": "geoharvest:S2A_test",
+                "VERSION": "1.3.0",
+                "CRS": "EPSG:4326",
+                "BBOX": "34,77,35,78",
+                "WIDTH": 256,
+                "HEIGHT": 256,
+                "STRICT": True,
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.headers["x-geoharvest-wms-source"] == "upstream"
+
+    assert captured_urls[0].startswith("http://geoserver:8080/geoserver/wms?")
+    assert captured_urls[1].startswith("http://geoserver:8080/geoserver/geoharvest/wms?")
+
+    # Non-matching path prefix must not be rewritten
+    other_resp = client.get(
+        "/api/wms/proxy",
+        params={
+            "TARGET_URL": "http://localhost:8080/geoserver-other/wms",
+            "LAYERS": "other:layer",
+            "STRICT": True,
+        },
+    )
+    assert other_resp.status_code == 200
+    assert captured_urls[2].startswith("http://localhost:8080/geoserver-other/wms?")
+
+
+def test_wms_capabilities_and_export_rewrite_geoserver_public_url(client, tmp_path, monkeypatch):
+    from backend.app.dependencies.config import settings
+
+    monkeypatch.setattr(settings, "geoserver_enabled", True)
+    monkeypatch.setattr(settings, "geoserver_public_url", "http://localhost:8080/geoserver")
+    monkeypatch.setattr(settings, "geoserver_rest_url", "http://geoserver:8080/geoserver")
+    monkeypatch.setattr(settings, "downloads_dir", tmp_path)
+
+    captured_urls = []
+    caps_xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<WMS_Capabilities version="1.3.0">'
+        "<Service><Title>GeoServer WMS</Title></Service>"
+        "<Capability><Layer>"
+        "<Layer><Name>geoharvest:S2A_test</Name><Title>S2A_test</Title>"
+        "<CRS>EPSG:4326</CRS>"
+        "<EX_GeographicBoundingBox>"
+        "<westBoundLongitude>77.0</westBoundLongitude><eastBoundLongitude>78.0</eastBoundLongitude>"
+        "<southBoundLatitude>34.0</southBoundLatitude><northBoundLatitude>35.0</northBoundLatitude>"
+        "</EX_GeographicBoundingBox></Layer>"
+        "</Layer></Capability></WMS_Capabilities>"
+    ).encode("utf-8")
+    png = _png(128, 128)
+
+    class _Client:
+        def __init__(self, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return False
+
+        async def get(self, url):
+            captured_urls.append(url)
+            req = httpx.Request("GET", url)
+            if "GetCapabilities" in url:
+                return httpx.Response(200, content=caps_xml, headers={"Content-Type": "application/xml"}, request=req)
+            return httpx.Response(200, content=png, headers={"Content-Type": "image/png"}, request=req)
+
+    async def fake_ingest(path):
+        return {"published": True, "layer": f"geoharvest:{path.stem}"}
+
+    monkeypatch.setattr("backend.app.api.wms.httpx.AsyncClient", _Client)
+    monkeypatch.setattr("backend.app.api.wms.geoserver_manager.ingest", fake_ingest)
+
+    cap_resp = client.post(
+        "/api/wms/capabilities",
+        json={"url": "http://localhost:8080/geoserver/wms", "version": "1.3.0"},
+    )
+    assert cap_resp.status_code == 200
+    cap_body = cap_resp.json()
+    assert cap_body["url"] == "http://localhost:8080/geoserver/wms"
+    assert cap_body["layers"][0]["name"] == "geoharvest:S2A_test"
+    assert captured_urls[0].startswith("http://geoserver:8080/geoserver/wms?")
+
+    exp_resp = client.post(
+        "/api/wms/export",
+        json={
+            "url": "http://localhost:8080/geoserver/wms",
+            "layers": "geoharvest:S2A_test",
+            "version": "1.3.0",
+            "bbox": [77.0, 34.0, 78.0, 35.0],
+            "width": 128,
+            "height": 128,
+        },
+    )
+    assert exp_resp.status_code == 200
+    exp_body = exp_resp.json()
+    assert captured_urls[1].startswith("http://geoserver:8080/geoserver/wms?")
+    assert exp_body["getmap_url"].startswith("http://localhost:8080/geoserver/wms?")
+    assert exp_body["geoserver"]["published"] is True

@@ -1,4 +1,5 @@
 import os
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -31,6 +32,8 @@ from backend.app.api.weather import router as weather_router
 from backend.app.api.toposheets import router as toposheets_router
 from backend.app.api.earthengine import router as earthengine_router
 from backend.app.api.wms import router as wms_router
+from backend.app.api.geoserver import router as geoserver_router
+from backend.core.geoserver import sync_known_downloads
 from backend.ai.api.chat import router as ai_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -51,7 +54,14 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("Database and job engine ready. No crash recovery needed.")
 
+    geoserver_sync_task = None
+    if settings.geoserver_enabled:
+        logger.info("GeoServer integration enabled; syncing completed downloads in the background.")
+        geoserver_sync_task = asyncio.create_task(sync_known_downloads())
+
     yield
+    if geoserver_sync_task and not geoserver_sync_task.done():
+        geoserver_sync_task.cancel()
     logger.info("Shutting down GeoHarvest backend.")
     GeoProcessExecutor.shutdown(wait=False)
 
@@ -92,6 +102,7 @@ app.include_router(weather_router)
 app.include_router(toposheets_router)
 app.include_router(earthengine_router)
 app.include_router(wms_router)
+app.include_router(geoserver_router)
 app.include_router(ai_router)
 
 # Mount frontend/dist if built, otherwise serve status page

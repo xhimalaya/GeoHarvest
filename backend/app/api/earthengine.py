@@ -1,10 +1,13 @@
 from typing import Dict, Any, List, Optional
+from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from backend.core.earthengine.auth import ee_auth_manager
 from backend.core.earthengine.catalog import ee_catalog, EEDatasetSpec
 from backend.core.earthengine.service import ee_service
+from backend.app.dependencies.config import settings
+from backend.core.geoserver import geoserver_manager
 
 router = APIRouter(prefix="/api/earthengine", tags=["earthengine"])
 
@@ -175,6 +178,12 @@ async def export_dataset(req: ExportRequest):
             scale=req.scale or 30.0,
             crs=strict_crs,
         )
+        local_filepath = result.get("local_filepath") or result.get("output_path")
+        if settings.geoserver_enabled and local_filepath:
+            try:
+                result["geoserver"] = await geoserver_manager.ingest(Path(local_filepath))
+            except Exception as geoserver_exc:
+                result["geoserver"] = {"published": False, "error": str(geoserver_exc)}
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
