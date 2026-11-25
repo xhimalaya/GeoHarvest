@@ -10,6 +10,12 @@
 
 :root,
 html.theme-day {
+  --ambient-r: 108;
+  --ambient-g: 94;
+  --ambient-b: 44;
+  --ambient-rgb: 108, 94, 44;
+  --ambient-hex: #6c5e2c;
+
   --app-bg: #C5E4DE;
   --workspace-bg: #D9ECE8;
   --surface-primary: #F6FBF9;
@@ -415,7 +421,13 @@ textarea:focus,
   filter: none !important;
 }
 
-/* Theme-aware OpenLayers built-in controls (zoom, attribution) */
+/* Hide built-in OpenLayers top-left zoom/rotate in favor of Google Earth bottom-right navigation cluster */
+.ol-zoom,
+.ol-rotate {
+  display: none !important;
+}
+
+/* Theme-aware OpenLayers built-in controls (attribution) */
 .ol-control button {
   background-color: var(--surface-primary) !important;
   color: var(--text-secondary) !important;
@@ -431,7 +443,146 @@ textarea:focus,
   background-color: transparent !important;
 }
 .ol-attribution {
-  background-color: color-mix(in srgb, var(--surface-primary) 85%, transparent) !important;
-  color: var(--text-muted) !important;
-  border-radius: 6px 0 0 0 !important;
+  display: none !important;
+}
+
+/* ============================================================================
+   GOOGLE EARTH + YOUTUBE AMBIENT THEME SYSTEM
+   Both header and footer share one unified dynamic ambient glow sampled from
+   the center of the map canvas (warm olive over land, deep blue-teal over ocean).
+   ============================================================================ */
+
+.gh-ambient-header {
+  background-color: rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.28);
+  background-image:
+    radial-gradient(
+      ellipse 82% 240% at 50% 55%,
+      rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.58) 0%,
+      rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.34) 58%,
+      rgba(10, 18, 22, 0.44) 100%
+    ),
+    linear-gradient(
+      90deg,
+      rgba(10, 18, 22, 0.36) 0%,
+      rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.42) 50%,
+      rgba(10, 18, 22, 0.36) 100%
+    );
+  backdrop-filter: blur(22px) saturate(175%);
+  -webkit-backdrop-filter: blur(22px) saturate(175%);
+  border-bottom: 1px solid rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.48);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset;
+  transition:
+    background-color 550ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-image 550ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 550ms ease;
+}
+
+.gh-ambient-footer {
+  background-color: rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.30);
+  background-image:
+    radial-gradient(
+      ellipse 82% 250% at 50% 45%,
+      rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.62) 0%,
+      rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.36) 58%,
+      rgba(10, 18, 22, 0.44) 100%
+    ),
+    linear-gradient(
+      90deg,
+      rgba(10, 18, 22, 0.36) 0%,
+      rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.44) 50%,
+      rgba(10, 18, 22, 0.36) 100%
+    );
+  backdrop-filter: blur(22px) saturate(175%);
+  -webkit-backdrop-filter: blur(22px) saturate(175%);
+  border-top: 1px solid rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.50);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset;
+  transition:
+    background-color 550ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-image 550ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 550ms ease;
+}
+
+/* Google Earth Top-Left Floating Search Bar */
+.gh-earth-search {
+  background: linear-gradient(
+    135deg,
+    rgba(19, 26, 30, 0.84) 0%,
+    rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.20) 100%
+  );
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.42);
+  transition: border-color 200ms ease, box-shadow 200ms ease, background 500ms ease;
+}
+
+.gh-earth-search:focus-within {
+  border-color: #2dd4bf;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5), 0 0 0 2px rgba(45, 212, 191, 0.22);
+}
+
+/* Google Earth Left Floating Tool Stack Buttons (muted sandstone / ambient glass) */
+.gh-earth-tool-btn {
+  background: linear-gradient(
+    145deg,
+    rgba(30, 33, 32, 0.82) 0%,
+    rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.26) 100%
+  );
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: rgba(240, 246, 245, 0.88);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.38);
+  transition: all 180ms ease;
+}
+
+.gh-earth-tool-btn:hover {
+  background: linear-gradient(
+    145deg,
+    rgba(38, 44, 43, 0.92) 0%,
+    rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.36) 100%
+  );
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.gh-earth-tool-btn-active {
+  background: linear-gradient(
+    145deg,
+    rgba(17, 56, 56, 0.9) 0%,
+    rgba(45, 212, 191, 0.25) 100%
+  ) !important;
+  border-color: #2dd4bf !important;
+  color: #2dd4bf !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45), 0 0 12px rgba(45, 212, 191, 0.25) !important;
+}
+
+/* Google Earth Bottom-Right Compass, Zoom & View Controls (deep blue-green glass) */
+.gh-earth-nav-surface {
+  background: linear-gradient(
+    155deg,
+    rgba(16, 29, 33, 0.86) 0%,
+    rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.22) 100%
+  );
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: rgba(236, 245, 244, 0.92);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.46);
+  transition: all 200ms ease;
+}
+
+/* Floating Glass Drawers for Discovery & Scenes */
+.gh-earth-drawer {
+  background: linear-gradient(
+    170deg,
+    rgba(13, 21, 24, 0.92) 0%,
+    rgba(var(--ambient-r), var(--ambient-g), var(--ambient-b), 0.16) 100%
+  );
+  background-color: rgba(12, 19, 22, 0.88);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.62);
 }

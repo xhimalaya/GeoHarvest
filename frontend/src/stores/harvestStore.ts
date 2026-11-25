@@ -140,11 +140,28 @@ export const useHarvestStore = defineStore('harvest', {
 
     // UI Theme & Ribbon Navbar State
     uiTheme: ((): 'day' | 'night' => {
-      if (typeof localStorage === 'undefined') return 'day'
+      if (typeof localStorage === 'undefined') return 'night'
       const raw = localStorage.getItem('geoharvest_theme')
-      if (raw === 'night' || raw === 'bw-dark' || raw === 'dark') return 'night'
-      return 'day'
+      if (raw === 'day') return 'day'
+      return 'night'
     })(),
+    // Google Earth Floating Drawers & Ambient Theme State
+    isDiscoveryDrawerOpen: false,
+    isScenesDrawerOpen: false,
+    is3dHorizonEnabled: true,
+    activeBasemapLabel: 'Satellite imagery',
+    ambientColor: {
+      r: 108,
+      g: 94,
+      b: 44,
+      hex: '#6c5e2c',
+      label: 'Land · Highland Olive',
+    },
+    mapCursorCoords: {
+      lon: null as number | null,
+      lat: null as number | null,
+      zoom: 7,
+    },
     activeHarvestStep: 1 as 1 | 2 | 3,
     harvestShowAllSteps: false,
     activeProcessingTool: 'clip' as 'clip' | 'mosaic' | 'stack' | 'index' | 'terrain' | 'reproject' | 'stats',
@@ -582,16 +599,70 @@ export const useHarvestStore = defineStore('harvest', {
         this.liveWeather = null
       }
 
+      this.showWeatherHud = true
       const requestId = ++latestWeatherRequestId
       this.selectedWeatherPoint = point
       this.weatherError = null
       this.isLoadingWeather = true
       try {
-        const report = await api.getLiveWeather(point.lat, point.lon, refresh)
+        let report = await api.getLiveWeather(point.lat, point.lon, refresh)
+        // If backend wasn't restarted with elevation_m / precipitation_mm fields yet, enrich directly from Open-Meteo
+        if (report.elevation_m === undefined || report.precipitation_mm === undefined) {
+          try {
+            const omResp = await fetch(
+              `https://api.open-meteo.com/v1/forecast?latitude=${point.lat}&longitude=${point.lon}&current=temperature_2m,relative_humidity_2m,precipitation,cloud_cover,weather_code,wind_speed_10m`
+            )
+            if (omResp.ok) {
+              const omData = await omResp.json()
+              report = {
+                ...report,
+                elevation_m: Number(omData.elevation ?? report.elevation_m ?? 0),
+                precipitation_mm: Number(omData.current?.precipitation ?? report.precipitation_mm ?? 0),
+              }
+            }
+          } catch {
+            // Keep existing report values if client-side Open-Meteo enrichment is offline
+          }
+        }
         if (requestId === latestWeatherRequestId) {
           this.liveWeather = report
         }
       } catch (e: any) {
+        // Fallback: query Open-Meteo directly from client if backend route is unreachable
+        try {
+          const omResp = await fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${point.lat}&longitude=${point.lon}&current=temperature_2m,relative_humidity_2m,precipitation,cloud_cover,weather_code,wind_speed_10m`
+          )
+          if (omResp.ok) {
+            const omData = await omResp.json()
+            const cur = omData.current || {}
+            const cloud = Number(cur.cloud_cover ?? 0)
+            const viability = cloud <= 20 ? 'OPTIMAL' : cloud <= 50 ? 'MODERATE' : 'OVERCAST'
+            if (requestId === latestWeatherRequestId) {
+              this.liveWeather = {
+                latitude: point.lat,
+                longitude: point.lon,
+                elevation_m: Number(omData.elevation ?? 0),
+                time: cur.time || new Date().toISOString(),
+                temperature_c: Number(cur.temperature_2m ?? 0),
+                precipitation_mm: Number(cur.precipitation ?? 0),
+                relative_humidity_percent: Number(cur.relative_humidity_2m ?? 0),
+                cloud_cover_percent: cloud,
+                wind_speed_kmh: Number(cur.wind_speed_10m ?? 0),
+                weather_code: Number(cur.weather_code ?? 0),
+                weather_description: cloud <= 20 ? 'Clear Sky' : cloud <= 50 ? 'Partly Cloudy' : 'Overcast',
+                optical_viability: viability,
+                recommendation:
+                  viability === 'OPTIMAL'
+                    ? 'Optimal Optical Conditions — Sentinel-2 & Landsat clear views'
+                    : viability === 'MODERATE'
+                      ? 'Partially Cloudy — Recommend filtering scenes with <=20% cloud cover'
+                      : 'Overcast Conditions — Recommend Sentinel-1 C-band SAR',
+              }
+            }
+            return
+          }
+        } catch {}
         console.warn('Failed to load live weather telemetry:', e)
         if (requestId === latestWeatherRequestId) {
           this.weatherError = e?.message || 'Failed to load area weather telemetry'
@@ -928,6 +999,7 @@ export const useHarvestStore = defineStore('harvest', {
         if (this.searchResults.length > 0) {
           this.selectAoiCoverage('clearest')
           this.activeHarvestStep = 3
+          this.isScenesDrawerOpen = true
         } else {
           await this.calculateStorage()
         }
@@ -1098,6 +1170,8 @@ export const useHarvestStore = defineStore('harvest', {
         this.syncToposheetsToMap()
         if (this.toposheetResults.length === 0) {
           this.toposheetError = 'No intersecting topo-sheets found for this AOI and query.'
+        } else {
+          this.isScenesDrawerOpen = true
         }
       } catch (err: any) {
         this.toposheetResults = []
@@ -1244,6 +1318,30 @@ export const useHarvestStore = defineStore('harvest', {
 
     initTheme() {
       this.setTheme(this.uiTheme)
+      this.setAmbientColor(this.ambientColor.r, this.ambientColor.g, this.ambientColor.b, this.ambientColor.label)
+    },
+
+    setAmbientColor(r: number, g: number, b: number, label: string = 'Ambient') {
+      const cr = Math.max(0, Math.min(255, Math.round(r)))
+      const cg = Math.max(0, Math.min(255, Math.round(g)))
+      const cb = Math.max(0, Math.min(255, Math.round(b)))
+      const hex = `#${cr.toString(16).padStart(2, '0')}${cg.toString(16).padStart(2, '0')}${cb.toString(16).padStart(2, '0')}`
+      this.ambientColor = { r: cr, g: cg, b: cb, hex, label }
+      if (typeof document !== 'undefined') {
+        document.documentElement.style.setProperty('--ambient-r', String(cr))
+        document.documentElement.style.setProperty('--ambient-g', String(cg))
+        document.documentElement.style.setProperty('--ambient-b', String(cb))
+        document.documentElement.style.setProperty('--ambient-rgb', `${cr}, ${cg}, ${cb}`)
+        document.documentElement.style.setProperty('--ambient-hex', hex)
+      }
+    },
+
+    toggleDiscoveryDrawer(open?: boolean) {
+      this.isDiscoveryDrawerOpen = typeof open === 'boolean' ? open : !this.isDiscoveryDrawerOpen
+    },
+
+    toggleScenesDrawer(open?: boolean) {
+      this.isScenesDrawerOpen = typeof open === 'boolean' ? open : !this.isScenesDrawerOpen
     },
 
     triggerMapCommand(type: string, payload?: any) {

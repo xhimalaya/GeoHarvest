@@ -19,8 +19,10 @@ CACHE_TTL_SECONDS = 120  # 2 minutes
 class LiveWeatherReport(BaseModel):
     latitude: float
     longitude: float
+    elevation_m: float = 0.0
     time: str
     temperature_c: float
+    precipitation_mm: float = 0.0
     relative_humidity_percent: float
     cloud_cover_percent: float
     wind_speed_kmh: float
@@ -102,7 +104,7 @@ async def get_live_weather(
     url = (
         f"https://api.open-meteo.com/v1/forecast?"
         f"latitude={lat}&longitude={lon}&"
-        f"current=temperature_2m,relative_humidity_2m,cloud_cover,weather_code,wind_speed_10m"
+        f"current=temperature_2m,relative_humidity_2m,precipitation,cloud_cover,weather_code,wind_speed_10m"
     )
 
     try:
@@ -113,11 +115,13 @@ async def get_live_weather(
             
             raw_data = resp.json()
             cur = raw_data.get("current", {})
-            cloud_pct = float(cur.get("cloud_cover", 0.0))
-            temp_c = float(cur.get("temperature_2m", 0.0))
-            rh = float(cur.get("relative_humidity_2m", 0.0))
-            wind = float(cur.get("wind_speed_10m", 0.0))
-            w_code = int(cur.get("weather_code", 0))
+            elev_m = float(raw_data.get("elevation", 0.0) or 0.0)
+            cloud_pct = float(cur.get("cloud_cover", 0.0) or 0.0)
+            temp_c = float(cur.get("temperature_2m", 0.0) or 0.0)
+            precip_mm = float(cur.get("precipitation", 0.0) or 0.0)
+            rh = float(cur.get("relative_humidity_2m", 0.0) or 0.0)
+            wind = float(cur.get("wind_speed_10m", 0.0) or 0.0)
+            w_code = int(cur.get("weather_code", 0) or 0)
             desc = _get_weather_description(w_code)
 
             # Evaluate satellite mission viability
@@ -134,8 +138,10 @@ async def get_live_weather(
             report = LiveWeatherReport(
                 latitude=lat,
                 longitude=lon,
+                elevation_m=elev_m,
                 time=cur.get("time", datetime.datetime.now(datetime.timezone.utc).isoformat()),
                 temperature_c=temp_c,
+                precipitation_mm=precip_mm,
                 relative_humidity_percent=rh,
                 cloud_cover_percent=cloud_pct,
                 wind_speed_kmh=wind,
@@ -154,8 +160,10 @@ async def get_live_weather(
         return LiveWeatherReport(
             latitude=lat,
             longitude=lon,
+            elevation_m=3500.0 if (30.0 <= lat <= 37.0 and 73.0 <= lon <= 82.0) else 250.0,
             time=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             temperature_c=12.0,
+            precipitation_mm=0.0,
             relative_humidity_percent=50.0,
             cloud_cover_percent=25.0,
             wind_speed_kmh=5.0,

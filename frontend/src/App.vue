@@ -1,106 +1,106 @@
 <template>
-  <div class="flex flex-col h-screen w-screen gh-app-bg gh-text-primary overflow-hidden select-none">
-    <!-- Maroon-to-gold GeoHarvest signature strip -->
-    <div class="gh-dual-strip w-full shrink-0"></div>
-    <!-- Global Application Header (56px) -->
+  <div class="relative flex flex-col h-screen w-screen gh-app-bg gh-text-primary overflow-hidden select-none">
+    <!-- Global Application Header (52px) — Transparent Frosted Blur + Center-of-Map Ambient Color -->
     <header
-      class="h-[56px] gh-surface-primary border-b gh-border px-4 flex items-center justify-between z-30 shrink-0"
+      class="absolute top-0 left-0 right-0 h-[52px] gh-ambient-header px-4 flex items-center justify-between z-30 shrink-0 text-white"
     >
-      <!-- Left: GeoHarvest Brand, Geospatial Icon & Version -->
-      <div class="flex items-center space-x-3 shrink-0">
-        <div
-          class="w-8 h-8 rounded-[8px] flex items-center justify-center border gh-saffron-border gh-saffron-soft-bg gh-turquoise"
-        >
-          <Globe class="w-4 h-4" />
-        </div>
-        <div class="flex items-baseline space-x-2">
-          <span class="font-semibold text-[16px] tracking-tight gh-text-primary">
+      <!-- Left: Topographic Contour Brand Icon, GeoHarvest Title, Divider & Navigation Tabs -->
+      <div class="flex items-center h-full min-w-0">
+        <!-- Brand Logo + Wordmark -->
+        <router-link to="/" class="flex items-center space-x-2.5 shrink-0 group">
+          <div
+            class="w-[30px] h-[30px] rounded-[7px] flex items-center justify-center border border-[#2DD4BF]/75 bg-[#0B2527]/85 text-[#2DD4BF] shadow-[0_0_12px_rgba(45,212,191,0.18)] group-hover:border-[#2DD4BF] transition-colors"
+            title="GeoHarvest Platform"
+          >
+            <!-- Topographic Contour Icon matching Design 1 mockup -->
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" d="M3 7c3.5-2 6.5 2 10 0s4.5-2 8-1" />
+              <path stroke-linecap="round" d="M3 11.5c4-2.2 7 2.2 11 0s4-2 7-0.5" />
+              <path stroke-linecap="round" d="M3 16c3.8-1.8 6.8 1.8 10.5 0S18 14.5 21 16" />
+              <ellipse cx="12" cy="12" rx="4.5" ry="2.2" stroke-width="1.3" opacity="0.85" />
+            </svg>
+          </div>
+          <span class="font-medium text-[18px] tracking-tight text-[#ECF4F3]">
             GeoHarvest
           </span>
-          <span class="text-[12px] font-mono font-semibold gh-saffron">
-            v1.0
-          </span>
-        </div>
+        </router-link>
+
+        <!-- Vertical Divider matching mockup -->
+        <div class="h-5 w-px bg-white/18 mx-5 shrink-0"></div>
+
+        <!-- Main Navigation Tabs with Teal Active Marker -->
+        <nav class="flex items-center space-x-2 sm:space-x-5 h-full overflow-x-auto" aria-label="Main navigation">
+          <router-link
+            to="/"
+            :class="['gh-ambient-nav-item', $route.name === 'harvest' ? 'gh-ambient-nav-item-active' : '']"
+          >
+            <span>Map &amp; Harvest</span>
+          </router-link>
+
+          <router-link
+            to="/processing"
+            :class="['gh-ambient-nav-item', $route.name === 'processing' ? 'gh-ambient-nav-item-active' : '']"
+          >
+            <span>Geoprocessing</span>
+          </router-link>
+
+          <router-link
+            to="/earthengine"
+            :class="['gh-ambient-nav-item', $route.name === 'earthengine' ? 'gh-ambient-nav-item-active' : '']"
+          >
+            <span>Earth Engine</span>
+          </router-link>
+
+          <router-link
+            to="/jobs"
+            :class="[
+              'gh-ambient-nav-item',
+              $route.name === 'jobs' || $route.name === 'files' ? 'gh-ambient-nav-item-active' : ''
+            ]"
+          >
+            <span>Downloads</span>
+            <span
+              v-if="activeJobsCount > 0"
+              class="px-1.5 py-0.2 rounded-full text-[11px] font-mono font-semibold bg-[#2DD4BF]/20 text-[#2DD4BF] border border-[#2DD4BF]/40"
+            >
+              {{ activeJobsCount }}
+            </span>
+          </router-link>
+
+          <router-link
+            to="/catalog"
+            :class="[
+              'gh-ambient-nav-item',
+              $route.name === 'catalog' || $route.name === 'toposheets' || $route.name === 'settings'
+                ? 'gh-ambient-nav-item-active'
+                : ''
+            ]"
+          >
+            <span>Catalogue</span>
+          </router-link>
+
+          <router-link
+            to="/ask"
+            :class="['gh-ambient-nav-item', ['ask', 'atlas-rasters'].includes(String($route.name)) ? 'gh-ambient-nav-item-active' : '']"
+          >
+            <span>ATLAS</span>
+          </router-link>
+        </nav>
       </div>
 
-      <!-- Main navigation with a gold active-page marker -->
-      <nav class="flex items-center space-x-1 h-full overflow-x-auto px-2" aria-label="Main navigation">
-        <router-link
-          to="/"
-          :class="['gh-nav-item', $route.name === 'harvest' ? 'gh-nav-item-active' : '']"
-        >
-          <MapIcon class="w-4 h-4 shrink-0" />
-          <span>Map &amp; Harvest</span>
-        </router-link>
-
-        <router-link
-          to="/processing"
-          :class="['gh-nav-item', $route.name === 'processing' ? 'gh-nav-item-active' : '']"
-        >
-          <SlidersHorizontal class="w-4 h-4 shrink-0" />
-          <span>Geoprocessing</span>
-        </router-link>
-
-        <router-link
-          to="/earthengine"
-          :class="['gh-nav-item', $route.name === 'earthengine' ? 'gh-nav-item-active' : '']"
-        >
-          <Terminal class="w-4 h-4 shrink-0" />
-          <span>Earth Engine</span>
-        </router-link>
-
-        <router-link
-          to="/jobs"
-          :class="[
-            'gh-nav-item',
-            $route.name === 'jobs' || $route.name === 'files' ? 'gh-nav-item-active' : ''
-          ]"
-        >
-          <Download class="w-4 h-4 shrink-0" />
-          <span>Downloads</span>
-          <span
-            v-if="activeJobsCount > 0"
-            class="px-1.5 py-0.5 rounded-[5px] text-[12px] font-mono font-semibold gh-saffron-bg"
-          >
-            {{ activeJobsCount }}
-          </span>
-        </router-link>
-
-        <router-link
-          to="/catalog"
-          :class="[
-            'gh-nav-item',
-            $route.name === 'catalog' || $route.name === 'toposheets' || $route.name === 'settings'
-              ? 'gh-nav-item-active'
-              : ''
-          ]"
-        >
-          <Compass class="w-4 h-4 shrink-0" />
-          <span>Catalogue</span>
-        </router-link>
-
-        <router-link
-          to="/ask"
-          :class="['gh-nav-item', ['ask', 'atlas-rasters'].includes(String($route.name)) ? 'gh-nav-item-active' : '']"
-        >
-          <MessageSquare class="w-4 h-4 shrink-0" />
-          <span>ATLAS</span>
-        </router-link>
-      </nav>
-
-      <!-- Right: WMS, Connectors, Day/Night Switch, Storage Status -->
-      <div class="flex items-center space-x-2 shrink-0">
+      <!-- Right: Subtle Glass Action Pills (WMS, Connectors, Theme, Storage) -->
+      <div class="hidden md:flex items-center space-x-2 shrink-0">
         <!-- WMS -->
         <button
           @click="harvestStore.isWmsModalOpen = true"
-          class="px-2.5 py-1.5 rounded-[8px] text-[13px] font-medium gh-btn-secondary flex items-center space-x-1.5 cursor-pointer"
+          class="px-2.5 py-1 rounded-[7px] text-[12.5px] font-medium bg-white/[0.06] hover:bg-white/[0.12] border border-white/12 text-white/85 hover:text-white flex items-center space-x-1.5 cursor-pointer transition-colors"
           title="Connect OGC WMS Map Server"
         >
-          <Layers class="w-3.5 h-3.5 gh-accent" />
+          <Layers class="w-3.5 h-3.5 text-[#2DD4BF]" />
           <span>WMS</span>
           <span
             v-if="harvestStore.activeWmsLayers.length > 0"
-            class="px-1.5 rounded-[5px] text-[12px] font-mono font-semibold gh-selected-bg gh-accent"
+            class="px-1.5 rounded-[4px] text-[11px] font-mono font-semibold bg-[#2DD4BF]/20 text-[#2DD4BF]"
           >
             {{ harvestStore.activeWmsLayers.length }}
           </span>
@@ -109,62 +109,42 @@
         <!-- Connectors -->
         <button
           @click="isCredentialsModalOpen = true"
-          class="px-2.5 py-1.5 rounded-[8px] text-[13px] font-medium gh-btn-secondary flex items-center space-x-1.5 cursor-pointer"
+          class="px-2.5 py-1 rounded-[7px] text-[12.5px] font-medium bg-white/[0.06] hover:bg-white/[0.12] border border-white/12 text-white/85 hover:text-white flex items-center space-x-1.5 cursor-pointer transition-colors"
           title="Configure AI Models & Earth Observation Connectors"
         >
-          <Plug class="w-3.5 h-3.5 gh-accent" />
+          <Plug class="w-3.5 h-3.5 text-[#2DD4BF]" />
           <span>Connectors</span>
         </button>
 
-        <!-- Day / Night Theme Switch -->
-        <div
-          class="flex items-center p-0.5 rounded-[8px] border gh-border gh-surface-secondary"
-          role="group"
-          aria-label="Theme selector"
+        <!-- Day / Night Workspace Theme Switch -->
+        <button
+          @click="harvestStore.setTheme(harvestStore.uiTheme === 'night' ? 'day' : 'night')"
+          class="p-1.5 rounded-[7px] bg-white/[0.06] hover:bg-white/[0.12] border border-white/12 text-white/80 hover:text-white cursor-pointer transition-colors"
+          :title="harvestStore.uiTheme === 'night' ? 'Switch panels to Day theme' : 'Switch panels to Night theme'"
         >
-          <button
-            @click="harvestStore.setTheme('day')"
-            :class="[
-              'px-2.5 py-1 rounded-[6px] text-[12.5px] font-medium transition-colors cursor-pointer flex items-center space-x-1.5',
-              harvestStore.uiTheme === 'day'
-                ? 'gh-surface-elevated gh-accent font-semibold'
-                : 'gh-text-secondary hover:gh-text-primary'
-            ]"
-            title="Day Theme — Turquoise, Maroon & Gold"
-          >
-            <Sun class="w-3.5 h-3.5" />
-            <span>Day</span>
-          </button>
-          <button
-            @click="harvestStore.setTheme('night')"
-            :class="[
-              'px-2.5 py-1 rounded-[6px] text-[12.5px] font-medium transition-colors cursor-pointer flex items-center space-x-1.5',
-              harvestStore.uiTheme === 'night'
-                ? 'gh-surface-elevated gh-saffron font-semibold'
-                : 'gh-text-secondary hover:gh-text-primary'
-            ]"
-            title="Night Theme — Deep Teal, Maroon & Gold"
-          >
-            <Moon class="w-3.5 h-3.5" />
-            <span>Night</span>
-          </button>
-        </div>
+          <Moon v-if="harvestStore.uiTheme === 'night'" class="w-3.5 h-3.5 text-[#2DD4BF]" />
+          <Sun v-else class="w-3.5 h-3.5 text-amber-300" />
+        </button>
 
         <!-- Storage Status -->
         <div
-          class="hidden xl:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-[8px] border gh-border gh-surface-secondary gh-text-secondary text-[12.5px] font-mono"
+          v-if="sysTelemetry?.disk_free_bytes"
+          class="hidden xl:flex items-center space-x-1.5 px-2.5 py-1 rounded-[7px] border border-white/10 bg-black/25 text-white/70 text-[12px] font-mono"
           title="Available Local Storage Space"
         >
-          <HardDrive class="w-3.5 h-3.5 shrink-0 gh-saffron" />
-          <span>
-            {{ sysTelemetry?.disk_free_bytes ? formatBytes(sysTelemetry.disk_free_bytes) + ' free' : 'Storage Ready' }}
-          </span>
+          <HardDrive class="w-3.5 h-3.5 shrink-0 text-[#2DD4BF]" />
+          <span>{{ formatBytes(sysTelemetry.disk_free_bytes) }} free</span>
         </div>
       </div>
     </header>
 
-    <!-- Main Workstation Body: Contextual Tool Rail (when applicable) + Workspace -->
-    <div class="flex-1 flex overflow-hidden relative gh-workspace-bg">
+    <!-- Main Workstation Body: Full-screen under blurred header/footer on Map & Harvest; padded on other routes -->
+    <div
+      :class="[
+        'flex-1 flex overflow-hidden relative gh-workspace-bg',
+        $route.name === 'harvest' ? 'h-full w-full' : 'pt-[52px] pb-[30px]'
+      ]"
+    >
       <!-- Slim 60px Vertical Tool Rail (Expandable to Labelled Panel; Page-Specific Tools Only) -->
       <aside
         v-if="showToolRail"
@@ -423,6 +403,58 @@
       </main>
     </div>
 
+    <!-- Global Bottom Ambient Footer Bar — Transparent Frosted Blur + Center-of-Map Ambient Color -->
+    <footer
+      class="absolute bottom-0 left-0 right-0 h-[30px] gh-ambient-footer px-4 flex items-center justify-between z-30 shrink-0 text-[13px] text-white/90"
+    >
+      <!-- Left: Basemap / Imagery Caption & Ambient Subject Indicator -->
+      <div class="flex items-center space-x-3 min-w-0">
+        <span class="font-medium text-white/90 tracking-tight truncate">
+          {{ harvestStore.activeBasemapLabel }}
+        </span>
+        <span class="hidden sm:inline-flex items-center space-x-1.5 text-[11.5px] text-white/60">
+          <span
+            class="w-2 h-2 rounded-full border border-white/30 transition-colors duration-500"
+            :style="{ backgroundColor: harvestStore.ambientColor.hex }"
+          ></span>
+          <span>{{ harvestStore.ambientColor.label }}</span>
+        </span>
+        <span
+          v-if="harvestStore.hasAoi && harvestStore.aoiAnalysis"
+          class="hidden md:inline-flex items-center space-x-1.5 text-[11.5px] font-mono text-[#2DD4BF]"
+        >
+          <span>&middot;</span>
+          <span>{{ harvestStore.aoiName }} ({{ Math.round(harvestStore.aoiAnalysis.area_km2).toLocaleString() }} km&sup2;)</span>
+        </span>
+      </div>
+
+      <!-- Right: Live Coordinates & Google Earth 3D Horizon Mode Label -->
+      <div class="flex items-center space-x-3 shrink-0">
+        <div
+          v-if="harvestStore.mapCursorCoords.lat !== null && harvestStore.mapCursorCoords.lon !== null"
+          class="hidden sm:flex items-center space-x-2 text-[11.5px] font-mono text-white/70"
+        >
+          <span>{{ formatLatLon(harvestStore.mapCursorCoords.lat, harvestStore.mapCursorCoords.lon) }}</span>
+          <span class="text-white/30">&middot;</span>
+          <span>Z{{ harvestStore.mapCursorCoords.zoom.toFixed(1) }}</span>
+        </div>
+
+        <button
+          type="button"
+          @click="harvestStore.is3dHorizonEnabled = !harvestStore.is3dHorizonEnabled"
+          :class="[
+            'px-1.5 py-0.5 rounded text-[13px] font-medium transition-colors cursor-pointer',
+            harvestStore.is3dHorizonEnabled
+              ? 'text-white hover:text-[#2DD4BF]'
+              : 'text-white/50 hover:text-white/80'
+          ]"
+          title="Toggle 3D Planetary Horizon Atmosphere"
+        >
+          3D
+        </button>
+      </div>
+    </footer>
+
     <!-- Modals -->
     <CredentialsModal v-model="isCredentialsModalOpen" />
     <WmsModal v-model="harvestStore.isWmsModalOpen" />
@@ -482,11 +514,17 @@ const isSideToolbarCollapsed = ref(true)
 const sysTelemetry = ref<SystemStatus | null>(null)
 let pollTimer: any = null
 
-// Only show the contextual tool rail on pages that have contextual sub-tools;
-// Ask and Earth Engine have their own dedicated full-width workspace layout.
+// Only show the contextual tool rail on pages that use the secondary rail;
+// Map & Harvest uses full-bleed Google Earth floating tools; Ask and Earth Engine have dedicated full-width layouts.
 const showToolRail = computed(() => {
-  return route.name !== 'ask' && route.name !== 'earthengine'
+  return route.name !== 'harvest' && route.name !== 'ask' && route.name !== 'earthengine'
 })
+
+function formatLatLon(lat: number, lon: number): string {
+  const ns = lat >= 0 ? 'N' : 'S'
+  const ew = lon >= 0 ? 'E' : 'W'
+  return `${Math.abs(lat).toFixed(3)}° ${ns}, ${Math.abs(lon).toFixed(3)}° ${ew}`
+}
 
 const currentSidePanelTitle = computed(() => {
   switch (route.name) {
@@ -566,27 +604,27 @@ function formatBytes(bytes?: number) {
 </script>
 
 <style scoped>
-.gh-nav-item {
+.gh-ambient-nav-item {
   height: 100%;
-  padding: 0 12px;
+  padding: 0 4px;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   font-size: 15px;
   font-weight: 500;
-  color: var(--text-secondary);
-  border-bottom: 2px solid transparent;
+  color: rgba(218, 232, 230, 0.78);
+  border-bottom: 2.5px solid transparent;
   white-space: nowrap;
-  transition: color 150ms ease, border-color 150ms ease, background-color 150ms ease;
+  transition: color 180ms ease, border-color 180ms ease;
 }
 
-.gh-nav-item:hover {
-  color: var(--text-primary);
+.gh-ambient-nav-item:hover {
+  color: #ffffff;
 }
 
-.gh-nav-item-active {
-  color: var(--accent-text);
-  font-weight: 600;
-  border-bottom-color: var(--accent-turquoise);
+.gh-ambient-nav-item-active {
+  color: #2dd4bf;
+  font-weight: 500;
+  border-bottom-color: #2dd4bf;
 }
 </style>

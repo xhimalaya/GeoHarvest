@@ -397,8 +397,10 @@ export interface TestConnectionResponse {
 export interface LiveWeatherReport {
   latitude: number
   longitude: number
+  elevation_m?: number
   time: string
   temperature_c: number
+  precipitation_mm?: number
   relative_humidity_percent: number
   cloud_cover_percent: number
   wind_speed_kmh: number

@@ -1,9 +1,18 @@
 <template>
-  <div class="flex h-full w-full overflow-hidden gh-workspace-bg gh-text-primary">
-    <!-- LEFT: Discovery Panel (340px) -->
+  <div class="relative flex h-full w-full overflow-hidden gh-workspace-bg gh-text-primary">
+    <!-- Hidden Global GeoJSON / KML File Uploader (accessible even when Discovery drawer is closed) -->
+    <input
+      ref="aoiFileInputRef"
+      type="file"
+      accept=".geojson,.json,.kml,.wkt"
+      class="hidden"
+      @change="handleFileUpload"
+    />
+
+    <!-- FLOATING LEFT DRAWER: Discovery & Satellite Catalogue Panel (348px) -->
     <div
       v-if="isLeftPanelOpen"
-      class="w-[340px] border-r gh-border gh-surface-primary flex flex-col h-full z-10 shrink-0 transition-all"
+      class="absolute top-[120px] bottom-[42px] left-[68px] w-[348px] max-w-[calc(100vw-5.5rem)] rounded-[14px] gh-surface-primary border gh-border gh-shadow-dialog flex flex-col z-20 transition-all overflow-hidden"
     >
       <!-- Panel Header -->
       <div class="h-11 px-4 border-b gh-divider flex items-center justify-between shrink-0">
@@ -147,7 +156,7 @@
               >
                 <FolderUp class="w-3.5 h-3.5 gh-text-secondary" />
                 <span>Upload GeoJSON / KML</span>
-                <input ref="aoiFileInputRef" type="file" accept=".geojson,.json,.kml,.wkt" class="hidden" @change="handleFileUpload" />
+                <input type="file" accept=".geojson,.json,.kml,.wkt" class="hidden" @change="handleFileUpload" />
               </label>
 
               <SearchableSelect
@@ -658,45 +667,15 @@
       </div>
     </div>
 
-    <!-- CENTRE: Large Map Workspace -->
-    <div class="flex-1 flex flex-col h-full overflow-hidden relative">
+    <!-- FULL-BLEED CENTRE: Google Earth Map Workspace -->
+    <div class="flex-1 flex flex-col h-full w-full overflow-hidden relative">
       <MapView class="h-full w-full" :is-left-panel-open="isLeftPanelOpen" />
-
-      <!-- Floating Button to Reopen Discovery Panel -->
-      <button
-        v-if="!isLeftPanelOpen"
-        type="button"
-        @click="isLeftPanelOpen = true"
-        class="absolute top-3.5 left-3.5 z-10 gh-surface-primary hover:gh-surface-elevated border gh-border rounded-[8px] px-3 py-1.5 text-[13px] font-medium gh-text-primary gh-shadow flex items-center space-x-1.5 cursor-pointer"
-        title="Open Discovery Panel"
-      >
-        <ChevronRight class="w-4 h-4 gh-accent" />
-        <span>Discovery</span>
-      </button>
-
-      <!-- Floating Button to Reopen Scenes Panel -->
-      <button
-        v-if="!isRightPanelOpen"
-        type="button"
-        @click="isRightPanelOpen = true"
-        class="absolute top-14 right-3.5 z-10 gh-surface-primary hover:gh-surface-elevated border gh-border rounded-[8px] px-3 py-1.5 text-[13px] font-medium gh-text-primary gh-shadow flex items-center space-x-1.5 cursor-pointer"
-        title="Open Scenes Panel"
-      >
-        <ChevronLeft class="w-4 h-4 gh-accent" />
-        <span>
-          {{
-            harvestStore.discoveryMode === 'toposheet'
-              ? `Topo Sheets (${harvestStore.filteredToposheets.length})`
-              : `Scenes (${harvestStore.searchResults.length})`
-          }}
-        </span>
-      </button>
     </div>
 
-    <!-- RIGHT: Scenes & Download Controls Panel (320px) -->
+    <!-- FLOATING RIGHT DRAWER: Scenes & Download Controls Panel (336px) -->
     <div
       v-if="isRightPanelOpen"
-      class="w-[320px] border-l gh-border gh-surface-primary flex flex-col h-full z-10 shrink-0 transition-all"
+      class="absolute top-[68px] bottom-[90px] right-4 w-[336px] max-w-[calc(100vw-2rem)] rounded-[14px] gh-surface-primary border gh-border gh-shadow-dialog flex flex-col z-20 transition-all overflow-hidden"
     >
       <!-- Panel Header -->
       <div class="h-11 px-3.5 border-b gh-divider flex items-center justify-between shrink-0">
@@ -1103,8 +1082,14 @@ function openCredentialsForCurrent() {
   isCredentialsOpen.value = true
 }
 
-const isLeftPanelOpen = ref(true)
-const isRightPanelOpen = ref(true)
+const isLeftPanelOpen = computed({
+  get: () => harvestStore.isDiscoveryDrawerOpen,
+  set: (val: boolean) => harvestStore.toggleDiscoveryDrawer(val),
+})
+const isRightPanelOpen = computed({
+  get: () => harvestStore.isScenesDrawerOpen,
+  set: (val: boolean) => harvestStore.toggleScenesDrawer(val),
+})
 const sortBy = ref<'date' | 'cloud'>('date')
 
 const directoryPreviewPath = computed(() => {
