@@ -1,7 +1,34 @@
+import math
 import httpx
 from typing import Dict, Any, List, Optional
 from backend.providers.base.provider import DataProvider
-from backend.app.schemas.schemas import SearchResultItem, AssetInfo
+from backend.providers.base.stac_pages import search_pages
+from backend.app.schemas.schemas import SearchResultItem, AssetInfo, ThumbnailGrid
+
+
+def _sentinel_thumbnail_grid(feature: Dict[str, Any]) -> Optional[ThumbnailGrid]:
+    """Earth Search Sentinel-2 JPEGs cover the full, north-up granule raster."""
+    assets = feature.get("assets", {})
+    if feature.get("collection") not in {"sentinel-2-l2a", "sentinel-2-c1-l2a"} or not assets.get("thumbnail"):
+        return None
+
+    visual = assets.get("visual") or {}
+    props = feature.get("properties", {})
+    shape = visual.get("proj:shape") or props.get("proj:shape")
+    transform = visual.get("proj:transform") or props.get("proj:transform")
+    crs = visual.get("proj:code") or props.get("proj:code")
+    epsg = visual.get("proj:epsg") or props.get("proj:epsg")
+    if not crs and isinstance(epsg, int):
+        crs = f"EPSG:{epsg}"
+    if not crs or not isinstance(shape, list) or len(shape) != 2 or not isinstance(transform, list) or len(transform) < 6:
+        return None
+    if not all(isinstance(n, (int, float)) and math.isfinite(n) for n in [*shape, *transform[:6]]):
+        return None
+    rows, cols = shape
+    dx, skew_x, left, skew_y, dy, top = transform[:6]
+    if min(rows, cols) <= 0 or dx <= 0 or dy >= 0 or skew_x or skew_y:
+        return None
+    return ThumbnailGrid(crs=crs, bbox=(left, top + rows * dy, left + cols * dx, top))
 
 
 class AWSEarthSearchProvider(DataProvider):
@@ -53,7 +80,7 @@ class AWSEarthSearchProvider(DataProvider):
         if collection in ["sentinel-2-l2a", "sentinel-2-c1-l2a", "landsat-c2-l2"]:
             if max_cloud_cover is not None and max_cloud_cover < 100.0:
                 payload["query"] = {
-                    "eo:cloud_cover": {"lt": float(max_cloud_cover)}
+                    "eo:cloud_cover": {"lte": float(max_cloud_cover)}
                 }
 
         headers = {
@@ -61,31 +88,22 @@ class AWSEarthSearchProvider(DataProvider):
             "User-Agent": "GeoHarvest/0.2.0"
         }
 
+        url = f"{self.base_url}/search"
         async with httpx.AsyncClient(timeout=25.0) as client:
             try:
-                resp = await client.post(f"{self.base_url}/search", json=payload, headers=headers)
-                if resp.status_code != 200:
-                    # Fallback to query without cloud cover filter if query extension failed
-                    if "query" in payload:
-                        del payload["query"]
-                        resp = await client.post(f"{self.base_url}/search", json=payload, headers=headers)
-
-                resp.raise_for_status()
-                data = resp.json()
-            except Exception:
-                # If sentinel-2-l2a collection failed, try sentinel-2-c1-l2a
-                if collection == "sentinel-2-l2a":
+                features = await search_pages(client, url, payload, headers)
+            except httpx.HTTPStatusError as error:
+                if "query" in payload and error.response.status_code in (400, 422, 501):
+                    del payload["query"]
+                    features = await search_pages(client, url, payload, headers)
+                elif collection == "sentinel-2-l2a" and error.response.status_code == 404:
                     payload["collections"] = ["sentinel-2-c1-l2a"]
-                    try:
-                        resp = await client.post(f"{self.base_url}/search", json=payload, headers=headers)
-                        resp.raise_for_status()
-                        data = resp.json()
-                    except Exception:
-                        return []
+                    features = await search_pages(client, url, payload, headers)
                 else:
-                    return []
+                    raise
+        if "page_info" in filters:
+            filters["page_info"]["raw_count"] = len(features)
 
-        features = data.get("features", [])
         return self._parse_items(features, collection, max_cloud_cover)
 
     def _parse_items(
@@ -105,7 +123,7 @@ class AWSEarthSearchProvider(DataProvider):
             props = feat.get("properties", {})
             cloud_val = props.get("eo:cloud_cover", props.get("cloud_cover", 0.0))
             if collection in ["sentinel-2-l2a", "sentinel-2-c1-l2a", "landsat-c2-l2"]:
-                if max_cloud_cover is not None and cloud_val > max_cloud_cover:
+                if max_cloud_cover is not None and cloud_val is not None and cloud_val > max_cloud_cover:
                     continue
             else:
                 cloud_val = None
@@ -197,6 +215,7 @@ class AWSEarthSearchProvider(DataProvider):
                     bbox=feat.get("bbox", [0, 0, 0, 0]),
                     geometry=feat.get("geometry", {}),
                     thumbnail_url=thumb_url,
+                    thumbnail_grid=_sentinel_thumbnail_grid(feat),
                     assets=assets_dict
                 )
             )

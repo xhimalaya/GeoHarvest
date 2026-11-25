@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional, Tuple, Union
 from datetime import datetime
 from pydantic import BaseModel, Field
 from backend.app.models.models import JobStatus, DownloadStatus
@@ -43,7 +43,8 @@ class SearchRequest(BaseModel):
     aoi: Optional[Dict[str, Any]] = None  # GeoJSON geometry
     bbox: Optional[List[float]] = None
     max_cloud_cover: Optional[float] = 20.0
-    limit: Optional[int] = 50
+    limit: Optional[int] = Field(default=50, ge=1)
+    monthly: bool = False
 
 
 class AssetInfo(BaseModel):
@@ -53,6 +54,11 @@ class AssetInfo(BaseModel):
     size_bytes: Optional[int] = None
     mime_type: Optional[str] = None
     band: Optional[str] = None
+
+
+class ThumbnailGrid(BaseModel):
+    crs: str
+    bbox: Tuple[float, float, float, float]
 
 
 class SearchResultItem(BaseModel):
@@ -66,18 +72,29 @@ class SearchResultItem(BaseModel):
     bbox: List[float]
     geometry: Dict[str, Any]
     thumbnail_url: Optional[str] = None
+    thumbnail_grid: Optional[ThumbnailGrid] = None
     assets: Dict[str, AssetInfo] = {}
+
+
+class MonthCoverage(BaseModel):
+    month: str
+    candidate_count: int
+    coverage_percent: Optional[float] = None
+    truncated: bool = False
 
 
 class SearchResponse(BaseModel):
     total_found: int
     items: List[SearchResultItem]
+    recommended_ids: List[str] = Field(default_factory=list)
+    months: List[MonthCoverage] = Field(default_factory=list)
 
 
 # Storage Estimation schemas
 class StorageEstimateRequest(BaseModel):
     selected_scenes: List[SearchResultItem]
     selected_bands: List[str] = Field(default_factory=lambda: ["visual", "red", "green", "blue", "nir"])
+    destination_dir: Optional[str] = None
 
 
 class StorageEstimateResponse(BaseModel):
@@ -91,6 +108,7 @@ class StorageEstimateResponse(BaseModel):
     required_bytes: int
     available_bytes: int
     has_sufficient_space: bool
+    formatted_raw: str
     formatted_required: str
     formatted_available: str
 

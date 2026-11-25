@@ -3,40 +3,6 @@
     <!-- Map Canvas Container -->
     <div ref="mapContainer" class="w-full h-full cursor-crosshair"></div>
 
-    <!-- Center Map Location Pin & Diagonal Leader-Line Callout (e.g., "Leh, Ladakh") -->
-    <div
-      v-if="activePlacePin.visible && pinScreenPos"
-      :style="{ left: `${pinScreenPos.x}px`, top: `${pinScreenPos.y}px` }"
-      class="absolute z-[8] pointer-events-none"
-    >
-      <!-- Teal Selection Point at Exact Coordinate -->
-      <div
-        class="w-3 h-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#2DD4BF] border-2 border-[#06181A] shadow-[0_0_12px_#2DD4BF]"
-      ></div>
-      <!-- Diagonal White Leader Line (45° Up-Right) -->
-      <svg
-        class="absolute left-0 bottom-0 w-8 h-8 overflow-visible"
-        viewBox="0 0 32 32"
-        fill="none"
-      >
-        <line
-          x1="2"
-          y1="30"
-          x2="26"
-          y2="6"
-          stroke="rgba(255, 255, 255, 0.9)"
-          stroke-width="1.75"
-          stroke-linecap="round"
-        />
-      </svg>
-      <!-- Callout Pill Label -->
-      <div
-        class="absolute left-[24px] bottom-[22px] pointer-events-auto flex items-center space-x-1.5 px-3 py-1 rounded-[8px] bg-[#302A25]/88 backdrop-blur-md border border-white/16 text-[13px] font-medium text-white/95 shadow-[0_6px_18px_rgba(0,0,0,0.45)] whitespace-nowrap"
-      >
-        <span>{{ activePlacePin.name }}</span>
-      </div>
-    </div>
-
     <!-- TOP-LEFT: Google Earth Floating Search Bar ("Search places") -->
     <div class="absolute top-[68px] left-4 z-20 w-[240px] sm:w-[272px] place-search-container">
       <form
@@ -978,15 +944,6 @@
                 </label>
 
                 <label class="flex items-center justify-between cursor-pointer py-0.5">
-                  <span class="text-[13px] gh-text-primary">Place Callout Pin ({{ activePlacePin.name }})</span>
-                  <input
-                    v-model="activePlacePin.visible"
-                    type="checkbox"
-                    class="rounded cursor-pointer w-4 h-4"
-                  />
-                </label>
-
-                <label class="flex items-center justify-between cursor-pointer py-0.5">
                   <span class="text-[13px] gh-text-primary">Labels &amp; Boundaries</span>
                   <input
                     v-model="harvestStore.showBoundariesLabels"
@@ -1195,13 +1152,10 @@ const isGeocoding = ref(false)
 const geocodedPlaces = ref<PlacePreset[]>([])
 let geocodeTimer: any = null
 
-const activePlacePin = ref<{ name: string; lon: number; lat: number; visible: boolean }>({
-  name: 'Leh, Ladakh',
+const activePlaceCoords = ref<{ lon: number; lat: number }>({
   lon: 77.5771,
   lat: 34.1526,
-  visible: true,
 })
-const pinScreenPos = ref<{ x: number; y: number } | null>(null)
 
 const filteredPlacePresets = computed(() => {
   const q = placeSearchQuery.value.trim().toLowerCase()
@@ -1266,11 +1220,9 @@ watch(placeSearchQuery, (q) => {
 })
 
 function flyToPlace(place: { name: string; lon: number; lat: number; zoom?: number }) {
-  activePlacePin.value = {
-    name: place.name,
+  activePlaceCoords.value = {
     lon: place.lon,
     lat: place.lat,
-    visible: true,
   }
   isPlaceDropdownOpen.value = false
   placeSearchQuery.value = place.name
@@ -1315,26 +1267,12 @@ function resetNorthAndTilt() {
   if (Math.abs(view.getRotation()) > 0.01) {
     view.animate({ rotation: 0, duration: 280 })
   } else {
-    // When already facing North, re-center smoothly on the active place pin
+    // When already facing North, re-center smoothly on the active place coordinates
     view.animate({
-      center: fromLonLat([activePlacePin.value.lon, activePlacePin.value.lat]),
+      center: fromLonLat([activePlaceCoords.value.lon, activePlaceCoords.value.lat]),
       rotation: 0,
       duration: 500,
     })
-  }
-}
-
-function updatePinScreenPosition() {
-  if (!olMap || !activePlacePin.value.visible) {
-    pinScreenPos.value = null
-    return
-  }
-  const coord3857 = fromLonLat([activePlacePin.value.lon, activePlacePin.value.lat])
-  const pixel = olMap.getPixelFromCoordinate(coord3857)
-  if (pixel && Number.isFinite(pixel[0]) && Number.isFinite(pixel[1])) {
-    pinScreenPos.value = { x: pixel[0], y: pixel[1] }
-  } else {
-    pinScreenPos.value = null
   }
 }
 
@@ -1846,9 +1784,8 @@ onMounted(() => {
     }),
   })
 
-  // Postrender & Moveend handlers: project pin callout, track compass rotation, and sample center ambient color
+  // Postrender & Moveend handlers: track compass rotation and sample center ambient color
   olMap.on('postrender', () => {
-    updatePinScreenPosition()
     if (olMap) {
       mapRotation.value = olMap.getView().getRotation() || 0
     }
@@ -1856,7 +1793,6 @@ onMounted(() => {
   })
 
   olMap.on('moveend', () => {
-    updatePinScreenPosition()
     if (olMap) {
       const currentView = olMap.getView()
       currentZoom.value = currentView.getZoom() || 7

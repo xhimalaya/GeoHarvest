@@ -90,7 +90,8 @@ def resolve_safe_path(rel_path: str, root_name: str = "downloads") -> Path:
 async def estimate_storage(request: StorageEstimateRequest):
     return storage_estimator.estimate(
         scenes=request.selected_scenes,
-        selected_bands=request.selected_bands
+        selected_bands=request.selected_bands,
+        destination_dir=Path(request.destination_dir) if request.destination_dir else get_active_download_dir(),
     )
 
 

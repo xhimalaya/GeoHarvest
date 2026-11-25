@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { api } from '../services/api'
 import type {
   SearchResultItem,
+  SearchMonth,
   StorageEstimateResponse,
   AOIValidationResponse,
   SatelliteConstellation,
@@ -63,6 +64,10 @@ export const useHarvestStore = defineStore('harvest', {
     // Discovery results
     isSearching: false,
     searchResults: [] as SearchResultItem[],
+    recommendedSceneIds: [] as string[],
+    searchMonths: [] as SearchMonth[],
+    searchRequestId: 0,
+    hasSearched: false,
     selectedSceneIds: new Set<string>(),
 
     // Band selections
@@ -81,6 +86,9 @@ export const useHarvestStore = defineStore('harvest', {
     // Storage estimation
     storageEstimate: null as StorageEstimateResponse | null,
     isEstimating: false,
+    estimateRequestId: 0,
+    estimateError: null as string | null,
+    isCreatingJob: false,
 
     // Status / Message
     errorMessage: null as string | null,
@@ -309,20 +317,6 @@ export const useHarvestStore = defineStore('harvest', {
             is_credential_backed: Boolean(cred),
           }
         })
-    },
-    uniqueTilesCount(state): number {
-      const tiles = new Set<string>()
-      state.searchResults.forEach((s) => {
-        const match = s.id.match(/(T\d{2}[A-Z]{3})/)
-        if (match) {
-          tiles.add(match[1])
-        } else if (s.bbox && s.bbox.length === 4) {
-          tiles.add(`${Math.round((s.bbox[0] + s.bbox[2]) * 2) / 2}_${Math.round((s.bbox[1] + s.bbox[3]) * 2) / 2}`)
-        } else {
-          tiles.add(s.id)
-        }
-      })
-      return tiles.size
     },
     currentAoiGeometry(state): any {
       return state.aoiAnalysis?.normalized_geometry || state.aoi
@@ -561,10 +555,7 @@ export const useHarvestStore = defineStore('harvest', {
           .filter((b) => b.is_default)
           .map((b) => b.id)
 
-        // Clear previous search results
-        this.searchResults = []
-        this.selectedSceneIds = new Set()
-        this.storageEstimate = null
+        this.clearSatelliteSearch()
       }
     },
 
@@ -895,47 +886,8 @@ export const useHarvestStore = defineStore('harvest', {
       this.calculateStorage()
     },
 
-    selectAoiCoverage(preference: 'clearest' | 'newest' = 'clearest') {
-      if (this.searchResults.length === 0) return
-
-      const tileMap = new Map<string, SearchResultItem>()
-      for (const scene of this.searchResults) {
-        // Extract MGRS tile or spatial grid footprint
-        let tileKey = ''
-        const mgrsMatch = scene.id.match(/(T\d{2}[A-Z]{3})/)
-        if (mgrsMatch) {
-          tileKey = mgrsMatch[1]
-        } else if (scene.bbox && scene.bbox.length === 4) {
-          tileKey = `${Math.round((scene.bbox[0] + scene.bbox[2]) * 2) / 2}_${Math.round((scene.bbox[1] + scene.bbox[3]) * 2) / 2}`
-        } else {
-          tileKey = scene.id
-        }
-
-        if (!tileMap.has(tileKey)) {
-          tileMap.set(tileKey, scene)
-        } else {
-          const existing = tileMap.get(tileKey)!
-          if (preference === 'clearest') {
-            const currCloud = scene.cloud_cover ?? 100
-            const existCloud = existing.cloud_cover ?? 100
-            if (currCloud < existCloud) {
-              tileMap.set(tileKey, scene)
-            }
-          } else {
-            const currTime = scene.datetime ? new Date(scene.datetime).getTime() : 0
-            const existTime = existing.datetime ? new Date(existing.datetime).getTime() : 0
-            if (currTime > existTime) {
-              tileMap.set(tileKey, scene)
-            }
-          }
-        }
-      }
-
-      const next = new Set<string>()
-      tileMap.forEach((scene) => {
-        next.add(scene.id)
-      })
-      this.selectedSceneIds = next
+    selectAoiCoverage() {
+      this.selectedSceneIds = new Set(this.recommendedSceneIds)
       this.calculateStorage()
     },
 
@@ -971,16 +923,43 @@ export const useHarvestStore = defineStore('harvest', {
       this.calculateStorage()
     },
 
+    selectVisualOnly() {
+      this.selectedBands = ['visual']
+      this.calculateStorage()
+    },
+
+    clearSatelliteSearch() {
+      this.searchRequestId++
+      this.estimateRequestId++
+      this.isSearching = false
+      this.isEstimating = false
+      this.hasSearched = false
+      this.storageEstimate = null
+      this.estimateError = null
+      this.searchMonths = []
+      this.recommendedSceneIds = []
+      this.satelliteSearchResults = []
+      this.satelliteSelectedSceneIds = new Set()
+      if (this.discoveryMode === 'satellite') {
+        this.searchResults = []
+        this.selectedSceneIds = new Set()
+      }
+    },
+
     async search() {
       if (!this.aoi && !this.aoiAnalysis?.bbox) {
         this.errorMessage = 'Please draw or upload an Area of Interest (AOI) first.'
         return
       }
 
+      this.clearSatelliteSearch()
+      if (this.supportsDatetimeFilter && (!this.startDate || !this.endDate || this.endDate < this.startDate)) {
+        this.errorMessage = 'Enter an end date on or after the start date.'
+        return
+      }
+      const requestId = this.searchRequestId
       this.isSearching = true
       this.errorMessage = null
-      this.searchResults = []
-      this.selectedSceneIds = new Set()
 
       try {
         const res = await api.searchScenes({
@@ -992,37 +971,46 @@ export const useHarvestStore = defineStore('harvest', {
           bbox: this.aoiAnalysis?.bbox,
           max_cloud_cover: this.supportsCloudFilter ? this.maxCloudCover : undefined,
           limit: 100,
+          monthly: true,
         })
 
-        this.searchResults = res.items || []
-        // Auto-select optimal contiguous scenes to fill entire AOI with zero gaps
-        if (this.searchResults.length > 0) {
-          this.selectAoiCoverage('clearest')
-          this.activeHarvestStep = 3
+        if (requestId !== this.searchRequestId) return
+        this.hasSearched = true
+        this.searchMonths = res.months
+        this.recommendedSceneIds = res.recommended_ids
+        if (this.discoveryMode === 'satellite') {
+          this.searchResults = res.items
+          this.selectAoiCoverage()
           this.isScenesDrawerOpen = true
+          if (res.items.length) this.activeHarvestStep = 3
         } else {
-          await this.calculateStorage()
+          this.satelliteSearchResults = res.items
+          this.satelliteSelectedSceneIds = new Set(res.recommended_ids)
         }
       } catch (e: any) {
-        this.errorMessage = e.message || 'Error occurred while querying data source.'
+        if (requestId === this.searchRequestId) this.errorMessage = e.message || 'Catalogue search failed.'
       } finally {
-        this.isSearching = false
+        if (requestId === this.searchRequestId) this.isSearching = false
       }
     },
 
     async calculateStorage() {
-      if (this.selectedScenes.length === 0) {
-        this.storageEstimate = null
-        return
-      }
+      const requestId = ++this.estimateRequestId
+      this.storageEstimate = null
+      this.estimateError = null
+      this.isEstimating = false
+      if (this.discoveryMode !== 'satellite' || !this.selectedScenes.length || !this.selectedBands.length) return
 
       this.isEstimating = true
       try {
-        this.storageEstimate = await api.estimateStorage(this.selectedScenes, this.selectedBands)
-      } catch (e) {
-        // Silently handle
+        const estimate = await api.estimateStorage(
+          this.selectedScenes, this.selectedBands, this.customDestinationDir.trim() || undefined,
+        )
+        if (requestId === this.estimateRequestId) this.storageEstimate = estimate
+      } catch (e: any) {
+        if (requestId === this.estimateRequestId) this.estimateError = e.message || 'Storage estimate failed.'
       } finally {
-        this.isEstimating = false
+        if (requestId === this.estimateRequestId) this.isEstimating = false
       }
     },
 
@@ -1040,6 +1028,14 @@ export const useHarvestStore = defineStore('harvest', {
         return null
       }
 
+      if (!this.selectedBands.length) {
+        this.errorMessage = 'Select at least one band to harvest.'
+        return null
+      }
+      if (this.isCreatingJob) return null
+      this.isCreatingJob = true
+      this.errorMessage = null
+
       const satName = this.currentSatellite?.name || 'Satellite'
       const finalTaskName = jobName || this.harvestTaskName || `${satName} Harvest (${this.selectedScenes.length} scenes)`
       const finalDest = customDestination || (this.customDestinationDir.trim() ? this.customDestinationDir.trim() : undefined)
@@ -1049,7 +1045,7 @@ export const useHarvestStore = defineStore('harvest', {
           name: finalTaskName,
           scenes: this.selectedScenes,
           bands: this.selectedBands,
-          aoi: this.aoi,
+          aoi: this.currentAoiGeometry,
           destination_dir: finalDest,
           target_crs: 'EPSG:4326',
         })
@@ -1057,6 +1053,8 @@ export const useHarvestStore = defineStore('harvest', {
       } catch (e: any) {
         this.errorMessage = e.message || 'Failed to initiate harvest job.'
         return null
+      } finally {
+        this.isCreatingJob = false
       }
     },
 

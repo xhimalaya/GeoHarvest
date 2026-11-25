@@ -24,11 +24,12 @@ def test_storage_estimator_calculation():
         }
     )
 
-    result = StorageEstimator.estimate([scene], ["visual", "red", "nir"])
-    # 3 bands selected, 100MB each = 300MB raw
+    result = StorageEstimator.estimate([scene, scene], ["visual", "red", "nir"])
+    # The job stages two unique spectral assets and skips the ancillary RGB composite.
     assert result.scene_count == 1
-    assert result.asset_count == 3
-    assert result.raw_bytes == 300 * 1024 * 1024
+    assert result.asset_count == 2
+    assert result.raw_bytes == 200 * 1024 * 1024
+    assert result.formatted_raw == "200.00 MB"
     assert result.processing_bytes == int(result.raw_bytes * 0.15)
     assert result.output_bytes == int(result.raw_bytes * 0.25)
     assert result.safety_bytes >= 2 * 1024 * 1024 * 1024

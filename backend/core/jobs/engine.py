@@ -1260,8 +1260,9 @@ class JobEngine:
                             ]
                             await asyncio.gather(*scene_tasks, return_exceptions=True)
 
-                    if not (cancel_event and cancel_event.is_set()):
-                        await finalize_scene(s_id)
+                        # Keep this slot until stacking releases the scene's staged band files.
+                        if not (cancel_event and cancel_event.is_set()):
+                            await finalize_scene(s_id)
 
                 all_pipeline_tasks = [asyncio.create_task(run_scene_pipeline(s_id)) for s_id in scene_order]
                 if unassigned_dl_ids:

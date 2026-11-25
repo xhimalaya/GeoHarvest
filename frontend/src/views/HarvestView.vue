@@ -451,6 +451,13 @@
                 </span>
                 <div class="flex items-center gap-2 text-[11.5px]">
                   <button
+                    v-if="harvestStore.availableBands.some(band => band.id === 'visual')"
+                    type="button"
+                    @click="harvestStore.selectVisualOnly()"
+                    class="gh-text-secondary hover:gh-text-primary cursor-pointer"
+                    title="Download only the true-colour composite for each selected scene"
+                  >RGB only</button>
+                  <button
                     type="button"
                     @click="harvestStore.selectAllBands()"
                     class="gh-accent hover:underline cursor-pointer"
@@ -712,11 +719,11 @@
           <div class="flex items-center space-x-2">
             <button
               type="button"
-              @click="harvestStore.selectAoiCoverage('clearest')"
+              @click="harvestStore.selectAoiCoverage()"
               class="gh-accent hover:underline font-medium cursor-pointer"
-              title="Select clearest scene per tile to cover AOI"
+              title="Select scenes that add coverage of your area in each available month"
             >
-              Fill AOI
+              {{ harvestStore.searchMonths.length ? 'Fill by month' : 'Fill AOI' }}
             </button>
             <span class="gh-text-muted">&middot;</span>
             <button
@@ -724,7 +731,7 @@
               @click="harvestStore.selectAllScenes"
               class="gh-text-secondary hover:gh-text-primary cursor-pointer"
             >
-              All
+              All listed
             </button>
             <span class="gh-text-muted">&middot;</span>
             <button
@@ -761,6 +768,24 @@
           </div>
         </div>
 
+        <details v-if="harvestStore.searchMonths.length" class="px-3.5 py-2 border-b gh-divider text-[12px] shrink-0">
+          <summary class="cursor-pointer gh-text-primary">
+            {{ selectedMonthCount }} of {{ harvestStore.searchMonths.length }} months selected
+          </summary>
+          <div class="mt-1 max-h-32 overflow-y-auto">
+            <div v-for="month in harvestStore.searchMonths" :key="month.month" class="flex justify-between gap-2 py-0.5 gh-text-secondary">
+              <span class="font-mono">{{ month.month }}</span>
+              <span v-if="!month.candidate_count">{{ month.truncated ? 'No matches in scanned pages' : 'No matches' }}</span>
+              <span v-else>
+                {{ selectedByMonth.get(month.month) || 0 }} selected<span v-if="month.coverage_percent != null"> · {{ month.coverage_percent }}% available</span>
+              </span>
+            </div>
+          </div>
+        </details>
+        <p v-if="limitedSearch" class="px-3.5 py-1.5 text-[12px] gh-text-secondary border-b gh-divider">
+          Some months reached the search limit. Narrow the area or dates to see more scenes.
+        </p>
+
         <!-- Clean Vertical Scenes List (Subtle Row Separators — No Over-Decorated Cards) -->
         <div class="flex-1 overflow-y-auto divide-y gh-divide">
           <div
@@ -768,8 +793,13 @@
             class="py-14 px-5 text-center space-y-2"
           >
             <Layers class="w-7 h-7 mx-auto gh-text-muted opacity-60" />
-            <p class="font-semibold gh-text-primary text-[13.5px]">No scenes discovered yet</p>
-            <p class="text-[12.5px] gh-text-secondary leading-relaxed">
+            <p class="font-semibold gh-text-primary text-[13.5px]">
+              {{ harvestStore.isSearching ? 'Searching catalogue…' : harvestStore.hasSearched ? 'No matching scenes' : 'No scenes discovered yet' }}
+            </p>
+            <p v-if="harvestStore.hasSearched" class="text-[12.5px] gh-text-secondary leading-relaxed">
+              Try a different date range, area, or cloud filter.
+            </p>
+            <p v-else-if="!harvestStore.isSearching" class="text-[12.5px] gh-text-secondary leading-relaxed">
               Define an Area of Interest and click Search Catalogue to list available satellite scenes.
             </p>
           </div>
@@ -840,10 +870,21 @@
               <span class="gh-text-secondary">
                 Selected: <strong class="font-mono gh-text-primary">{{ harvestStore.selectedSceneIds.size }}</strong> scenes
               </span>
-              <span v-if="harvestStore.storageEstimate" class="font-mono gh-text-secondary">
-                ~{{ harvestStore.storageEstimate.formatted_required }}
+              <span v-if="harvestStore.storageEstimate" class="gh-text-secondary">
+                Download ~{{ harvestStore.storageEstimate.formatted_raw }}
               </span>
             </div>
+            <p v-if="harvestStore.storageEstimate" class="text-[12px]" :class="harvestStore.storageEstimate.has_sufficient_space ? 'gh-text-secondary' : 'gh-error'">
+              Estimated disk needed {{ harvestStore.storageEstimate.formatted_required }} · {{ harvestStore.storageEstimate.formatted_available }} free
+            </p>
+            <p v-else-if="harvestStore.isEstimating" class="text-[12px] gh-text-secondary">Estimating download size…</p>
+            <p v-else-if="harvestStore.estimateError" class="text-[12px] gh-error">
+              {{ harvestStore.estimateError }}
+              <button type="button" class="underline" @click="harvestStore.calculateStorage()">Retry</button>
+            </p>
+            <p v-else-if="harvestStore.selectedScenes.length && !harvestStore.selectedBands.length" class="text-[12px] gh-text-secondary">
+              Select at least one band in Discovery.
+            </p>
 
             <div>
               <input
@@ -862,6 +903,7 @@
             @click="onStartHarvest"
             :disabled="
               harvestStore.selectedScenes.length === 0 ||
+              !harvestStore.selectedBands.length || harvestStore.isCreatingJob || harvestStore.isEstimating ||
               (harvestStore.storageEstimate && !harvestStore.storageEstimate.has_sufficient_space)
             "
             class="w-full py-2.5 px-4 gh-btn-primary text-[13.5px] flex items-center justify-center space-x-2 cursor-pointer"
@@ -1076,6 +1118,7 @@ function openDirectoryPicker() {
 function onDestinationSelected(path: string) {
   harvestStore.customDestinationDir = path
   toposheetDestDir.value = path
+  harvestStore.calculateStorage()
 }
 
 function openCredentialsForCurrent() {
@@ -1091,6 +1134,22 @@ const isRightPanelOpen = computed({
   set: (val: boolean) => harvestStore.toggleScenesDrawer(val),
 })
 const sortBy = ref<'date' | 'cloud'>('date')
+
+watch(() => [
+  harvestStore.startDate, harvestStore.endDate, harvestStore.maxCloudCover,
+  harvestStore.collection, harvestStore.providerId, harvestStore.currentAoiGeometry,
+], () => harvestStore.clearSatelliteSearch())
+
+const selectedByMonth = computed(() => {
+  const counts = new Map<string, number>()
+  for (const scene of harvestStore.selectedScenes) {
+    const month = scene.datetime?.slice(0, 7)
+    if (month) counts.set(month, (counts.get(month) || 0) + 1)
+  }
+  return counts
+})
+const selectedMonthCount = computed(() => harvestStore.searchMonths.filter(m => selectedByMonth.value.has(m.month)).length)
+const limitedSearch = computed(() => harvestStore.searchMonths.some(m => m.truncated))
 
 const directoryPreviewPath = computed(() => {
   const base =

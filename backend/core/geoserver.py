@@ -1,11 +1,13 @@
 """GeoServer REST integration for harvested files and WMS 1.3.0 URLs."""
 
 import asyncio
+import errno
 import hashlib
 import logging
 import math
 import re
 import shutil
+import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
 from urllib.parse import quote
@@ -15,6 +17,32 @@ import httpx
 from backend.app.dependencies.config import settings
 
 logger = logging.getLogger("geoharvest.geoserver")
+
+
+def _mirror_dir_on_source_mount(source: Path, directory: Path) -> Path:
+    """Find the mirror through the same Docker host-home bind mount as the source."""
+    home = Path("/host_home")
+    if not source.is_relative_to(home):
+        return directory
+    try:
+        # Linux disallows hard links across two bind mounts, even on the same disk.
+        mounts = {}
+        for line in Path("/proc/self/mountinfo").read_text().splitlines():
+            _, _, device, root, mountpoint, *_ = line.split()
+            mountpoint = re.sub(r"\\([0-7]{3})", lambda m: chr(int(m[1], 8)), mountpoint)
+            if mountpoint in {str(home), str(directory)}:
+                root = re.sub(r"\\([0-7]{3})", lambda m: chr(int(m[1], 8)), root)
+                mounts[Path(mountpoint)] = (device, Path(root))
+        if home in mounts and directory in mounts:
+            home_device, home_root = mounts[home]
+            mirror_device, mirror_root = mounts[directory]
+            if home_device == mirror_device and mirror_root.is_relative_to(home_root):
+                alias = home / mirror_root.relative_to(home_root)
+                if alias.samefile(directory):
+                    return alias
+    except OSError:
+        pass
+    return directory
 
 
 class GeoServerManager:
@@ -61,9 +89,26 @@ class GeoServerManager:
         settings.geoserver_files_dir.mkdir(parents=True, exist_ok=True)
         digest = hashlib.sha256(str(source).encode("utf-8")).hexdigest()[:12]
         target_name = f"{digest}_{source.name}"
-        target = settings.geoserver_files_dir / target_name
-        if not target.exists() or target.stat().st_size != source.stat().st_size:
-            shutil.copy2(source, target)
+        target_dir = _mirror_dir_on_source_mount(source, settings.geoserver_files_dir.resolve())
+        target = target_dir / target_name
+        source_stat = source.stat()
+        target_stat = target.stat() if target.exists() else None
+        if target_stat is None or not source.samefile(target):
+            # Publish atomically, also when an export replaces a same-sized scene.
+            temporary = target.with_name(f".{target_name}.{uuid.uuid4().hex}.tmp")
+            try:
+                try:
+                    temporary.hardlink_to(source)
+                except OSError as exc:
+                    if exc.errno not in {errno.EXDEV, errno.EPERM, errno.ENOTSUP, errno.EMLINK, errno.EACCES, errno.ENOSYS}:
+                        raise
+                    if (target_stat is not None and target_stat.st_size == source_stat.st_size
+                            and target_stat.st_mtime_ns == source_stat.st_mtime_ns):
+                        return f"{settings.geoserver_external_mount.rstrip('/')}/{target_name}"
+                    shutil.copy2(source, temporary)
+                temporary.replace(target)
+            finally:
+                temporary.unlink(missing_ok=True)
         return f"{settings.geoserver_external_mount.rstrip('/')}/{target_name}"
 
     async def _ensure_workspace(self, client: httpx.AsyncClient) -> None:

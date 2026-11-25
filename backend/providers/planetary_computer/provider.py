@@ -1,6 +1,7 @@
 import httpx
 from typing import Dict, Any, List, Optional
 from backend.providers.base.provider import DataProvider
+from backend.providers.base.stac_pages import search_pages
 from backend.app.schemas.schemas import SearchResultItem, AssetInfo
 
 
@@ -76,7 +77,7 @@ class PlanetaryComputerProvider(DataProvider):
         if collection in ["sentinel-2-l2a", "sentinel-2-c1-l2a", "landsat-c2-l2"]:
             if max_cloud_cover is not None and max_cloud_cover < 100.0:
                 payload["query"] = {
-                    "eo:cloud_cover": {"lt": float(max_cloud_cover)}
+                    "eo:cloud_cover": {"lte": float(max_cloud_cover)}
                 }
 
         headers = {
@@ -84,19 +85,20 @@ class PlanetaryComputerProvider(DataProvider):
             "User-Agent": "GeoHarvest/0.2.0"
         }
 
+        url = f"{self.base_url}/search"
         async with httpx.AsyncClient(timeout=25.0) as client:
             try:
-                resp = await client.post(f"{self.base_url}/search", json=payload, headers=headers)
-                if resp.status_code != 200 and "query" in payload:
+                features = await search_pages(client, url, payload, headers)
+            except httpx.HTTPStatusError as error:
+                if "query" in payload and error.response.status_code in (400, 422, 501):
                     del payload["query"]
-                    resp = await client.post(f"{self.base_url}/search", json=payload, headers=headers)
-                resp.raise_for_status()
-                data = resp.json()
-            except Exception:
-                return []
-
+                    features = await search_pages(client, url, payload, headers)
+                else:
+                    raise
+        if "page_info" in filters:
+            filters["page_info"]["raw_count"] = len(features)
         sas_token = await self._get_sas_token(collection)
-        features = data.get("features", [])
+
         results: List[SearchResultItem] = []
 
         default_res = 10.0
@@ -107,7 +109,7 @@ class PlanetaryComputerProvider(DataProvider):
             props = feat.get("properties", {})
             cloud_val = props.get("eo:cloud_cover", props.get("cloud_cover", 0.0))
             if collection in ["sentinel-2-l2a", "sentinel-2-c1-l2a", "landsat-c2-l2"]:
-                if max_cloud_cover is not None and cloud_val > max_cloud_cover:
+                if max_cloud_cover is not None and cloud_val is not None and cloud_val > max_cloud_cover:
                     continue
             else:
                 cloud_val = None

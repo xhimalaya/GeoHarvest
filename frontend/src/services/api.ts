@@ -151,22 +151,27 @@ export const api = {
     bbox?: number[]
     max_cloud_cover?: number
     limit?: number
+    monthly?: boolean
   }): Promise<SearchResponse> {
     const res = await fetch(`${BASE_URL}/search`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
     })
-    return res.json()
+    const body = await res.json()
+    if (!res.ok) throw new Error(typeof body.detail === 'string' ? body.detail : 'Catalogue search failed.')
+    return body
   },
 
-  async estimateStorage(selected_scenes: SearchResultItem[], selected_bands: string[]): Promise<StorageEstimateResponse> {
+  async estimateStorage(selected_scenes: SearchResultItem[], selected_bands: string[], destination_dir?: string): Promise<StorageEstimateResponse> {
     const res = await fetch(`${BASE_URL}/storage/estimate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ selected_scenes, selected_bands }),
+      body: JSON.stringify({ selected_scenes, selected_bands, destination_dir }),
     })
-    return res.json()
+    const body = await res.json()
+    if (!res.ok) throw new Error(typeof body.detail === 'string' ? body.detail : 'Storage estimate failed.')
+    return body
   },
 
   async createJob(params: {
@@ -182,7 +187,9 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
     })
-    return res.json()
+    const body = await res.json()
+    if (!res.ok) throw new Error(typeof body.detail === 'string' ? body.detail : 'Could not create harvest job.')
+    return body
   },
 
   async listJobs(): Promise<JobDetail[]> {

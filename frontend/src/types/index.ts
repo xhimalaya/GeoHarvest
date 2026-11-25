@@ -34,6 +34,15 @@ export interface SearchResultItem {
 export interface SearchResponse {
   total_found: number
   items: SearchResultItem[]
+  recommended_ids: string[]
+  months: SearchMonth[]
+}
+
+export interface SearchMonth {
+  month: string
+  candidate_count: number
+  coverage_percent: number | null
+  truncated: boolean
 }
 
 export interface StorageEstimateResponse {
@@ -47,6 +56,7 @@ export interface StorageEstimateResponse {
   required_bytes: number
   available_bytes: number
   has_sufficient_space: boolean
+  formatted_raw: string
   formatted_required: string
   formatted_available: string
 }
